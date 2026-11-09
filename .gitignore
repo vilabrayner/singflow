@@ -1,0 +1,23 @@
+# Local environment and tools
+.DS_Store
+.idea/
+*.iml
+.env
+.env.*
+!.env.example
+.tools/
+# Build output
+backend/target/
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+*.log
+
+# Generated public runtime license configuration
+frontend/public/config.js
+
+# Local runtime configuration (example is versioned)
+frontend/public/config.json
