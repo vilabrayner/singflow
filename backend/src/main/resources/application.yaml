@@ -5,15 +5,16 @@ spring:
     compose:
       enabled: false
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/singflow}
+    username: ${DB_USERNAME:singflow}
+    password: ${DB_PASSWORD:singflow}
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
   flyway:
     enabled: true
+    default-schema: public
 management:
   endpoints:
     web:

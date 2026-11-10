@@ -1,0 +1,12 @@
+node_modules
+.angular
+dist
+coverage
+playwright-report
+test-results
+public/config.json
+public/config.js
+.env
+.env.*
+*.log
+.DS_Store

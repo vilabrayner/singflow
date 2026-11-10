@@ -1,5 +1,7 @@
 # Fundação técnica — etapa 1
 
+Este documento registra a fundação original. A evolução de login, entidades e inscrição assistida está descrita em [Teste local do primeiro incremento](local-mvp-testing.md).
+
 ## Backend
 
 Java 21, Spring Boot 4.1.2 e Spring Modulith 2.1.2. Versões transitivas de JPA/Hibernate, Security, Flyway e Testcontainers gerenciadas pelos BOMs Spring Boot/Modulith. OpenAPI mantém springdoc 3.2.0 existente. Maven Wrapper 3.9.11 configurado.

@@ -1,0 +1,337 @@
+<section class="host-dashboard page-width">
+  <p class="eyebrow">Experiência do anfitrião</p>
+  <div class="host-title">
+    <div>
+      <h1>Uma noite boa tem um bom ritmo.</h1>
+      <p>Organize a sessão e acolha cada voz, com ou sem celular.</p>
+    </div>
+    @if (email()) {
+      <p-button
+        label="Sair da conta"
+        icon="pi pi-sign-out"
+        [outlined]="true"
+        [disabled]="busy()"
+        (onClick)="logout()"
+        ariaLabel="Sair da conta"
+      />
+    }
+  </div>
+  @if (error()) {
+    <p role="alert" class="host-error">{{ error() }}</p>
+  }
+  @if (notice()) {
+    <p role="status" class="host-notice">{{ notice() }}</p>
+  }
+  @if (!ready()) {
+    <p role="status">Carregando seu acesso…</p>
+  } @else if (!email()) {
+    <div class="host-panel login-panel">
+      <h2>Entrar como anfitrião</h2>
+      <p>Use o acesso provisionado para o evento.</p>
+      <form [formGroup]="loginForm" (ngSubmit)="login()" class="host-form">
+        <label
+          >E-mail<input
+            pInputText
+            type="email"
+            formControlName="email"
+            autocomplete="username"
+            maxlength="254"
+            required
+        /></label>
+        <label
+          >Senha<input
+            pInputText
+            type="password"
+            formControlName="password"
+            autocomplete="current-password"
+            required
+        /></label>
+        <p-button
+          type="submit"
+          label="Entrar"
+          [loading]="busy()"
+          [disabled]="loginForm.invalid || busy()"
+          ariaLabel="Entrar"
+        />
+      </form>
+    </div>
+  } @else {
+    <p class="host-account">Conectado como {{ email() }}</p>
+    <div class="host-columns">
+      <aside class="host-panel">
+        <h2>Suas sessões</h2>
+        <form [formGroup]="sessionForm" (ngSubmit)="create()" class="host-form">
+          <label
+            >Nome da sessão<input
+              pInputText
+              formControlName="name"
+              maxlength="120"
+              placeholder="Karaokê no Café Tão"
+              required
+          /></label>
+          <p-button
+            type="submit"
+            label="Criar sessão"
+            icon="pi pi-plus"
+            [disabled]="sessionForm.invalid || busy()"
+            ariaLabel="Criar sessão"
+          />
+        </form>
+        <div class="session-list">
+          @for (session of sessions(); track session.id) {
+            <button
+              type="button"
+              [class.selected]="selected()?.id === session.id"
+              [disabled]="busy()"
+              (click)="select(session)"
+            >
+              <strong>{{ session.name }}</strong
+              ><span>{{
+                session.status === 'DRAFT'
+                  ? 'Rascunho'
+                  : session.status === 'OPEN'
+                    ? 'Aberta'
+                    : 'Encerrada'
+              }}</span>
+            </button>
+          } @empty {
+            <p>Nenhuma sessão criada.</p>
+          }
+        </div>
+      </aside>
+      <div>
+        @if (selected(); as session) {
+          <section class="host-panel">
+            <div class="host-section-title">
+              <div>
+                <h2>{{ session.name }}</h2>
+                <p>
+                  {{
+                    session.status === 'DRAFT'
+                      ? 'Rascunho'
+                      : session.status === 'OPEN'
+                        ? 'Aberta para inscrições'
+                        : 'Encerrada'
+                  }}
+                  · {{ session.createdAt | date: 'dd/MM/yyyy HH:mm' }}
+                </p>
+              </div>
+              <p-button
+                label="Atualizar"
+                icon="pi pi-refresh"
+                [outlined]="true"
+                [disabled]="busy()"
+                (onClick)="refresh()"
+                ariaLabel="Atualizar"
+              />
+            </div>
+            <div class="host-actions">
+              @if (session.status === 'DRAFT') {
+                <p-button
+                  label="Abrir sessão"
+                  icon="pi pi-play"
+                  [disabled]="busy()"
+                  (onClick)="transition('open')"
+                  ariaLabel="Abrir sessão"
+                />
+              }
+              @if (session.status !== 'CLOSED') {
+                <p-button
+                  label="Encerrar sessão"
+                  severity="secondary"
+                  [outlined]="true"
+                  [disabled]="busy()"
+                  (onClick)="confirmingClose.set(true)"
+                  ariaLabel="Encerrar sessão"
+                />
+              }
+            </div>
+            @if (confirmingClose()) {
+              <div class="host-confirm">
+                <p>
+                  Encerrar bloqueia novas inscrições e músicas. A sessão não poderá ser reaberta
+                  nesta versão.
+                </p>
+                <p-button
+                  label="Confirmar encerramento"
+                  severity="danger"
+                  [disabled]="busy()"
+                  (onClick)="transition('close')"
+                  ariaLabel="Confirmar encerramento"
+                /><p-button
+                  label="Cancelar"
+                  [text]="true"
+                  [disabled]="busy()"
+                  (onClick)="confirmingClose.set(false)"
+                  ariaLabel="Cancelar"
+                />
+              </div>
+            }
+          </section>
+          @if (session.status === 'OPEN') {
+            <section class="host-panel">
+              <h2>Inscrever participante</h2>
+              <p>
+                Procure na lista antes de cadastrar. Para quem já participa, use “Adicionar música”.
+              </p>
+              <form
+                [formGroup]="registrationForm"
+                (ngSubmit)="register()"
+                class="host-form form-grid"
+              >
+                <label
+                  >Nome do participante<input
+                    pInputText
+                    formControlName="name"
+                    maxlength="120"
+                    required
+                /></label>
+                <label
+                  >Mesa (opcional)<input pInputText formControlName="tableLabel" maxlength="40"
+                /></label>
+                <label
+                  >Primeira música<input
+                    pInputText
+                    formControlName="title"
+                    maxlength="160"
+                    required
+                /></label>
+                <label
+                  >Artista (opcional)<input pInputText formControlName="artist" maxlength="160"
+                /></label>
+                <p class="form-hint">
+                  Avise: enquanto estiver participando, a pessoa poderá receber novas oportunidades
+                  mesmo sem pedido. Você coleta as próximas músicas.
+                </p>
+                <p-button
+                  type="submit"
+                  label="Inscrever com música"
+                  icon="pi pi-user-plus"
+                  [disabled]="registrationForm.invalid || busy()"
+                  ariaLabel="Inscrever com música"
+                />
+              </form>
+            </section>
+          }
+          <section class="host-panel">
+            <h2>Participantes por ordem de chegada</h2>
+            <p>A fila sugerida e as convocações serão entregues no próximo incremento.</p>
+            <label class="host-search"
+              >Buscar por nome ou mesa<input
+                pInputText
+                type="search"
+                [value]="search()"
+                (input)="search.set($any($event.target).value)"
+            /></label>
+            <div class="participant-list">
+              @for (participant of visibleParticipants(); track participant.id) {
+                <article class="participant-item">
+                  <div class="host-section-title">
+                    <div>
+                      <h3>{{ participant.name }}</h3>
+                      <p>
+                        {{ participant.tableLabel ? 'Mesa ' + participant.tableLabel + ' · ' : ''
+                        }}{{ participant.status === 'ACTIVE' ? 'Participando' : 'Saiu' }} ·
+                        Inscrição assistida
+                      </p>
+                      <small
+                        >Check-in: {{ participant.checkedInAt | date: 'HH:mm:ss' }} · Apresentações:
+                        {{ participant.completedPerformances }}</small
+                      >
+                    </div>
+                    @if (participant.status === 'ACTIVE') {
+                      <div class="host-actions">
+                        @if (session.status === 'OPEN') {
+                          <p-button
+                            label="Adicionar música"
+                            size="small"
+                            [disabled]="busy()"
+                            (onClick)="startSong(participant)"
+                            ariaLabel="Adicionar música"
+                          />
+                        }
+                        <p-button
+                          label="Registrar saída"
+                          size="small"
+                          severity="secondary"
+                          [text]="true"
+                          [disabled]="busy()"
+                          (onClick)="leaving.set(participant)"
+                          ariaLabel="Registrar saída"
+                        />
+                      </div>
+                    }
+                  </div>
+                  <ul class="song-list">
+                    @for (song of songsFor(participant.id); track song.id) {
+                      <li>
+                        <i class="pi pi-music" aria-hidden="true"></i> {{ song.title
+                        }}{{ song.artist ? ' — ' + song.artist : '' }}
+                        <span>{{ song.status === 'CANCELLED' ? 'Cancelada' : 'Pendente' }}</span>
+                      </li>
+                    }
+                  </ul>
+                  @if (addingFor()?.id === participant.id) {
+                    <form [formGroup]="songForm" (ngSubmit)="addSong()" class="host-form form-grid">
+                      <label
+                        >Nova música<input
+                          pInputText
+                          formControlName="title"
+                          maxlength="160"
+                          required /></label
+                      ><label
+                        >Artista (opcional)<input
+                          pInputText
+                          formControlName="artist"
+                          maxlength="160" /></label
+                      ><p-button
+                        type="submit"
+                        label="Salvar música"
+                        [disabled]="songForm.invalid || busy()"
+                        ariaLabel="Salvar música"
+                      /><p-button
+                        label="Cancelar"
+                        [text]="true"
+                        [disabled]="busy()"
+                        (onClick)="addingFor.set(null)"
+                        ariaLabel="Cancelar"
+                      />
+                    </form>
+                  }
+                  @if (leaving()?.id === participant.id) {
+                    <div class="host-confirm">
+                      <p>
+                        Confirmar saída de {{ participant.name }}? Os pedidos pendentes serão
+                        cancelados e o histórico será mantido.
+                      </p>
+                      <p-button
+                        label="Confirmar saída"
+                        severity="danger"
+                        [disabled]="busy()"
+                        (onClick)="leave()"
+                        ariaLabel="Confirmar saída"
+                      /><p-button
+                        label="Cancelar"
+                        [text]="true"
+                        [disabled]="busy()"
+                        (onClick)="leaving.set(null)"
+                        ariaLabel="Cancelar"
+                      />
+                    </div>
+                  }
+                </article>
+              } @empty {
+                <p>Nenhum participante encontrado.</p>
+              }
+            </div>
+          </section>
+        } @else {
+          <section class="host-panel">
+            <h2>Vamos começar?</h2>
+            <p>Crie uma sessão ou selecione uma das suas sessões.</p>
+          </section>
+        }
+      </div>
+    </div>
+  }
+</section>

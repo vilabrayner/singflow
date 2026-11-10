@@ -6,7 +6,9 @@ Plataforma de gestão de karaokê ao vivo para participantes, anfitriões e mús
 
 ## Estado do projeto
 
-Fundação backend implementada: Spring Modulith, Flyway, Security e testes com PostgreSQL real. Frontend Angular 22 com PrimeNG 22 Community, layouts dos três perfis e testes de navegação implementados. Os fluxos de negócio ainda não estão implementados.
+Fundação e primeiro incremento assistido implementados: acesso do anfitrião, sessões, inscrição com primeira música, novos pedidos no mesmo cadastro, busca e saída com auditoria. A fila sugerida e as convocações ficam para o próximo incremento. A validação funcional com PostgreSQL desta entrega ainda aguarda execução pelo responsável.
+
+Consulte [Teste local do primeiro incremento](docs/local-mvp-testing.md) para acesso inicial, serviços independentes, imagens Docker e roteiro de aceite.
 
 ## Stack
 
@@ -48,7 +50,9 @@ cp .env.example .env
 docker compose --env-file .env -f backend/compose.yaml up -d --wait
 ```
 
-Em um terminal a partir da raiz, exporte as variáveis e execute:
+Pela IDE, execute o `main` de `backend/src/test/java/br/tec/flowave/singflow/SingflowApplicationLocal.java`. Ele ativa o perfil `local`, com conexão padrão ao PostgreSQL de desenvolvimento na porta 55432. Preencha as credenciais do anfitrião e ajustes de conexão no `.env` da raiz ou nas variáveis da execução, que têm precedência. O banco precisa estar ativo, e o frontend sobe separadamente. Veja o [roteiro local](docs/local-mvp-testing.md).
+
+Como alternativa, em um terminal a partir da raiz, exporte as variáveis e execute:
 
 ```sh
 set -a
@@ -60,7 +64,7 @@ cd backend
 
 Health: `http://localhost:8080/actuator/health`. OpenAPI: `http://localhost:8080/v3/api-docs`. Swagger: `http://localhost:8080/swagger-ui/index.html` (documentação liberada somente no perfil local).
 
-Configuração de conexão é obrigatória; não há credenciais de produção embutidas. Perfil `prod` exige cookies seguros e implantação HTTPS. Demais rotas permanecem negadas, sem login provisório. O `.env` é lido pelo Compose e exportado pelo shell acima; o Spring não o lê automaticamente. Se mudar porta ou nome do banco, ajuste também `DB_URL`.
+O perfil de produção exige conexão por variáveis. Os defaults locais de conexão atualmente presentes no YAML foram preservados; prefira exportar seu `.env`. Perfil `prod` exige cookies seguros e implantação HTTPS. Rotas operacionais exigem anfitrião autenticado; configure `SINGFLOW_HOST_EMAIL` e `SINGFLOW_HOST_PASSWORD` para provisionar o acesso inicial, sem login provisório. O `.env` é lido pelo Compose, pelo inicializador de testes `SingflowApplicationLocal` ou exportado pelo shell acima. A aplicação principal não o lê automaticamente. Se mudar porta ou nome do banco, ajuste também `DB_URL`.
 
 Verificação completa, incluindo PostgreSQL temporário e isolado via Testcontainers:
 
@@ -69,7 +73,7 @@ cd backend
 ./mvnw -B verify
 ```
 
-O teste completo passou localmente com Docker. Para verificar somente os limites de módulos, sem iniciar banco: `./mvnw -B test -Dtest=ArchitectureTests`.
+O teste completo da fundação passou anteriormente com Docker; o teste ampliado deste incremento está pendente de execução pelo responsável. Para verificar somente os limites de módulos, sem iniciar banco: `./mvnw -B test -Dtest=ArchitectureTests`.
 
 Para parar o banco de desenvolvimento preservando seus dados, execute da raiz:
 
@@ -105,7 +109,7 @@ npx playwright install chromium
 npm test
 ```
 
-A saída estática fica em `frontend/dist/singflow-web/browser`. Uma hospedagem futura deve fornecer `config.json` por ambiente antes de liberar tráfego, aplicar fallback das rotas para `index.html` e encaminhar API/WebSocket. A configuração é carregada antes do Angular, sem exigir recompilação. Consulte [Configuração por ambiente](docs/runtime-configuration.md). O proxy Angular só existe no desenvolvimento. Não há PWA nem login funcional nesta etapa.
+A saída estática fica em `frontend/dist/singflow-web/browser`. Uma hospedagem futura deve fornecer `config.json` por ambiente antes de liberar tráfego, aplicar fallback das rotas para `index.html` e encaminhar API/WebSocket. A configuração é carregada antes do Angular, sem exigir recompilação. Consulte [Configuração por ambiente](docs/runtime-configuration.md). O proxy Angular só existe no desenvolvimento. Login do anfitrião está disponível. PWA, fila sugerida e convocações continuam fora deste incremento.
 
 Os workflows em `.github/workflows/` verificam backend e frontend no GitHub Actions. Configure `PRIMEUI_LICENSE_KEY` nos secrets para os builds autorizados; a ausência não é tratada como chave válida. Os workflows ainda não foram executados no GitHub.
 
@@ -113,9 +117,13 @@ Os workflows em `.github/workflows/` verificam backend e frontend no GitHub Acti
 
 - [Arquitetura](docs/architecture.md)
 - [Fundação técnica](docs/foundation.md)
+- [Teste local — serviços independentes e Docker](docs/local-mvp-testing.md)
+- [Preparar PostgreSQL instalado na máquina](docs/postgres-local.md)
 - [Roadmap e critérios de aceite](docs/roadmap.md)
+- [MVP — piloto no Café Tão](docs/mvp-cafe-tao.md)
 - [ADR 001 — Monólito modular](docs/decisions/001-modular-monolith.md)
 - [ADR 002 — Frontend Angular SPA](docs/decisions/002-angular-spa.md)
 - [ADR 003 — Interface e identidade visual](docs/decisions/003-ui-and-brand.md)
+- [ADR 004 — Participação, ausências e sugestões de repetição](docs/decisions/004-participation-and-repeat-suggestions.md)
 
 A implementação será feita em etapas, com autorização do responsável antes de cada nova etapa. Esta entrega não altera código, dependências ou infraestrutura, nem cria commits.

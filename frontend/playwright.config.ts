@@ -10,10 +10,12 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
   ],
-  webServer: {
-    command: 'npm start',
-    url: 'http://127.0.0.1:4200',
-    reuseExistingServer: !process.env['CI'],
-    timeout: 120000,
-  },
+  webServer: process.env['CI']
+    ? {
+        command: 'npm start',
+        url: 'http://127.0.0.1:4200',
+        reuseExistingServer: !process.env['CI'],
+        timeout: 120000,
+      }
+    : undefined,
 });

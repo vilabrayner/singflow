@@ -83,26 +83,29 @@ Usaremos componentes standalone, TypeScript estrito, Reactive Forms tipados, Sig
 ## Experiências
 
 - Participante: check-in por link/QR Code, consulta ao catálogo, solicitações e acompanhamento de convocações.
-- Anfitrião: gestão da sessão, aprovações, fila sugerida, confirmação de convocações e registro de apresentações.
+- Anfitrião: gestão da sessão, inscrição assistida com nome, primeira música e mesa opcional, coleta de novos pedidos, aprovações, fila sugerida, confirmação de convocações e registro de apresentações.
 - Músico: repertório, convocações confirmadas e acompanhamento do palco.
+
+A entrada assistida é um fluxo principal e permite operar o evento sem celular dos participantes. Usa a mesma fila e política de prioridade da entrada autônoma. Pedidos seguintes reutilizam o cadastro existente; o ator autenticado continua sendo o anfitrião. Detalhes na [ADR 004](decisions/004-participation-and-repeat-suggestions.md).
 
 ## Regras estabelecidas
 
-- Menor número de apresentações concluídas na sessão tem prioridade; em empate, prevalece a ordem de check-in.
-- Múltiplas solicitações devem ser balanceadas por participante.
+- Menor número de apresentações concluídas na sessão tem prioridade. Em empate, pedido elegível tem preferência sobre repetição sem pedido; persistindo empate, vale o check-in.
+- O motor também sugere pessoas sem pedido, com “música a escolher”, sem criar pedido fictício. O anfitrião aprova antes da convocação.
+- Múltiplas solicitações são balanceadas por pessoa; não geram múltiplas chamadas na mesma rodada.
 - Catálogo híbrido admite sugestões sujeitas a aprovação.
-- Fila sugerida e convocações confirmadas são conceitos separados.
+- Fila sugerida e convocações confirmadas são conceitos separados. Recálculo não altera silenciosamente uma convocação.
+- Só apresentação concluída aumenta a contagem, uma única vez.
+- Saída voluntária encerra a participação e limpa o vínculo no navegador, preservando histórico; pedidos pendentes são cancelados quando esse recurso existir.
+- Recusa pausa sugestões sem falta. Primeira falta confirmada pelo anfitrião suspende temporariamente; após uma rodada pode haver nova oportunidade. Segunda falta consecutiva inativa automaticamente por ausência e suspende pedidos pendentes. Conclusão zera faltas.
+- Retorno após inativação exige confirmação do anfitrião, nova posição de chegada e preservação de apresentações concluídas.
 - Operações relevantes precisam de auditoria e proteção contra concorrência.
 
-## Propostas operacionais a validar antes do código de negócio
+A definição completa, exemplos e limites estão na [ADR 004 — Participação e sugestões de repetição](decisions/004-participation-and-repeat-suggestions.md).
 
-- Projetar múltiplos pedidos em rodadas, considerando apresentações concluídas e posições já atribuídas na projeção.
-- Somente solicitações elegíveis de músicas aprovadas participam da fila.
-- Uma convocação confirmada permanece estável quando a sugestão é recalculada.
-- Conclusão incrementa o contador uma única vez; ausência e cancelamento têm estados próprios.
-- Intervenções manuais exigem motivo auditável.
+## Pontos a validar antes do código de negócio
 
-Ainda precisamos definir: limite de pedidos ativos, ordem dos pedidos da mesma pessoa, efeito de ausência/cancelamento, desistência e novo check-in, possibilidade de múltiplas convocações, responsáveis pela aprovação e eventual participação em grupo. O primeiro incremento não deve decidir esses pontos silenciosamente.
+Limite e ordem de pedidos por pessoa; reservas na projeção e quantidade de convocações simultâneas; detalhes de rodada e da proteção contra repetição imediata; retomada após pausa; sequência de faltas e pedidos na reativação; reconhecimento após saída voluntária; responsáveis pela aprovação de catálogo e eventual participação em grupo. Nenhum incremento deve decidir esses pontos silenciosamente.
 
 ## Dados, auditoria e concorrência
 
@@ -116,7 +119,7 @@ Auditoria deve registrar ator, sessão, ação, alvo, instante, motivo quando ap
 
 Spring Security no backend; permissões verificadas por operação e por sessão. Guards do Angular apenas orientam a navegação.
 
-Proposta inicial: sessões em cookies HttpOnly, Secure em produção, proteção CSRF e publicação no mesmo domínio. Anfitriões e músicos autenticados; participante recebe identidade limitada à sessão após check-in. Nome de exibição não serve como credencial. Cadastro, recuperação de acesso e política de identidade do participante ainda precisam de definição.
+Proposta inicial: sessões em cookies HttpOnly, Secure em produção, proteção CSRF e publicação no mesmo domínio. Anfitriões e músicos autenticados; participante recebe identidade limitada à sessão após check-in. Nome de exibição não serve como credencial. O primeiro incremento implementa acesso do anfitrião provisionado por configuração, com senha BCrypt e sem cadastro público. Login/logout usam cookie de sessão e token CSRF obtido via API. Recuperação de acesso e identidade do participante autônomo ainda precisam de definição.
 
 ## REST e tempo real
 
