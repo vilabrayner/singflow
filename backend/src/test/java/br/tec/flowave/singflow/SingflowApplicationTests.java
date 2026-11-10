@@ -34,7 +34,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(6);
+    assertThat(flyway.info().applied()).hasSize(7);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -246,7 +246,14 @@ class SingflowApplicationTests {
   private br.tec.flowave.singflow.stage.StageService.CallView callNext(UUID session, String owner) {
     var next = stage.snapshot(session, owner).suggestions().getFirst();
     return stage
-        .confirm(session, owner, UUID.randomUUID(), next.participantId(), next.requestId())
+        .confirm(
+            session,
+            owner,
+            UUID.randomUUID(),
+            next.participantId(),
+            next.requestId(),
+            next.requestId() == null ? "Escolha no palco" : null,
+            null)
         .active();
   }
 
@@ -260,7 +267,7 @@ class SingflowApplicationTests {
         c = enroll(session, owner, "Carla");
     var first = callNext(session, owner);
     assertThat(first.participantId()).isEqualTo(a);
-    assertThatThrownBy(() -> stage.confirm(session, owner, UUID.randomUUID(), b, b))
+    assertThatThrownBy(() -> stage.confirm(session, owner, UUID.randomUUID(), b, b, null, null))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     mvc.perform(
             post("/api/sessions/" + session + "/close")
@@ -271,20 +278,50 @@ class SingflowApplicationTests {
       var current = stage.snapshot(session, owner).active();
       if (current == null) current = callNext(session, owner);
       assertThat(current.participantId()).isEqualTo(expected);
-      stage.resolve(session, owner, current.id(), "COMPLETED", null, null);
-      stage.resolve(session, owner, current.id(), "COMPLETED", null, null);
+      stage.resolve(session, owner, current.id(), "COMPLETED");
+      stage.resolve(session, owner, current.id(), "COMPLETED");
     }
     assertThat(participation.list(session, owner))
         .allSatisfy(p -> assertThat(p.completedPerformances()).isEqualTo(1));
-    var repeat = callNext(session, owner);
+    UUID operation = UUID.randomUUID();
+    assertThatThrownBy(() -> stage.confirm(session, owner, operation, a, null, "  ", null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThat(stage.snapshot(session, owner).active()).isNull();
+    var repeat =
+        stage.confirm(session, owner, operation, a, null, "Escolha no palco", "Artista").active();
     assertThat(repeat.participantId()).isEqualTo(a);
     assertThat(repeat.requestId()).isNull();
-    assertThatThrownBy(() -> stage.resolve(session, owner, repeat.id(), "COMPLETED", null, null))
+    assertThat(repeat.title()).isEqualTo("Escolha no palco");
+    assertThat(repeat.artist()).isEqualTo("Artista");
+    assertThatThrownBy(
+            () -> stage.confirm(session, owner, operation, a, null, "Outra música", null))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
-    stage.resolve(session, owner, repeat.id(), "COMPLETED", "Escolha no palco", "Artista");
-    stage.resolve(session, owner, repeat.id(), "COMPLETED", "Escolha no palco", "Artista");
+    stage.resolve(session, owner, repeat.id(), "COMPLETED");
+    stage.resolve(session, owner, repeat.id(), "COMPLETED");
+    assertThat(stage.snapshot(session, owner).history().getFirst().title())
+        .isEqualTo("Escolha no palco");
     assertThat(assistedRequests.list(session, owner)).hasSize(3);
     assertThat(stage.snapshot(session, owner).history()).hasSize(4);
+  }
+
+  @Test
+  void existingCallWithoutSongCanBeCompletedAfterDefiningItsSong() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID participant = enroll(session, owner, "Ana");
+    UUID call = UUID.randomUUID();
+    jdbc.sql(
+            "INSERT INTO singflow.stage_calls(id,session_id,participant_id,status,created_at)"
+                + " VALUES (?,?,?,'CALLED',now())")
+        .params(call, session, participant)
+        .update();
+
+    var updated = stage.confirm(session, owner, call, participant, null, "Canção", null).active();
+    assertThat(updated.id()).isEqualTo(call);
+    assertThat(updated.title()).isEqualTo("Canção");
+    stage.resolve(session, owner, call, "COMPLETED");
+    assertThat(stage.snapshot(session, owner).history()).hasSize(1);
   }
 
   @Test
@@ -296,23 +333,23 @@ class SingflowApplicationTests {
         b = enroll(session, owner, "Bruno"),
         c = enroll(session, owner, "Carla");
     var first = callNext(session, owner);
-    stage.resolve(session, owner, first.id(), "ABSENT", null, null);
-    stage.resolve(session, owner, first.id(), "ABSENT", null, null);
+    stage.resolve(session, owner, first.id(), "ABSENT");
+    stage.resolve(session, owner, first.id(), "ABSENT");
     assertThat(stage.snapshot(session, owner).waits().getFirst().remaining()).isEqualTo(2);
     assertThatThrownBy(() -> stage.availability(session, owner, a, "resume"))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
     var second = callNext(session, owner);
     assertThat(second.participantId()).isEqualTo(b);
-    stage.resolve(session, owner, second.id(), "DECLINED", null, null);
+    stage.resolve(session, owner, second.id(), "DECLINED");
     UUID newcomer = enroll(session, owner, "Daniel");
     assertThat(stage.snapshot(session, owner).waits().getFirst().remaining()).isEqualTo(1);
     var third = callNext(session, owner);
     assertThat(third.participantId()).isEqualTo(c);
-    stage.resolve(session, owner, third.id(), "COMPLETED", null, null);
+    stage.resolve(session, owner, third.id(), "COMPLETED");
     assertThat(stage.snapshot(session, owner).waits()).isEmpty();
     var again = callNext(session, owner);
     assertThat(again.participantId()).isEqualTo(a);
-    stage.resolve(session, owner, again.id(), "ABSENT", null, null);
+    stage.resolve(session, owner, again.id(), "ABSENT");
     var absent =
         participation.list(session, owner).stream()
             .filter(p -> p.id().equals(a))
@@ -344,16 +381,16 @@ class SingflowApplicationTests {
     createOpen(session, owner);
     UUID person = enroll(session, owner, "Só uma pessoa");
     var call = callNext(session, owner);
-    stage.resolve(session, owner, call.id(), "CANCELLED", null, null);
+    stage.resolve(session, owner, call.id(), "CANCELLED");
     assertThat(participation.list(session, owner).getFirst().consecutiveAbsences()).isZero();
     call = callNext(session, owner);
-    stage.resolve(session, owner, call.id(), "ABSENT", null, null);
+    stage.resolve(session, owner, call.id(), "ABSENT");
     assertThat(stage.snapshot(session, owner).suggestions()).isEmpty();
     assertThat(stage.snapshot(session, owner).waits().getFirst().manualRelease()).isTrue();
     stage.availability(session, owner, person, "resume");
     assertThat(participation.list(session, owner).getFirst().consecutiveAbsences()).isEqualTo(1);
     call = callNext(session, owner);
-    stage.resolve(session, owner, call.id(), "COMPLETED", null, null);
+    stage.resolve(session, owner, call.id(), "COMPLETED");
     assertThat(participation.list(session, owner).getFirst().consecutiveAbsences()).isZero();
     assertThat(participation.list(session, owner).getFirst().completedPerformances()).isEqualTo(1);
   }
@@ -381,14 +418,16 @@ class SingflowApplicationTests {
     createOpen(session, owner);
     UUID person = enroll(session, owner, "Ana"), operation = UUID.randomUUID();
     try (var executor = Executors.newFixedThreadPool(2)) {
-      var a = executor.submit(() -> stage.confirm(session, owner, operation, person, person));
-      var b = executor.submit(() -> stage.confirm(session, owner, operation, person, person));
+      var a =
+          executor.submit(
+              () -> stage.confirm(session, owner, operation, person, person, null, null));
+      var b =
+          executor.submit(
+              () -> stage.confirm(session, owner, operation, person, person, null, null));
       assertThat(a.get(15, TimeUnit.SECONDS).active().id()).isEqualTo(operation);
       assertThat(b.get(15, TimeUnit.SECONDS).active().id()).isEqualTo(operation);
-      var c =
-          executor.submit(() -> stage.resolve(session, owner, operation, "COMPLETED", null, null));
-      var d =
-          executor.submit(() -> stage.resolve(session, owner, operation, "COMPLETED", null, null));
+      var c = executor.submit(() -> stage.resolve(session, owner, operation, "COMPLETED"));
+      var d = executor.submit(() -> stage.resolve(session, owner, operation, "COMPLETED"));
       c.get(15, TimeUnit.SECONDS);
       d.get(15, TimeUnit.SECONDS);
     }
@@ -405,7 +444,7 @@ class SingflowApplicationTests {
         b = enroll(session, owner, "Bruno"),
         c = enroll(session, owner, "Carla");
     var call = callNext(session, owner);
-    stage.resolve(session, owner, call.id(), "ABSENT", null, null);
+    stage.resolve(session, owner, call.id(), "ABSENT");
     stage.availability(session, owner, b, "pause");
     assistedRequests.leave(session, owner, c);
     assertThat(stage.snapshot(session, owner).waits()).isEmpty();
@@ -468,6 +507,44 @@ class SingflowApplicationTests {
                 .content("{\"code\":\"" + code + "\",\"name\":\"Ana\",\"title\":\"Equalize\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.participant.origin").value("SELF"));
+  }
+
+  @Test
+  void guestRespondsOnlyToOwnCallAndResumesTheirOwnPause() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    var other = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, other);
+    var initial = audience.me(session, cookie.getValue()).participant();
+    var first = callNext(session, owner);
+    String calls = "/api/participation/" + session + "/calls/";
+    mvc.perform(post(calls + first.id() + "/skip").cookie(other).with(csrf()))
+        .andExpect(status().isNotFound());
+    mvc.perform(post(calls + first.id() + "/skip").cookie(cookie).with(csrf()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.participant.status").value("PAUSED"))
+        .andExpect(jsonPath("$.participant.selfPaused").value(true))
+        .andExpect(jsonPath("$.participant.consecutiveAbsences").value(0))
+        .andExpect(jsonPath("$.requests[0].status").value("PENDING"));
+    var resumed = audience.resume(session, cookie.getValue()).participant();
+    assertThat(resumed.checkInOrder()).isEqualTo(initial.checkInOrder());
+    assertThat(resumed.status()).isEqualTo("ACTIVE");
+    var second = callNext(session, owner);
+    mvc.perform(post(calls + second.id() + "/accept").cookie(cookie).with(csrf()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.active.acceptedAt").exists())
+        .andExpect(jsonPath("$.participant.completedPerformances").value(0));
+    assertThat(stage.snapshot(session, owner).active().acceptedAt()).isNotNull();
+    mvc.perform(post(calls + second.id() + "/skip").cookie(cookie).with(csrf()))
+        .andExpect(status().isConflict());
+    stage.resolve(session, owner, second.id(), "COMPLETED");
+    stage.availability(session, owner, initial.id(), "pause");
+    mvc.perform(post("/api/participation/" + session + "/resume").cookie(cookie).with(csrf()))
+        .andExpect(status().isConflict());
   }
 
   @Test
@@ -542,7 +619,13 @@ class SingflowApplicationTests {
     joinGuest(session, code, cookie);
     var own = audience.me(session, cookie.getValue());
     stage.confirm(
-        session, owner, UUID.randomUUID(), own.participant().id(), own.requests().getFirst().id());
+        session,
+        owner,
+        UUID.randomUUID(),
+        own.participant().id(),
+        own.requests().getFirst().id(),
+        null,
+        null);
     mvc.perform(
             post("/api/participation/"
                     + session
@@ -666,9 +749,11 @@ class SingflowApplicationTests {
                 owner,
                 UUID.randomUUID(),
                 initial.participant().id(),
-                initial.requests().getFirst().id())
+                initial.requests().getFirst().id(),
+                null,
+                null)
             .active();
-    stage.resolve(session, owner, call.id(), "COMPLETED", null, null);
+    stage.resolve(session, owner, call.id(), "COMPLETED");
     var pending = UUID.randomUUID();
     audience.add(session, cookie.getValue(), pending, "Segunda", null);
     audience.leave(session, cookie.getValue());

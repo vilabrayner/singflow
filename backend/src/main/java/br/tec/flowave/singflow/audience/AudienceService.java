@@ -285,6 +285,22 @@ public class AudienceService {
   }
 
   @Transactional
+  public OwnView respond(UUID session, String raw, UUID call, boolean accept) {
+    String owner = owner(session, true);
+    var g = grant(session, raw, true);
+    stage.respond(session, owner, g.participantId(), call, accept);
+    return me(session, raw);
+  }
+
+  @Transactional
+  public OwnView resume(UUID session, String raw) {
+    String owner = owner(session, true);
+    var g = grant(session, raw, true);
+    stage.resumeSelf(session, owner, g.participantId());
+    return me(session, raw);
+  }
+
+  @Transactional
   public OwnView leave(UUID session, String raw) {
     String owner = owner(session, true);
     var g = grant(session, raw, true);

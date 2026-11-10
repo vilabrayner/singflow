@@ -18,7 +18,8 @@ public class StageStore {
       String status,
       Instant createdAt,
       Instant resolvedAt,
-      Long resolutionOrder) {}
+      Long resolutionOrder,
+      Instant acceptedAt) {}
 
   public record Wait(UUID participantId, boolean manualRelease) {}
 
@@ -32,6 +33,7 @@ public class StageStore {
 
   private Call map(ResultSet rs, int row) throws SQLException {
     var resolved = rs.getTimestamp("resolved_at");
+    var accepted = rs.getTimestamp("accepted_at");
     return new Call(
         rs.getObject("id", UUID.class),
         rs.getObject("session_id", UUID.class),
@@ -42,7 +44,8 @@ public class StageStore {
         rs.getString("status"),
         rs.getTimestamp("created_at").toInstant(),
         resolved == null ? null : resolved.toInstant(),
-        rs.getObject("resolution_order", Long.class));
+        rs.getObject("resolution_order", Long.class),
+        accepted == null ? null : accepted.toInstant());
   }
 
   public List<Call> calls(UUID session) {
@@ -68,6 +71,29 @@ public class StageStore {
         .param("artist", artist)
         .param("created", Timestamp.from(Instant.now()))
         .update();
+  }
+
+  public void accept(UUID session, UUID call) {
+    int updated =
+        jdbc.sql(
+                "UPDATE singflow.stage_calls SET accepted_at=now()"
+                    + " WHERE session_id=? AND id=? AND status='CALLED' AND accepted_at IS NULL")
+            .params(session, call)
+            .update();
+    if (updated != 1) throw new IllegalStateException("Call was not pending under session lock");
+  }
+
+  public void setSong(UUID session, UUID call, String title, String artist) {
+    int updated =
+        jdbc.sql(
+                "UPDATE singflow.stage_calls SET title=:title,artist=:artist WHERE"
+                    + " session_id=:session AND id=:call AND status='CALLED' AND title IS NULL")
+            .param("title", title)
+            .param("artist", artist)
+            .param("session", session)
+            .param("call", call)
+            .update();
+    if (updated != 1) throw new IllegalStateException("Call song was not set under session lock");
   }
 
   public void resolve(UUID session, UUID call, String status, String title, String artist) {

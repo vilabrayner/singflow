@@ -42,6 +42,9 @@ public class Participant {
   @Column(nullable = false)
   public int consecutiveAbsences;
 
+  @Column(nullable = false)
+  public boolean selfPaused;
+
   @Version public long version;
 
   protected Participant() {}

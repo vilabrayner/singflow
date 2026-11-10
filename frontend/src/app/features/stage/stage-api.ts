@@ -20,6 +20,7 @@ export interface StageCall {
   status: string;
   createdAt: string;
   resolvedAt: string | null;
+  acceptedAt: string | null;
 }
 export interface StageWait {
   participantId: string;
@@ -39,18 +40,22 @@ export class StageApi {
   snapshot(session: string) {
     return this.api.get<StageView>(`/sessions/${session}/stage`);
   }
-  confirm(session: string, operationId: string, suggestion: Suggestion) {
+  confirm(
+    session: string,
+    operationId: string,
+    suggestion: Pick<Suggestion, 'participantId' | 'requestId'>,
+    song?: { title: string; artist: string },
+  ) {
     return this.api.post<StageView>(`/sessions/${session}/stage/calls`, {
       operationId,
       participantId: suggestion.participantId,
       expectedRequestId: suggestion.requestId,
+      ...song,
     });
   }
-  resolve(session: string, call: string, outcome: string, title: string, artist: string) {
+  resolve(session: string, call: string, outcome: string) {
     return this.api.post<StageView>(`/sessions/${session}/stage/calls/${call}/resolve`, {
       outcome,
-      title,
-      artist,
     });
   }
   availability(session: string, person: string, action: string) {

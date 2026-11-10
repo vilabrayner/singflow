@@ -3,13 +3,15 @@ import { test, expect } from '@playwright/test';
 test('navigates all experiences and supports direct URLs without overflow', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('**/api/**', (route) => route.fulfill({ status: 401 }));
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('Sua voz no palco');
   for (const [label, path, heading] of [
     ['Participante', '/participante', 'Sua próxima música começa aqui.'],
-    ['Anfitrião', '/anfitriao', 'Uma noite boa tem um bom ritmo.'],
+    ['Anfitrião', '/anfitriao', 'Entrar como anfitrião'],
     ['Músico', '/musico', 'Em sintonia com cada voz.'],
   ]) {
+    await page.goto('/');
     await page
       .getByRole('navigation', { name: 'Experiências' })
       .getByRole('link', { name: label, exact: true })

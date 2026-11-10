@@ -167,6 +167,23 @@ class AudienceEndpoints {
     return service.cancel(session, credential(session, request, true), song);
   }
 
+  @PostMapping("/api/participation/{session}/calls/{call}/accept")
+  AudienceService.OwnView accept(
+      @PathVariable UUID session, @PathVariable UUID call, HttpServletRequest request) {
+    return service.respond(session, credential(session, request, true), call, true);
+  }
+
+  @PostMapping("/api/participation/{session}/calls/{call}/skip")
+  AudienceService.OwnView skip(
+      @PathVariable UUID session, @PathVariable UUID call, HttpServletRequest request) {
+    return service.respond(session, credential(session, request, true), call, false);
+  }
+
+  @PostMapping("/api/participation/{session}/resume")
+  AudienceService.OwnView resume(@PathVariable UUID session, HttpServletRequest request) {
+    return service.resume(session, credential(session, request, true));
+  }
+
   @PostMapping("/api/participation/{session}/leave")
   AudienceService.OwnView leave(@PathVariable UUID session, HttpServletRequest request) {
     return service.leave(session, credential(session, request, true));

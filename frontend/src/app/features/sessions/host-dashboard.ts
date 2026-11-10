@@ -1,11 +1,26 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Notifications } from '../../shared/notifications';
+import { MenuItem } from 'primeng/api';
+import { OptionsMenu } from '../../shared/components/options-menu';
+import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  effect,
+  inject,
+  Injector,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { EntryShare } from '../participation/entry-share';
 import { StagePanel } from '../stage/stage-panel';
-import { StageApi } from '../stage/stage-api';
-import { DatePipe } from '@angular/common';
+import { HostParticipants } from '../participants/host-participants';
+import { DOCUMENT } from '@angular/common';
+import { PanelHeader } from '../../shared/components/panel-header';
+import { SurfaceCard } from '../../shared/components/surface-card';
+import { StatusBadge } from '../../shared/components/status-badge';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { HostAuth } from '../identity/host-auth';
 import { SessionApi, KaraokeSession, Participant } from './session-api';
@@ -13,34 +28,80 @@ import { apiError } from '../../core/http/api-client';
 
 @Component({
   selector: 'app-host-dashboard',
-  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, DatePipe, StagePanel, EntryShare],
+  imports: [
+    ConfirmationDialog,
+    OptionsMenu,
+    ReactiveFormsModule,
+    InputTextModule,
+    StagePanel,
+    HostParticipants,
+    EntryShare,
+    PanelHeader,
+    SurfaceCard,
+    StatusBadge,
+  ],
   templateUrl: './host-dashboard.html',
 })
 export class HostDashboard implements OnInit {
+  private readonly document = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly auth = inject(HostAuth);
   private readonly api = inject(SessionApi);
-  private readonly stageApi = inject(StageApi);
+  readonly participantBusy = signal(false);
+  readonly stageBusy = signal(false);
+  readonly locked = computed(() => this.busy() || this.participantBusy() || this.stageBusy());
+  readonly creatingSession = signal(false);
+  readonly showPassword = signal(false);
+  readonly accountOptions = signal(false);
+  readonly accountSessionStatus = signal<KaraokeSession['status']>('OPEN');
+  private previousSession: KaraokeSession | null = null;
   readonly stageRevision = signal(0);
   readonly ready = signal(false);
   readonly email = signal('');
   readonly busy = signal(false);
   readonly error = signal('');
-  readonly notice = signal('');
+  private readonly notifications = inject(Notifications);
   readonly sessions = signal<KaraokeSession[]>([]);
+  readonly accountSessions = computed(() =>
+    this.sessions().filter((session) => session.status === this.accountSessionStatus()),
+  );
+  readonly hasSessionHistory = computed(() =>
+    this.sessions().some((session) => session.status === 'CLOSED'),
+  );
+  readonly hasDrafts = computed(() =>
+    this.sessions().some((session) => session.status === 'DRAFT'),
+  );
+  readonly accountSessionTitle = computed(
+    () =>
+      ({
+        OPEN: 'Sessões abertas',
+        CLOSED: 'Histórico de sessões',
+        DRAFT: 'Rascunhos',
+      })[this.accountSessionStatus()],
+  );
   readonly selected = signal<KaraokeSession | null>(null);
   readonly participants = signal<Participant[]>([]);
   readonly requests = signal<import('./session-api').SongRequest[]>([]);
-  readonly search = signal('');
-  readonly addingFor = signal<Participant | null>(null);
-  readonly leaving = signal<Participant | null>(null);
   readonly confirmingClose = signal(false);
-  readonly visibleParticipants = computed(() => {
-    const query = this.search().trim().toLocaleLowerCase();
-    return this.participants().filter((p) =>
-      `${p.name} ${p.tableLabel ?? ''}`.toLocaleLowerCase().includes(query),
-    );
-  });
+  readonly sessionMenuItems = computed<MenuItem[]>(() => [
+    {
+      label: 'Atualizar',
+      icon: 'pi pi-refresh',
+      disabled: this.locked(),
+      command: () => void this.refresh(),
+    },
+    ...(this.selected()?.status !== 'CLOSED'
+      ? [
+          {
+            label: 'Encerrar sessão',
+            icon: 'pi pi-stop-circle',
+            disabled: this.locked(),
+            command: () => this.askClose(),
+          },
+        ]
+      : []),
+  ]);
   readonly loginForm = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required],
@@ -48,24 +109,41 @@ export class HostDashboard implements OnInit {
   readonly sessionForm = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
   });
-  readonly registrationForm = this.fb.group({
-    name: ['', [Validators.required, Validators.maxLength(120)]],
-    tableLabel: ['', Validators.maxLength(40)],
-    title: ['', [Validators.required, Validators.maxLength(160)]],
-    artist: ['', Validators.maxLength(160)],
-  });
-  readonly songForm = this.fb.group({
-    title: ['', [Validators.required, Validators.maxLength(160)]],
-    artist: ['', Validators.maxLength(160)],
-  });
   private createKey = crypto.randomUUID();
-  private registrationKey = crypto.randomUUID();
-  private songKey = crypto.randomUUID();
+
+  constructor() {
+    effect((onCleanup) => {
+      const session = this.selected();
+      if (session?.status !== 'OPEN' || this.participants().length) return;
+
+      let checking = false;
+      let cancelled = false;
+      const timer = setInterval(async () => {
+        if (checking || this.locked() || this.creatingSession() || this.document.hidden) return;
+        checking = true;
+        try {
+          const people = await this.api.participants(session.id);
+          if (!cancelled && people.length && !this.locked() && !this.creatingSession()) {
+            await this.refresh();
+          }
+        } catch {
+          // Retry the background check on the next interval.
+        } finally {
+          checking = false;
+        }
+      }, 4000);
+      onCleanup(() => {
+        cancelled = true;
+        clearInterval(timer);
+      });
+    });
+  }
 
   async ngOnInit() {
     try {
       this.email.set((await this.auth.me()).email);
       await this.loadSessions();
+      await this.selectInitialSession();
     } catch (error) {
       if (!(error instanceof HttpErrorResponse && error.status === 401))
         this.error.set(apiError(error));
@@ -77,7 +155,6 @@ export class HostDashboard implements OnInit {
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
-    this.notice.set('');
     try {
       await action();
     } catch (error) {
@@ -91,15 +168,67 @@ export class HostDashboard implements OnInit {
     }
   }
   private clearSession() {
+    this.participantBusy.set(false);
+    this.stageBusy.set(false);
     this.selected.set(null);
     this.participants.set([]);
     this.requests.set([]);
-    this.addingFor.set(null);
-    this.leaving.set(null);
     this.confirmingClose.set(false);
+    this.accountOptions.set(false);
+    this.creatingSession.set(false);
+    this.showPassword.set(false);
+    this.previousSession = null;
   }
   private async loadSessions() {
     this.sessions.set(await this.api.list());
+  }
+  private focus(id: string) {
+    afterNextRender(() => this.document.getElementById(id)?.focus(), { injector: this.injector });
+  }
+  private async selectInitialSession() {
+    const session =
+      this.sessions().find((s) => s.status === 'OPEN') ??
+      this.sessions().find((s) => s.status === 'DRAFT');
+    if (session) await this.loadSession(session);
+  }
+  toggleAccount() {
+    if (this.accountOptions()) {
+      this.accountOptions.set(false);
+    } else {
+      this.accountSessionStatus.set('OPEN');
+      this.accountOptions.set(true);
+    }
+  }
+  showAccountSessions(status: KaraokeSession['status']) {
+    this.accountSessionStatus.set(status);
+    this.accountOptions.set(true);
+    this.focus('account-session-title');
+  }
+  dismissAccount() {
+    this.accountOptions.set(false);
+    this.focus('account-options-button');
+  }
+  askClose() {
+    this.confirmingClose.set(true);
+  }
+  cancelClose() {
+    this.confirmingClose.set(false);
+    this.focus('session-options-button');
+  }
+  beginCreate() {
+    this.previousSession = this.selected();
+    this.creatingSession.set(true);
+    this.accountOptions.set(false);
+    this.focus('session-name');
+  }
+  cancelCreate() {
+    this.creatingSession.set(false);
+    this.sessionForm.reset();
+    this.focus(this.previousSession ? 'host-session-title' : 'start-session');
+    this.previousSession = null;
+  }
+  sessionStatus(status: KaraokeSession['status']) {
+    return { DRAFT: 'Rascunho', OPEN: 'Aberta', CLOSED: 'Encerrada' }[status];
   }
   async login() {
     if (this.loginForm.invalid) return;
@@ -109,6 +238,8 @@ export class HostDashboard implements OnInit {
       this.loginForm.controls.password.reset();
       this.email.set((await this.auth.me()).email);
       await this.loadSessions();
+      await this.selectInitialSession();
+      this.focus(this.selected() ? 'host-session-title' : 'start-session');
     });
   }
   async logout() {
@@ -117,6 +248,7 @@ export class HostDashboard implements OnInit {
       this.email.set('');
       this.sessions.set([]);
       this.clearSession();
+      this.focus('login-email');
     });
   }
   async create() {
@@ -127,7 +259,10 @@ export class HostDashboard implements OnInit {
       this.sessionForm.reset();
       await this.loadSessions();
       await this.loadSession(session);
-      this.notice.set('Sessão criada. Abra para receber participantes.');
+      this.creatingSession.set(false);
+      this.previousSession = null;
+      this.focus('host-session-title');
+      this.notifications.success('Sessão criada. Abra para receber participantes.');
     });
   }
   private async loadSession(session: KaraokeSession) {
@@ -138,14 +273,16 @@ export class HostDashboard implements OnInit {
     this.selected.set(session);
     this.participants.set(participants);
     this.requests.set(requests);
-    this.addingFor.set(null);
-    this.leaving.set(null);
     this.confirmingClose.set(false);
-    this.search.set('');
     this.stageRevision.update((value) => value + 1);
   }
   async select(session: KaraokeSession) {
-    await this.run(() => this.loadSession(session));
+    await this.run(async () => {
+      await this.loadSession(session);
+      this.creatingSession.set(false);
+      this.accountOptions.set(false);
+      this.focus('host-session-title');
+    });
   }
   async refresh() {
     await this.run(async () => {
@@ -160,91 +297,30 @@ export class HostDashboard implements OnInit {
     if (!session) return;
     await this.run(async () => {
       const updated = await this.api.transition(session.id, action);
+      if (action === 'close') {
+        // Keep the confirmed state even if a subsequent read fails.
+        this.selected.set(updated);
+        this.sessions.update((items) =>
+          items.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        this.confirmingClose.set(false);
+        this.notifications.success('Sessão encerrada.');
+        try {
+          await this.loadSessions();
+          const next = this.sessions().find(
+            (item) => item.id !== updated.id && item.status === 'OPEN',
+          );
+          this.clearSession();
+          if (next) await this.loadSession(next);
+        } finally {
+          this.focus(this.selected() ? 'host-session-title' : 'start-session');
+        }
+        return;
+      }
       await this.loadSessions();
       await this.loadSession(updated);
-      this.notice.set(action === 'open' ? 'Sessão aberta.' : 'Sessão encerrada.');
-    });
-  }
-  async register() {
-    const session = this.selected();
-    if (!session || this.registrationForm.invalid) return;
-    await this.run(async () => {
-      await this.api.register(session.id, {
-        ...this.registrationForm.getRawValue(),
-        operationId: this.registrationKey,
-      });
-      this.registrationKey = crypto.randomUUID();
-      this.registrationForm.reset();
-      await this.loadSession(session);
-      this.notice.set('Participante inscrito com a primeira música.');
-    });
-  }
-  startSong(participant: Participant) {
-    this.addingFor.set(participant);
-    this.songForm.reset();
-    this.songKey = crypto.randomUUID();
-  }
-  async addSong() {
-    const session = this.selected(),
-      participant = this.addingFor();
-    if (!session || !participant || this.songForm.invalid) return;
-    await this.run(async () => {
-      await this.api.add(session.id, participant.id, {
-        ...this.songForm.getRawValue(),
-        operationId: this.songKey,
-      });
-      this.songKey = crypto.randomUUID();
-      await this.loadSession(session);
-      this.notice.set('Nova música adicionada ao mesmo participante.');
-    });
-  }
-  async leave() {
-    const session = this.selected(),
-      participant = this.leaving();
-    if (!session || !participant) return;
-    await this.run(async () => {
-      await this.api.leave(session.id, participant.id);
-      await this.loadSession(session);
-      this.notice.set('Saída registrada. Pedidos pendentes cancelados; histórico preservado.');
-    });
-  }
-  songsFor(id: string) {
-    return this.requests().filter((r) => r.participantId === id);
-  }
-
-  participantStatus(status: string) {
-    return (
-      (
-        {
-          ACTIVE: 'Participando',
-          PAUSED: 'Pausado',
-          SUSPENDED: 'Aguardando rodada',
-          INACTIVE: 'Inativo por ausência',
-          LEFT: 'Saiu',
-        } as Record<string, string>
-      )[status] ?? status
-    );
-  }
-  requestStatus(status: string) {
-    return (
-      (
-        {
-          PENDING: 'Pendente',
-          RESERVED: 'Convocada',
-          COMPLETED: 'Atendida',
-          SUSPENDED: 'Suspensa',
-          CANCELLED: 'Cancelada',
-        } as Record<string, string>
-      )[status] ?? status
-    );
-  }
-  async availability(person: Participant, action: string) {
-    const session = this.selected();
-    if (!session) return;
-    await this.run(async () => {
-      await this.stageApi.availability(session.id, person.id, action);
-      await this.loadSession(session);
-      this.notice.set('Participação atualizada.');
+      this.focus('host-session-title');
+      this.notifications.success('Sessão aberta.');
     });
   }
 }

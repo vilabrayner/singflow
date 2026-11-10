@@ -1,159 +1,241 @@
-<section class="host-panel stage-panel" aria-labelledby="stage-title">
-  <div class="host-section-title">
-    <div>
-      <p class="eyebrow">Operação do palco</p>
-      <h2 id="stage-title">Fila sugerida e convocações</h2>
+<app-surface-card labelledBy="stage-title" class="sf-stage-card">
+  <div class="sf-session-heading">
+    <h2 id="stage-title" tabindex="-1">Fila do karaokê</h2>
+    <div class="host-actions">
+      <ng-content />
+      <button
+        type="button"
+        class="sf-icon-button"
+        aria-label="Atualizar palco"
+        title="Atualizar palco"
+        [disabled]="locked()"
+        (click)="refresh()"
+      >
+        <i class="pi pi-refresh" aria-hidden="true"></i>
+      </button>
     </div>
-    <p-button
-      label="Atualizar palco"
-      ariaLabel="Atualizar palco"
-      icon="pi pi-refresh"
-      [outlined]="true"
-      [disabled]="busy() || disabled()"
-      (onClick)="refresh()"
-    />
   </div>
-  @if (error()) {
+  @if (error() && !pendingOutcome() && !choosingNext()) {
     <p class="host-error" role="alert">{{ error() }}</p>
-  }
-  @if (notice()) {
-    <p class="host-notice" role="status">{{ notice() }}</p>
   }
   @if (state(); as state) {
     @if (state.active; as call) {
-      <div class="current-call">
-        <p class="eyebrow">Convocação confirmada</p>
-        <h3>{{ call.participantName }}</h3>
-        <p>{{ call.title || 'Música a escolher' }}{{ call.artist ? ' — ' + call.artist : '' }}</p>
-        <small>Convocada às {{ call.createdAt | date: 'HH:mm:ss' }}</small>
-        @if (!call.requestId) {
-          <form [formGroup]="songForm" class="host-form form-grid">
-            <label
-              >Música escolhida<input
-                pInputText
-                formControlName="title"
-                maxlength="160"
-                required /></label
-            ><label
-              >Artista da apresentação (opcional)<input
-                pInputText
-                formControlName="artist"
-                maxlength="160"
-            /></label>
-          </form>
+      <section class="current-call sf-current-call" aria-labelledby="active-call-title">
+        <app-status-badge [tone]="call.acceptedAt ? 'positive' : 'attention'">
+          {{ call.acceptedAt ? 'Ida confirmada pelo participante' : 'Convocação confirmada' }}
+        </app-status-badge>
+        <h3 id="active-call-title" tabindex="-1">{{ call.participantName }}</h3>
+        <p class="sf-call-song">{{ call.title || 'Música a escolher' }}</p>
+        @if (call.artist) {
+          <p>{{ call.artist }}</p>
         }
-        <div class="host-actions stage-actions">
-          <p-button
-            label="Concluir apresentação"
-            ariaLabel="Concluir apresentação"
-            [disabled]="busy() || disabled() || !open()"
-            (onClick)="pendingOutcome.set('COMPLETED')"
-          />
-          <p-button
-            label="Registrar falta"
-            ariaLabel="Registrar falta"
-            severity="warn"
-            [outlined]="true"
-            [disabled]="busy() || disabled() || !open()"
-            (onClick)="pendingOutcome.set('ABSENT')"
-          />
-          <p-button
-            label="Agora não quer cantar"
-            ariaLabel="Agora não quer cantar"
-            severity="secondary"
-            [outlined]="true"
-            [disabled]="busy() || disabled() || !open()"
-            (onClick)="pendingOutcome.set('DECLINED')"
-          />
-          <p-button
-            label="Cancelar por engano"
-            ariaLabel="Cancelar por engano"
-            severity="secondary"
-            [text]="true"
-            [disabled]="busy() || disabled() || !open()"
-            (onClick)="pendingOutcome.set('CANCELLED')"
-          />
-        </div>
-        @if (pendingOutcome(); as outcome) {
-          <div class="host-confirm">
-            <p>
-              Confirmar: {{ labels(outcome) }}?
-              {{
-                outcome === 'ABSENT'
-                  ? 'A falta conta para a suspensão e inativação por ausência.'
-                  : outcome === 'DECLINED'
-                    ? 'A pessoa ficará pausada, sem registrar falta.'
-                    : outcome === 'CANCELLED'
-                      ? 'Sem falta nem apresentação; o pedido volta a pendente.'
-                      : 'A apresentação será contabilizada uma única vez.'
-              }}
-            </p>
-            <p-button
-              label="Confirmar resultado"
-              ariaLabel="Confirmar resultado"
-              [disabled]="busy() || disabled()"
-              (onClick)="resolve()"
-            /><p-button
-              label="Voltar"
-              ariaLabel="Voltar"
-              [text]="true"
-              [disabled]="busy()"
-              (onClick)="pendingOutcome.set(null)"
+        <button
+          type="button"
+          class="sf-button sf-text"
+          [disabled]="locked()"
+          (click)="personSelected.emit(call.participantId)"
+        >
+          Ver participante
+        </button>
+        @if (open()) {
+          @if (call.title) {
+            <button
+              type="button"
+              class="sf-button sf-primary sf-full"
+              [disabled]="locked()"
+              id="complete-performance"
+              (click)="chooseOutcome('COMPLETED')"
+            >
+              Concluir apresentação
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="sf-button sf-primary sf-full"
+              id="define-active-song"
+              [disabled]="locked()"
+              (click)="chooseActiveSong(call)"
+            >
+              Definir música
+            </button>
+          }
+          <div class="sf-stage-options">
+            <app-options-menu
+              buttonId="stage-options-button"
+              label="Outras ações"
+              [items]="stageMenuItems()"
+              [disabled]="locked()"
             />
           </div>
+          @if (pendingOutcome(); as outcome) {
+            <app-confirmation-dialog
+              [title]="'Confirmar: ' + labels(outcome) + '?'"
+              [busy]="locked()"
+              [error]="error()"
+              [returnFocus]="
+                outcome === 'COMPLETED' ? 'complete-performance' : 'stage-options-button'
+              "
+              (dismissed)="cancelOutcome()"
+            >
+              <p>
+                {{
+                  outcome === 'ABSENT'
+                    ? 'A falta conta para a suspensão e inativação por ausência.'
+                    : outcome === 'DECLINED'
+                      ? 'A pessoa ficará pausada, sem registrar falta.'
+                      : outcome === 'CANCELLED'
+                        ? 'Sem falta nem apresentação; o pedido volta a pendente.'
+                        : 'A apresentação será contabilizada uma única vez.'
+                }}
+              </p>
+              <div class="host-actions">
+                <button
+                  type="button"
+                  class="sf-button sf-primary"
+                  [disabled]="locked()"
+                  (click)="resolve()"
+                >
+                  Confirmar resultado
+                </button>
+                <button
+                  type="button"
+                  class="sf-button sf-outline"
+                  [disabled]="locked()"
+                  (click)="cancelOutcome()"
+                >
+                  Voltar
+                </button>
+              </div>
+            </app-confirmation-dialog>
+          }
         }
-      </div>
-    } @else {
-      <p>Nenhuma convocação em andamento.</p>
+      </section>
     }
     @if (open()) {
-      <h3 class="stage-subtitle">Próximas oportunidades</h3>
-      <p>
-        A ordem pode mudar até a confirmação. Uma oportunidade por pessoa; pedidos extras não ocupam
-        posições adicionais.
-      </p>
-      <ol class="stage-suggestions">
-        @for (suggestion of state.suggestions; track suggestion.participantId; let first = $first) {
+      <p>Uma oportunidade por pessoa. A ordem pode mudar até a confirmação.</p>
+      <label class="host-search"
+        >Buscar na fila<input
+          pInputText
+          type="search"
+          [value]="search()"
+          (input)="search.set($any($event.target).value)"
+          placeholder="Nome, mesa, música ou artista"
+      /></label>
+      <ol class="sf-queue-list">
+        @for (
+          suggestion of visibleSuggestions();
+          track suggestion.participantId;
+          let position = $index
+        ) {
           <li>
-            <div>
-              <strong>{{ suggestion.name }}</strong
-              ><span>{{ suggestion.tableLabel ? ' · Mesa ' + suggestion.tableLabel : '' }}</span>
-              <p>{{ suggestion.title || 'Música a escolher' }}</p>
-              <small>{{ suggestion.reason }}</small>
+            <div class="sf-queue-line">
+              <span class="sf-queue-number" aria-hidden="true">{{
+                search() ? '·' : position + 1
+              }}</span>
+              <button
+                type="button"
+                class="sf-queue-person"
+                [disabled]="locked()"
+                (click)="personSelected.emit(suggestion.participantId)"
+              >
+                <strong>{{ suggestion.name }}</strong
+                ><span>{{ suggestion.title || 'Música a escolher' }}</span>
+                @if (suggestion.artist) {
+                  <small>{{ suggestion.artist }}</small>
+                }
+                <small
+                  >{{ suggestion.completed }} apresentações{{
+                    suggestion.tableLabel ? ' · Mesa ' + suggestion.tableLabel : ''
+                  }}</small
+                >
+              </button>
+              @if (
+                state.suggestions[0]?.participantId === suggestion.participantId && !state.active
+              ) {
+                <app-status-badge tone="attention">Sugestão</app-status-badge>
+              }
             </div>
-            @if (first && !state.active) {
-              <p-button
-                label="Aprovar e convocar"
-                ariaLabel="Aprovar e convocar"
-                [disabled]="busy() || disabled()"
-                (onClick)="choose(suggestion)"
-              />
+            @if (
+              state.suggestions[0]?.participantId === suggestion.participantId && !state.active
+            ) {
+              <button
+                id="approve-next"
+                type="button"
+                class="sf-button sf-primary sf-full"
+                [disabled]="locked()"
+                (click)="choose(suggestion)"
+              >
+                Aprovar e convocar
+              </button>
             }
           </li>
         } @empty {
-          <li>Nenhum participante elegível. Confira pausas, ausências e saídas.</li>
+          <li>
+            {{
+              search()
+                ? 'Nenhum resultado na fila.'
+                : 'Nenhum participante elegível. Confira pausas, ausências e saídas.'
+            }}
+          </li>
         }
       </ol>
       @if (choosingNext(); as next) {
-        <div class="host-confirm">
-          <p>Convocar {{ next.name }} para {{ next.title || 'escolher uma música' }}?</p>
-          <p-button
-            label="Confirmar convocação"
-            ariaLabel="Confirmar convocação"
-            [disabled]="busy() || disabled()"
-            (onClick)="confirm()"
-          /><p-button
-            label="Voltar"
-            ariaLabel="Voltar"
-            [text]="true"
-            [disabled]="busy()"
-            (onClick)="choosingNext.set(null)"
-          />
-        </div>
+        <app-confirmation-dialog
+          [title]="
+            definingActiveSong() ? 'Definir música de ' + next.name : 'Convocar ' + next.name + '?'
+          "
+          [busy]="locked()"
+          [error]="error()"
+          [returnFocus]="definingActiveSong() ? 'define-active-song' : 'approve-next'"
+          (dismissed)="cancelCall()"
+        >
+          @if (next.requestId) {
+            <p>{{ next.title }}</p>
+          } @else {
+            <form [formGroup]="songForm" class="host-form">
+              <label
+                >Música escolhida<input
+                  pInputText
+                  formControlName="title"
+                  maxlength="160"
+                  required
+                  [readOnly]="locked()"
+              /></label>
+              <label
+                >Artista da apresentação (opcional)<input
+                  pInputText
+                  formControlName="artist"
+                  maxlength="160"
+                  [readOnly]="locked()"
+              /></label>
+            </form>
+          }
+          <div class="host-actions">
+            <button
+              type="button"
+              class="sf-button sf-primary"
+              [disabled]="
+                locked() ||
+                (!next.requestId && (songForm.invalid || !songForm.controls.title.value.trim()))
+              "
+              (click)="confirm()"
+            >
+              {{ definingActiveSong() ? 'Salvar música' : 'Confirmar convocação' }}
+            </button>
+            <button
+              type="button"
+              class="sf-button sf-outline"
+              [disabled]="locked()"
+              (click)="cancelCall()"
+            >
+              Voltar
+            </button>
+          </div>
+        </app-confirmation-dialog>
       }
     }
     @if (state.waits.length) {
-      <h3 class="stage-subtitle">Aguardando nova oportunidade</h3>
+      <h3 class="sf-subtitle">Aguardando nova oportunidade</h3>
       @for (wait of state.waits; track wait.participantId) {
         <div class="stage-wait">
           <strong>{{ wait.name }}</strong>
@@ -165,26 +247,28 @@
             }}
           </p>
           @if (wait.manualRelease && open()) {
-            <p-button
-              label="Liberar segunda tentativa"
-              ariaLabel="Liberar segunda tentativa"
-              [outlined]="true"
-              [disabled]="busy() || disabled()"
-              (onClick)="release(wait.participantId)"
-            />
+            <button
+              type="button"
+              class="sf-button sf-outline"
+              [disabled]="locked()"
+              (click)="release(wait.participantId)"
+            >
+              Liberar segunda tentativa
+            </button>
           }
         </div>
       }
     }
-    <details class="stage-history">
+    <details class="stage-history sf-disclosure">
       <summary>Histórico do palco ({{ state.history.length }})</summary>
       @for (call of state.history; track call.id) {
         <article>
           <strong>{{ call.participantName }}</strong>
-          <p>
-            {{ call.title || 'Música não definida' }} · {{ labels(call.status) }} ·
-            {{ call.resolvedAt | date: 'HH:mm:ss' }}
-          </p>
+          <p>{{ call.title || 'Música não definida' }}</p>
+          <app-status-badge [tone]="call.status === 'COMPLETED' ? 'positive' : 'neutral'">{{
+            labels(call.status)
+          }}</app-status-badge>
+          <p>{{ call.resolvedAt | date: 'HH:mm' }}</p>
         </article>
       } @empty {
         <p>Nenhuma convocação resolvida.</p>
@@ -193,4 +277,4 @@
   } @else if (!error()) {
     <p role="status">Carregando palco…</p>
   }
-</section>
+</app-surface-card>

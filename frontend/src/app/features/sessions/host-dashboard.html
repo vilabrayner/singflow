@@ -1,392 +1,342 @@
-<section class="host-dashboard page-width">
-  <p class="eyebrow">Experiência do anfitrião</p>
-  <div class="host-title">
-    <div>
-      <h1>Uma noite boa tem um bom ritmo.</h1>
-      <p>Organize a sessão e acolha cada voz, com ou sem celular.</p>
+<app-panel-header>
+  @if (email()) {
+    <div class="sf-account" (keydown.escape)="dismissAccount()">
+      <button
+        class="sf-icon-button"
+        type="button"
+        id="account-options-button"
+        aria-label="Opções da conta"
+        [attr.aria-expanded]="accountOptions()"
+        aria-controls="host-account-options"
+        [disabled]="locked()"
+        (click)="toggleAccount()"
+      >
+        <i class="pi pi-user" aria-hidden="true"></i>
+      </button>
+      @if (accountOptions()) {
+        <div id="host-account-options" class="sf-account-panel">
+          <p class="sf-account-email">{{ email() }}</p>
+          <h2 id="account-session-title" tabindex="-1">{{ accountSessionTitle() }}</h2>
+          @if (accountSessionStatus() !== 'OPEN') {
+            <button
+              type="button"
+              class="sf-button sf-text sf-full"
+              [disabled]="locked()"
+              (click)="showAccountSessions('OPEN')"
+            >
+              Voltar às sessões abertas
+            </button>
+          }
+          <div class="session-list">
+            @for (item of accountSessions(); track item.id) {
+              <button
+                type="button"
+                [class.selected]="selected()?.id === item.id"
+                [attr.aria-pressed]="selected()?.id === item.id"
+                [disabled]="locked()"
+                (click)="select(item)"
+              >
+                <strong>{{ item.name }}</strong
+                ><span>{{ sessionStatus(item.status) }}</span>
+              </button>
+            } @empty {
+              @if (accountSessionStatus() === 'OPEN') {
+                <p>Nenhuma sessão aberta.</p>
+              } @else if (accountSessionStatus() === 'CLOSED') {
+                <p>Nenhuma sessão encerrada.</p>
+              } @else {
+                <p>Nenhum rascunho.</p>
+              }
+            }
+          </div>
+          @if (accountSessionStatus() === 'OPEN') {
+            <button
+              type="button"
+              class="sf-button sf-text sf-full"
+              [disabled]="locked()"
+              (click)="showAccountSessions('CLOSED')"
+            >
+              Histórico de sessões
+            </button>
+            @if (hasDrafts()) {
+              <button
+                type="button"
+                class="sf-button sf-text sf-full"
+                [disabled]="locked()"
+                (click)="showAccountSessions('DRAFT')"
+              >
+                Rascunhos
+              </button>
+            }
+          }
+          <button
+            type="button"
+            class="sf-button sf-outline sf-full"
+            [disabled]="locked()"
+            (click)="beginCreate()"
+          >
+            Criar outra sessão
+          </button>
+          <button
+            type="button"
+            class="sf-button sf-text sf-full"
+            [disabled]="locked()"
+            (click)="logout()"
+          >
+            Sair da conta
+          </button>
+        </div>
+      }
     </div>
-    @if (email()) {
-      <p-button
-        label="Sair da conta"
-        icon="pi pi-sign-out"
-        [outlined]="true"
-        [disabled]="busy()"
-        (onClick)="logout()"
-        ariaLabel="Sair da conta"
-      />
-    }
-  </div>
-  @if (error()) {
+  }
+</app-panel-header>
+<section
+  id="host-content"
+  tabindex="-1"
+  class="host-dashboard sf-host-shell"
+  aria-label="Painel do anfitrião"
+  [attr.aria-busy]="busy() || !ready()"
+>
+  @if (error() && !confirmingClose()) {
     <p role="alert" class="host-error">{{ error() }}</p>
   }
-  @if (notice()) {
-    <p role="status" class="host-notice">{{ notice() }}</p>
-  }
   @if (!ready()) {
-    <p role="status">Carregando seu acesso…</p>
+    <div class="sf-centered-state"><p role="status">Carregando seu acesso…</p></div>
   } @else if (!email()) {
-    <div class="host-panel login-panel">
-      <h2>Entrar como anfitrião</h2>
-      <p>Use o acesso provisionado para o evento.</p>
-      <form [formGroup]="loginForm" (ngSubmit)="login()" class="host-form">
-        <label
-          >E-mail<input
+    <div class="sf-centered-state">
+      <app-surface-card labelledBy="host-login-title">
+        <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-microphone"></i></span>
+        <h1 id="host-login-title">Entrar como anfitrião</h1>
+        <p>Use o acesso disponibilizado para o evento.</p>
+        <form [formGroup]="loginForm" (ngSubmit)="login()" class="host-form">
+          <label for="login-email">E-mail</label>
+          <input
+            id="login-email"
             pInputText
             type="email"
             formControlName="email"
             autocomplete="username"
             maxlength="254"
             required
-        /></label>
-        <label
-          >Senha<input
-            pInputText
-            type="password"
-            formControlName="password"
-            autocomplete="current-password"
-            required
-        /></label>
-        <p-button
-          type="submit"
-          label="Entrar"
-          [loading]="busy()"
-          [disabled]="loginForm.invalid || busy()"
-          ariaLabel="Entrar"
-        />
-      </form>
-    </div>
-  } @else {
-    <p class="host-account">Conectado como {{ email() }}</p>
-    <div class="host-columns">
-      <aside class="host-panel">
-        <h2>Suas sessões</h2>
-        <form [formGroup]="sessionForm" (ngSubmit)="create()" class="host-form">
-          <label
-            >Nome da sessão<input
-              pInputText
-              formControlName="name"
-              maxlength="120"
-              placeholder="Karaokê no Café Tão"
-              required
-          /></label>
-          <p-button
-            type="submit"
-            label="Criar sessão"
-            icon="pi pi-plus"
-            [disabled]="sessionForm.invalid || busy()"
-            ariaLabel="Criar sessão"
+            [readOnly]="busy()"
+            [attr.aria-invalid]="
+              loginForm.controls.email.touched && loginForm.controls.email.invalid
+            "
+            [attr.aria-describedby]="
+              loginForm.controls.email.touched && loginForm.controls.email.invalid
+                ? 'login-email-error'
+                : null
+            "
           />
-        </form>
-        <div class="session-list">
-          @for (session of sessions(); track session.id) {
+          @if (loginForm.controls.email.touched && loginForm.controls.email.invalid) {
+            <p id="login-email-error" class="sf-field-error">Informe um e-mail válido.</p>
+          }
+          <label for="login-password">Senha</label>
+          <div class="sf-password-field">
+            <input
+              id="login-password"
+              pInputText
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="current-password"
+              required
+              [readOnly]="busy()"
+            />
             <button
               type="button"
-              [class.selected]="selected()?.id === session.id"
-              [disabled]="busy()"
-              (click)="select(session)"
+              class="sf-icon-button"
+              [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'"
+              [attr.aria-pressed]="showPassword()"
+              [disabled]="locked()"
+              (click)="showPassword.set(!showPassword())"
             >
-              <strong>{{ session.name }}</strong
-              ><span>{{
-                session.status === 'DRAFT'
-                  ? 'Rascunho'
-                  : session.status === 'OPEN'
-                    ? 'Aberta'
-                    : 'Encerrada'
-              }}</span>
+              <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
             </button>
-          } @empty {
-            <p>Nenhuma sessão criada.</p>
-          }
-        </div>
-      </aside>
-      <div>
-        @if (selected(); as session) {
-          @for (id of [session.id]; track id) {
-            <app-entry-share [session]="id" />
-          }
-          <section class="host-panel">
-            <div class="host-section-title">
-              <div>
-                <h2>{{ session.name }}</h2>
-                <p>
-                  {{
-                    session.status === 'DRAFT'
-                      ? 'Rascunho'
-                      : session.status === 'OPEN'
-                        ? 'Aberta para inscrições'
-                        : 'Encerrada'
-                  }}
-                  · {{ session.createdAt | date: 'dd/MM/yyyy HH:mm' }}
-                </p>
-              </div>
-              <p-button
-                label="Atualizar"
-                icon="pi pi-refresh"
-                [outlined]="true"
-                [disabled]="busy()"
-                (onClick)="refresh()"
-                ariaLabel="Atualizar"
-              />
-            </div>
-            <div class="host-actions">
-              @if (session.status === 'DRAFT') {
-                <p-button
-                  label="Abrir sessão"
-                  icon="pi pi-play"
-                  [disabled]="busy()"
-                  (onClick)="transition('open')"
-                  ariaLabel="Abrir sessão"
-                />
-              }
-              @if (session.status !== 'CLOSED') {
-                <p-button
-                  label="Encerrar sessão"
-                  severity="secondary"
-                  [outlined]="true"
-                  [disabled]="busy()"
-                  (onClick)="confirmingClose.set(true)"
-                  ariaLabel="Encerrar sessão"
-                />
-              }
-            </div>
-            @if (confirmingClose()) {
-              <div class="host-confirm">
-                <p>
-                  Encerrar bloqueia novas inscrições e músicas. A sessão não poderá ser reaberta
-                  nesta versão.
-                </p>
-                <p-button
-                  label="Confirmar encerramento"
-                  severity="danger"
-                  [disabled]="busy()"
-                  (onClick)="transition('close')"
-                  ariaLabel="Confirmar encerramento"
-                /><p-button
-                  label="Cancelar"
-                  [text]="true"
-                  [disabled]="busy()"
-                  (onClick)="confirmingClose.set(false)"
-                  ariaLabel="Cancelar"
-                />
-              </div>
+          </div>
+          <button
+            class="sf-button sf-primary sf-full"
+            type="submit"
+            [disabled]="loginForm.invalid || locked()"
+          >
+            @if (busy()) {
+              <i class="pi pi-spinner" aria-hidden="true"></i>
             }
-          </section>
+            Entrar
+          </button>
+        </form>
+        <p class="sf-centered-copy">Precisa de acesso? Fale com o responsável pelo evento.</p>
+      </app-surface-card>
+    </div>
+  } @else if (creatingSession()) {
+    <div class="sf-centered-state">
+      <app-surface-card labelledBy="create-session-title">
+        <h1 id="create-session-title">Criar sessão</h1>
+        <p>Escolha um nome para identificar seu karaokê.</p>
+        <form [formGroup]="sessionForm" (ngSubmit)="create()" class="host-form">
+          <label for="session-name">Nome da sessão</label>
+          <input
+            id="session-name"
+            pInputText
+            formControlName="name"
+            maxlength="120"
+            placeholder="Karaokê no Café Tão"
+            required
+            [readOnly]="busy()"
+          />
+          <button
+            type="submit"
+            class="sf-button sf-primary sf-full"
+            [disabled]="sessionForm.invalid || locked()"
+          >
+            Criar sessão
+          </button>
+          <button
+            type="button"
+            class="sf-button sf-text sf-full"
+            [disabled]="locked()"
+            (click)="cancelCreate()"
+          >
+            Cancelar
+          </button>
+        </form>
+      </app-surface-card>
+    </div>
+  } @else if (selected(); as session) {
+    <div [class.sf-centered-state]="session.status === 'DRAFT'">
+      <app-surface-card
+        labelledBy="host-session-title"
+        [class.sf-session-card]="session.status !== 'DRAFT'"
+      >
+        <div class="sf-session-heading">
+          <div>
+            <h1 id="host-session-title" tabindex="-1">{{ session.name }}</h1>
+            <app-status-badge [tone]="session.status === 'OPEN' ? 'positive' : 'neutral'">{{
+              sessionStatus(session.status)
+            }}</app-status-badge>
+          </div>
+          <app-options-menu
+            buttonId="session-options-button"
+            label="Opções da sessão"
+            [items]="sessionMenuItems()"
+            [disabled]="locked()"
+          />
+        </div>
+        @if (session.status === 'DRAFT') {
+          <p>Abra para começar as inscrições.</p>
+          <button
+            type="button"
+            class="sf-button sf-primary sf-full"
+            [disabled]="locked()"
+            (click)="transition('open')"
+          >
+            <i class="pi pi-play" aria-hidden="true"></i>Abrir sessão
+          </button>
+        }
+        @if (confirmingClose()) {
+          <app-confirmation-dialog
+            title="Encerrar sessão?"
+            [busy]="locked()"
+            [error]="error()"
+            returnFocus="session-options-button"
+            (dismissed)="cancelClose()"
+          >
+            <p>
+              Encerrar bloqueia novas inscrições e músicas. O histórico será mantido e a sessão não
+              poderá ser reaberta.
+            </p>
+            <div class="host-actions">
+              <button
+                type="button"
+                class="sf-button sf-danger"
+                [disabled]="locked()"
+                (click)="transition('close')"
+              >
+                Confirmar encerramento
+              </button>
+              <button
+                type="button"
+                class="sf-button sf-outline"
+                [disabled]="locked()"
+                (click)="cancelClose()"
+              >
+                Cancelar encerramento
+              </button>
+            </div>
+          </app-confirmation-dialog>
+        }
+      </app-surface-card>
+    </div>
+    @if (session.status !== 'DRAFT') {
+      <app-host-participants
+        #workspace
+        [session]="session"
+        [people]="participants()"
+        [requests]="requests()"
+        [disabled]="busy() || stageBusy()"
+        (changed)="refresh()"
+        (working)="participantBusy.set($event)"
+      >
+        <ng-container ngProjectAs="[session-entry]">
+          @if (session.status === 'OPEN' && !participants().length) {
+            @for (id of [session.id]; track id) {
+              <app-entry-share [session]="id" [inline]="true" />
+            }
+          }
+        </ng-container>
+        @if (participants().length > 0 || session.status === 'CLOSED') {
           <app-stage-panel
             [sessionId]="session.id"
             [open]="session.status === 'OPEN'"
-            [disabled]="busy()"
+            [disabled]="busy() || participantBusy()"
             [revision]="stageRevision()"
             (changed)="refresh()"
-          />
-          @if (session.status === 'OPEN') {
-            <section class="host-panel">
-              <h2>Inscrever participante</h2>
-              <p>
-                Procure na lista antes de cadastrar. Para quem já participa, use “Adicionar música”.
-              </p>
-              <form
-                [formGroup]="registrationForm"
-                (ngSubmit)="register()"
-                class="host-form form-grid"
-              >
-                <label
-                  >Nome do participante<input
-                    pInputText
-                    formControlName="name"
-                    maxlength="120"
-                    required
-                /></label>
-                <label
-                  >Mesa (opcional)<input pInputText formControlName="tableLabel" maxlength="40"
-                /></label>
-                <label
-                  >Primeira música<input
-                    pInputText
-                    formControlName="title"
-                    maxlength="160"
-                    required
-                /></label>
-                <label
-                  >Artista (opcional)<input pInputText formControlName="artist" maxlength="160"
-                /></label>
-                <p class="form-hint">
-                  Avise: enquanto estiver participando, a pessoa poderá receber novas oportunidades
-                  mesmo sem pedido. Você coleta as próximas músicas.
-                </p>
-                <p-button
-                  type="submit"
-                  label="Inscrever com música"
-                  icon="pi pi-user-plus"
-                  [disabled]="registrationForm.invalid || busy()"
-                  ariaLabel="Inscrever com música"
-                />
-              </form>
-            </section>
-          }
-          <section class="host-panel">
-            <h2>Participantes por ordem de chegada</h2>
-            <p>
-              Consulte a fila sugerida acima. Pausas preservam a chegada; reativações após saída ou
-              duas faltas recebem nova ordem.
-            </p>
-            <label class="host-search"
-              >Buscar por nome ou mesa<input
-                pInputText
-                type="search"
-                [value]="search()"
-                (input)="search.set($any($event.target).value)"
-            /></label>
-            <div class="participant-list">
-              @for (participant of visibleParticipants(); track participant.id) {
-                <article class="participant-item">
-                  <div class="host-section-title">
-                    <div>
-                      <h3>{{ participant.name }}</h3>
-                      <p>
-                        {{ participant.tableLabel ? 'Mesa ' + participant.tableLabel + ' · ' : ''
-                        }}{{ participantStatus(participant.status) }} ·
-                        {{
-                          participant.origin === 'SELF'
-                            ? 'Inscrição pelo celular'
-                            : 'Inscrição assistida'
-                        }}
-                      </p>
-                      <small
-                        >Check-in:
-                        {{
-                          participant.queueJoinedAt || participant.checkedInAt | date: 'HH:mm:ss'
-                        }}
-                        · Apresentações: {{ participant.completedPerformances }} · Faltas
-                        consecutivas: {{ participant.consecutiveAbsences || 0 }}</small
-                      >
-                    </div>
-                    @if (session.status === 'OPEN') {
-                      <div class="host-actions">
-                        @if (participant.status === 'ACTIVE') {
-                          <p-button
-                            label="Pausar participação"
-                            ariaLabel="Pausar participação"
-                            size="small"
-                            severity="secondary"
-                            [text]="true"
-                            [disabled]="busy()"
-                            (onClick)="availability(participant, 'pause')"
-                          />
-                        }
-                        @if (participant.status === 'PAUSED') {
-                          <p-button
-                            label="Retomar participação"
-                            ariaLabel="Retomar participação"
-                            size="small"
-                            [disabled]="busy()"
-                            (onClick)="availability(participant, 'resume')"
-                          />
-                        }
-                        @if (participant.status === 'INACTIVE' || participant.status === 'LEFT') {
-                          <p-button
-                            label="Reativar participante"
-                            ariaLabel="Reativar participante"
-                            size="small"
-                            [outlined]="true"
-                            [disabled]="busy()"
-                            (onClick)="availability(participant, 'reactivate')"
-                          />
-                        }
-                      </div>
-                    }
-                    @if (participant.status !== 'LEFT') {
-                      <div class="host-actions">
-                        @if (session.status === 'OPEN' && participant.status === 'ACTIVE') {
-                          <p-button
-                            label="Adicionar música"
-                            size="small"
-                            [disabled]="busy()"
-                            (onClick)="startSong(participant)"
-                            ariaLabel="Adicionar música"
-                          />
-                        }
-                        <p-button
-                          label="Registrar saída"
-                          size="small"
-                          severity="secondary"
-                          [text]="true"
-                          [disabled]="busy()"
-                          (onClick)="leaving.set(participant)"
-                          ariaLabel="Registrar saída"
-                        />
-                      </div>
-                    }
-                  </div>
-                  <ul class="song-list">
-                    @for (song of songsFor(participant.id); track song.id) {
-                      <li>
-                        <i class="pi pi-music" aria-hidden="true"></i> {{ song.title
-                        }}{{ song.artist ? ' — ' + song.artist : '' }}
-                        <span>{{ requestStatus(song.status) }}</span>
-                      </li>
-                    }
-                  </ul>
-                  @if (addingFor()?.id === participant.id) {
-                    <form [formGroup]="songForm" (ngSubmit)="addSong()" class="host-form form-grid">
-                      <label
-                        >Nova música<input
-                          pInputText
-                          formControlName="title"
-                          maxlength="160"
-                          required /></label
-                      ><label
-                        >Artista (opcional)<input
-                          pInputText
-                          formControlName="artist"
-                          maxlength="160" /></label
-                      ><p-button
-                        type="submit"
-                        label="Salvar música"
-                        [disabled]="songForm.invalid || busy()"
-                        ariaLabel="Salvar música"
-                      /><p-button
-                        label="Cancelar"
-                        [text]="true"
-                        [disabled]="busy()"
-                        (onClick)="addingFor.set(null)"
-                        ariaLabel="Cancelar"
-                      />
-                    </form>
-                  }
-                  @if (leaving()?.id === participant.id) {
-                    <div class="host-confirm">
-                      <p>
-                        Confirmar saída de {{ participant.name }}? Os pedidos pendentes serão
-                        cancelados e o histórico será mantido.
-                      </p>
-                      <p-button
-                        label="Confirmar saída"
-                        severity="danger"
-                        [disabled]="busy()"
-                        (onClick)="leave()"
-                        ariaLabel="Confirmar saída"
-                      /><p-button
-                        label="Cancelar"
-                        [text]="true"
-                        [disabled]="busy()"
-                        (onClick)="leaving.set(null)"
-                        ariaLabel="Cancelar"
-                      />
-                    </div>
-                  }
-                </article>
-              } @empty {
-                <p>Nenhum participante encontrado.</p>
+            (personSelected)="workspace.showPerson($event)"
+            (working)="stageBusy.set($event)"
+          >
+            @if (session.status === 'OPEN') {
+              @for (id of [session.id]; track id) {
+                <app-entry-share [session]="id" />
               }
-            </div>
-          </section>
-        } @else {
-          <section class="host-panel">
-            <h2>Vamos começar?</h2>
-            <p>Crie uma sessão ou selecione uma das suas sessões.</p>
-          </section>
+            }
+          </app-stage-panel>
         }
-      </div>
+      </app-host-participants>
+      @if (session.status === 'CLOSED') {
+        <button
+          type="button"
+          class="sf-button sf-primary"
+          [disabled]="locked()"
+          (click)="beginCreate()"
+        >
+          Criar nova sessão
+        </button>
+      }
+    }
+  } @else {
+    <div class="sf-centered-state">
+      <app-surface-card labelledBy="start-session-title">
+        <h1 id="start-session-title">Vamos começar?</h1>
+        <p>Crie uma sessão para receber participantes.</p>
+        <button
+          id="start-session"
+          type="button"
+          class="sf-button sf-primary sf-full"
+          [disabled]="locked()"
+          (click)="beginCreate()"
+        >
+          <i class="pi pi-plus" aria-hidden="true"></i>Criar sessão
+        </button>
+        @if (hasSessionHistory()) {
+          <button
+            type="button"
+            class="sf-button sf-text sf-full"
+            [disabled]="locked()"
+            (click)="showAccountSessions('CLOSED')"
+          >
+            Consultar sessões anteriores
+          </button>
+        }
+      </app-surface-card>
     </div>
   }
 </section>

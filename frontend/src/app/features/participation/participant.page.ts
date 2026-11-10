@@ -1,6 +1,22 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { MenuItem } from 'primeng/api';
+import { OptionsMenu } from '../../shared/components/options-menu';
+import { PanelHeader } from '../../shared/components/panel-header';
+import { StatusBadge } from '../../shared/components/status-badge';
+import { SurfaceCard } from '../../shared/components/surface-card';
+import { Notifications } from '../../shared/notifications';
+import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  inject,
+  Injector,
+  signal,
+  OnInit,
+  OnDestroy,
+} from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe } from '@angular/common';
+import { DatePipe, DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -12,31 +28,62 @@ interface OwnView {
   session: KaraokeSession;
   participant: Participant;
   requests: SongRequest[];
-  active: { title: string | null; artist: string | null } | null;
-  history: { id: string; title: string | null; status: string }[];
+  active: {
+    id: string;
+    title: string | null;
+    artist: string | null;
+    acceptedAt: string | null;
+  } | null;
+  history: { id: string; title: string | null; artist: string | null; status: string }[];
   suggested: boolean;
   expiresAt: string;
   canReturn: boolean;
 }
 @Component({
-  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, DatePipe],
+  imports: [
+    ConfirmationDialog,
+    OptionsMenu,
+    PanelHeader,
+    StatusBadge,
+    SurfaceCard,
+    ReactiveFormsModule,
+    ButtonModule,
+    InputTextModule,
+    DatePipe,
+    NgTemplateOutlet,
+  ],
   templateUrl: './participant.page.html',
 })
 export class ParticipantPage implements OnInit, OnDestroy {
   private readonly api = inject(ApiClient);
+  private readonly document = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
   private readonly route = inject(ActivatedRoute);
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly session = this.route.snapshot.paramMap.get('session') ?? '';
   private readonly code = this.route.snapshot.paramMap.get('code') ?? '';
   private readonly base = `/participation/${this.session}`;
   readonly own = signal<OwnView | null>(null);
+  readonly currentRequests = computed(
+    () => this.own()?.requests.filter((song) => song.status !== 'COMPLETED') ?? [],
+  );
   readonly entry = signal<{ name: string; status: string } | null>(null);
   readonly ready = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
-  readonly notice = signal('');
+  private readonly notifications = inject(Notifications);
   readonly departed = signal(false);
+  readonly cancellingSong = signal<SongRequest | null>(null);
+  readonly addingSong = signal(false);
+  readonly skippingCall = signal<string | null>(null);
   readonly confirmingExit = signal(false);
+  readonly participationOptions: MenuItem[] = [
+    {
+      label: 'Sair da fila',
+      icon: 'pi pi-sign-out',
+      command: () => this.confirmingExit.set(true),
+    },
+  ];
   readonly confirmingForget = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
   readonly disconnected = signal(false);
@@ -108,6 +155,12 @@ export class ParticipantPage implements OnInit, OnDestroy {
   private accept(view: OwnView) {
     if (this.destroyed) return;
     this.own.set(view);
+    if (view.active?.id !== this.skippingCall() || view.active?.acceptedAt) {
+      this.skippingCall.set(null);
+    }
+    if (view.session.status !== 'OPEN' || view.participant.status !== 'ACTIVE') {
+      this.addingSong.set(false);
+    }
     this.entry.set(null);
     this.lastUpdated.set(new Date());
     this.disconnected.set(false);
@@ -120,7 +173,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
     this.loading = true;
     try {
       await this.load();
-      this.error.set('');
+      if (!this.addingSong()) this.error.set('');
     } catch (error) {
       this.disconnected.set(true);
       this.error.set(this.message(error));
@@ -134,7 +187,6 @@ export class ParticipantPage implements OnInit, OnDestroy {
     if (this.busy() || this.loading) return;
     this.busy.set(true);
     this.error.set('');
-    this.notice.set('');
     try {
       await action();
     } catch (error) {
@@ -162,8 +214,19 @@ export class ParticipantPage implements OnInit, OnDestroy {
       // Serialize initial cookie creation across tabs in browsers supporting Web Locks.
       if (navigator.locks) await navigator.locks.request('singflow-check-in', action);
       else await action();
-      this.notice.set('Entrada confirmada. Sua primeira música já está nos pedidos.');
+      this.notifications.success('Entrada confirmada. Sua primeira música já está nos pedidos.');
+      afterNextRender(() => this.document.getElementById('participant-status-title')?.focus(), {
+        injector: this.injector,
+      });
     });
+  }
+  openSongForm() {
+    this.error.set('');
+    this.addingSong.set(true);
+  }
+  closeSongForm() {
+    this.addingSong.set(false);
+    this.error.set('');
   }
   async add() {
     if (this.songForm.invalid || !this.own()) return;
@@ -180,13 +243,29 @@ export class ParticipantPage implements OnInit, OnDestroy {
       );
       this.songOperation = null;
       this.songForm.reset();
-      this.notice.set('Música adicionada aos seus pedidos.');
+      this.addingSong.set(false);
+      this.notifications.success('Música adicionada aos seus pedidos.');
     });
   }
   async cancel(id: string) {
     await this.run(async () => {
       this.accept(await this.api.post<OwnView>(`${this.base}/requests/${id}/cancel`));
-      this.notice.set('Pedido cancelado.');
+      this.cancellingSong.set(null);
+      this.notifications.success('Pedido cancelado.');
+    });
+  }
+  async respondToCall(call: string, response: 'accept' | 'skip') {
+    await this.run(async () => {
+      this.accept(await this.api.post<OwnView>(`${this.base}/calls/${call}/${response}`));
+      this.notifications.success(
+        response === 'accept' ? 'Ida confirmada.' : 'Participação pausada.',
+      );
+    });
+  }
+  async resume() {
+    await this.run(async () => {
+      this.accept(await this.api.post<OwnView>(`${this.base}/resume`));
+      this.notifications.success('Você voltou à fila.');
     });
   }
   async leave() {
@@ -195,7 +274,9 @@ export class ParticipantPage implements OnInit, OnDestroy {
       this.confirmingExit.set(false);
       this.songForm.reset();
       this.songOperation = null;
-      this.notice.set('Você saiu da fila. Seu histórico e acesso continuam disponíveis.');
+      this.notifications.success(
+        'Você saiu da fila. Seu histórico e acesso continuam disponíveis.',
+      );
     });
   }
   async returnToQueue() {
@@ -213,7 +294,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
       );
       this.returnOperation = null;
       this.returnForm.reset();
-      this.notice.set(
+      this.notifications.success(
         'Retorno confirmado com nova música e nova chegada. Suas apresentações foram preservadas.',
       );
     });

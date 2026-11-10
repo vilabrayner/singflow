@@ -3,6 +3,7 @@
 @layer theme, base, primeng, components, utilities;
 @import 'tailwindcss';
 @import 'tailwindcss-primeui';
+@import './app/shared/styles/panels.css';
 @theme {
   --color-navy: #0b1e3f;
   --color-singflow-purple: #7c3aed;
@@ -41,6 +42,9 @@ button:focus-visible {
   z-index: 100;
   padding: 12px;
   background: white;
+}
+.skip-link:not(:focus) {
+  clip-path: inset(50%);
 }
 .skip-link:focus {
   top: 10px;
@@ -480,6 +484,7 @@ h2 {
   font-size: 13px;
   line-height: 1.7;
   color: #59667b;
+  padding: 20px 0;
 }
 .host-columns {
   display: grid;
@@ -547,12 +552,6 @@ h2 {
 .host-dashboard .host-error {
   background: #fff0ef;
   color: #9f2424;
-  padding: 14px;
-  border-radius: 10px;
-}
-.host-dashboard .host-notice {
-  background: #ebf7ee;
-  color: #255d38;
   padding: 14px;
   border-radius: 10px;
 }
@@ -687,21 +686,11 @@ h2 {
   margin-top: 12px;
 }
 
-.participant-page {
-  max-width: 780px;
-  padding-top: 40px;
-  padding-bottom: 40px;
-}
-.participant-page h1 {
-  font-size: clamp(28px, 5vw, 40px);
-  font-weight: 800;
-  margin: 10px 0 28px;
-}
 .entry-qr {
   display: block;
   max-width: 100%;
   height: auto;
-  margin: 16px 0;
+  margin: 16px auto;
 }
 .entry-link {
   overflow-wrap: anywhere;
@@ -712,4 +701,16 @@ input.entry-link {
   padding: 10px;
   border: 1px solid #dce2ed;
   border-radius: 8px;
+}
+
+.sf-toast.p-toast {
+  top: calc(var(--sf-header-height, 0px) + 12px) !important;
+}
+
+@media (max-width: 640px) {
+  .sf-toast.p-toast {
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+  }
 }

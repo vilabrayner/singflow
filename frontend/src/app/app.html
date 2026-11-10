@@ -1,20 +1,42 @@
-<a class="skip-link" href="#main">Pular para o conteúdo</a>
-<header class="site-header">
-  <a class="brand" routerLink="/" aria-label="SingFlow, início"
-    ><span class="brand-symbol" aria-hidden="true"><i class="pi pi-microphone"></i></span
-    ><span>Sing<span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></a
-  >
-  <nav aria-label="Experiências" class="main-nav">
-    <a routerLink="/participante" routerLinkActive="active" ariaCurrentWhenActive="page"
-      >Participante</a
+<a
+  class="skip-link"
+  [attr.href]="
+    hostPanel() ? '#host-content' : participantPanel() ? '#participant-content' : '#main'
+  "
+  >Pular para o conteúdo</a
+>
+@if (!compactPanel()) {
+  <header class="site-header">
+    <a class="brand" routerLink="/" aria-label="SingFlow, início"
+      ><span class="brand-symbol" aria-hidden="true"><i class="pi pi-microphone"></i></span
+      ><span>Sing<span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></a
     >
-    <a routerLink="/anfitriao" routerLinkActive="active" ariaCurrentWhenActive="page">Anfitrião</a>
-    <a routerLink="/musico" routerLinkActive="active" ariaCurrentWhenActive="page">Músico</a>
-  </nav>
-  <span class="foundation-label"><span aria-hidden="true"></span>Em construção</span>
-</header>
+    <nav aria-label="Experiências" class="main-nav">
+      <a routerLink="/participante" routerLinkActive="active" ariaCurrentWhenActive="page"
+        >Participante</a
+      >
+      <a routerLink="/anfitriao" routerLinkActive="active" ariaCurrentWhenActive="page"
+        >Anfitrião</a
+      >
+      <a routerLink="/musico" routerLinkActive="active" ariaCurrentWhenActive="page">Músico</a>
+    </nav>
+    <span class="foundation-label"><span aria-hidden="true"></span>Em construção</span>
+  </header>
+}
 <main id="main" tabindex="-1"><router-outlet /></main>
-<footer class="site-footer">
-  <span>SingFlow · Sua voz no palco, na ordem certa.</span
-  ><span>Feito para quem vive a música.</span>
-</footer>
+@if (!compactPanel()) {
+  <footer class="site-footer">
+    <span>SingFlow · Sua voz no palco, na ordem certa.</span
+    ><span>Feito para quem vive a música.</span>
+  </footer>
+}
+<p-toast
+  position="top-right"
+  class="sf-toast"
+  [life]="4000"
+  [preventDuplicates]="true"
+  [pt]="{
+    message: { role: 'status', 'aria-live': 'polite' },
+    closeButton: { 'aria-label': 'Fechar notificação' },
+  }"
+/>

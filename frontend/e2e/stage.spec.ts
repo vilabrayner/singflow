@@ -63,13 +63,14 @@ async function setup(page: Page) {
     if (path.endsWith('/stage/calls')) {
       const body = request.postDataJSON();
       expect(body.expectedRequestId).toBeNull();
+      expect(body.title).toBe('Canção escolhida');
       active = {
         id: body.operationId,
         participantId: 'ana',
         participantName: 'Ana',
         requestId: null,
-        title: null,
-        artist: null,
+        title: body.title,
+        artist: body.artist || null,
         status: 'CALLED',
         createdAt: new Date().toISOString(),
         resolvedAt: null,
@@ -79,7 +80,7 @@ async function setup(page: Page) {
     if (path.endsWith('/resolve')) {
       const body = request.postDataJSON();
       if (body.outcome === 'COMPLETED') {
-        expect(body.title).toBe('Canção escolhida');
+        expect(body).toEqual({ outcome: 'COMPLETED' });
         completed++;
       }
       if (body.outcome === 'ABSENT') {
@@ -89,8 +90,6 @@ async function setup(page: Page) {
       history.push({
         ...active!,
         status: body.outcome,
-        title: body.title || null,
-        artist: body.artist || null,
         resolvedAt: new Date().toISOString(),
       });
       active = null;
@@ -124,29 +123,37 @@ async function setup(page: Page) {
     return route.fulfill({ status: 404 });
   });
   await page.goto('/anfitriao');
-  await page.getByRole('button', { name: /Ensaio palco/ }).click();
-  await expect(page.getByRole('heading', { name: 'Fila sugerida e convocações' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ensaio palco', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fila do karaokê' })).toBeVisible();
   return () => requestsCreated;
 }
 async function callNext(page: Page) {
   await page.getByRole('button', { name: 'Aprovar e convocar', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirmar convocação', exact: true }).click();
+  const confirm = page.getByRole('button', { name: 'Confirmar convocação', exact: true });
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel('Música escolhida', { exact: true }).fill('Canção escolhida');
+  await confirm.click();
   await expect(page.locator('.current-call')).toBeVisible();
 }
 
-test('concludes opportunity without request only after song is chosen', async ({ page }) => {
+test('concludes opportunity without request only after song is chosen', async ({
+  page,
+}, testInfo) => {
   const requestsCreated = await setup(page);
   await callNext(page);
+  await page.screenshot({
+    path: testInfo.outputPath('convocacao.png'),
+    fullPage: true,
+    scale: 'css',
+  });
+  await expect(page.locator('.current-call')).toContainText('Canção escolhida');
   await page.getByRole('button', { name: 'Concluir apresentação', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirmar resultado', exact: true }).click();
-  await expect(
-    page.getByText('Informe a música antes de concluir.', { exact: true }),
-  ).toBeVisible();
-  await page.getByLabel('Música escolhida', { exact: true }).fill('Canção escolhida');
+  await expect(page.getByRole('dialog').getByRole('textbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Confirmar resultado', exact: true }).click();
   await expect(page.locator('.current-call')).toHaveCount(0);
   await page.locator('.stage-history summary').click();
   await expect(page.locator('.stage-history')).toContainText('Concluída');
+  await expect(page.locator('.stage-history')).toContainText('Canção escolhida');
   await expect(page.getByRole('button', { name: 'Aprovar e convocar', exact: true })).toBeVisible();
   expect(requestsCreated()).toBe(0);
 });
@@ -154,7 +161,8 @@ test('concludes opportunity without request only after song is chosen', async ({
 test('first absence with no other participant requires host release', async ({ page }) => {
   await setup(page);
   await callNext(page);
-  await page.getByRole('button', { name: 'Registrar falta', exact: true }).click();
+  await page.getByRole('button', { name: 'Outras ações', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Registrar falta', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar resultado', exact: true }).click();
   await expect(
     page.getByRole('button', { name: 'Liberar segunda tentativa', exact: true }),

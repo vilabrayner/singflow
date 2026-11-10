@@ -1,29 +1,31 @@
-<section class="page-width participant-page">
-  <p class="eyebrow">Experiência do participante</p>
-  <h1>Sua voz tem lugar aqui.</h1>
-  @if (error()) {
-    <p role="alert" class="host-error">{{ error() }}</p>
-  }
-  @if (notice()) {
-    <p role="status" class="host-notice">{{ notice() }}</p>
+<app-panel-header />
+<section id="participant-content" tabindex="-1" class="participant-page">
+  @if (
+    error() &&
+    (!own() ||
+      (!addingSong() &&
+        !skippingCall() &&
+        !confirmingExit() &&
+        !confirmingForget() &&
+        !cancellingSong()))
+  ) {
+    <p role="alert" class="sf-dialog-error">{{ error() }}</p>
   }
   @if (!ready()) {
     <p role="status">Carregando sua participação…</p>
   }
   @if (departed()) {
-    <div class="host-panel">
-      <h2>Acesso esquecido neste aparelho</h2>
+    <app-surface-card labelledBy="participant-forgotten-title">
+      <h2 id="participant-forgotten-title">Acesso esquecido neste aparelho</h2>
       <p>Seu histórico foi preservado. Para voltar ao mesmo cadastro, procure o anfitrião.</p>
-    </div>
+    </app-surface-card>
   }
   @if (entry(); as info) {
-    <div class="host-panel">
-      <h2>{{ info.name }}</h2>
+    <p class="sf-participant-event">{{ info.name }}</p>
+    <app-surface-card labelledBy="participant-entry-title">
       @if (info.status === 'OPEN') {
-        <p>
-          Entre com seu nome e a primeira música. Já está inscrito pelo anfitrião ou em outro
-          aparelho? Fale com ele antes de se cadastrar novamente.
-        </p>
+        <h1 id="participant-entry-title">Sua vez de soltar a voz</h1>
+        <p>Preencha seu nome e a primeira música.</p>
         <form [formGroup]="joinForm" (ngSubmit)="join()" class="host-form">
           <label
             >Seu nome<input
@@ -32,78 +34,157 @@
               maxlength="120"
               autocomplete="given-name"
               required
+              [readOnly]="busy()"
           /></label>
           <label
-            >Mesa (opcional)<input pInputText formControlName="tableLabel" maxlength="40"
+            >Primeira música<input
+              pInputText
+              formControlName="title"
+              maxlength="160"
+              required
+              [readOnly]="busy()"
           /></label>
-          <label
-            >Primeira música<input pInputText formControlName="title" maxlength="160" required
-          /></label>
-          <label
-            >Artista (opcional)<input pInputText formControlName="artist" maxlength="160"
-          /></label>
-          <p>
-            Enquanto você participar, o anfitrião poderá sugerir novas oportunidades mesmo sem
-            pedidos pendentes. Nenhuma sugestão confirma uma chamada.
-          </p>
-          <p-button
-            label="Entrar com minha música"
+          <details class="sf-disclosure">
+            <summary>Informações opcionais</summary>
+            <div class="host-form">
+              <label
+                >Artista (opcional)<input
+                  pInputText
+                  formControlName="artist"
+                  maxlength="160"
+                  [readOnly]="busy()"
+              /></label>
+              <label
+                >Mesa (opcional)<input
+                  pInputText
+                  formControlName="tableLabel"
+                  maxlength="40"
+                  [readOnly]="busy()"
+              /></label>
+            </div>
+          </details>
+          <button
             type="submit"
-            [loading]="busy()"
+            class="sf-button sf-primary sf-full"
             [disabled]="busy() || joinForm.invalid"
-          />
+          >
+            {{ busy() ? 'Entrando…' : 'Entrar com minha música' }}
+          </button>
         </form>
+        <p class="sf-participant-help">
+          Já está inscrito pelo anfitrião ou em outro aparelho? Fale com ele antes de se cadastrar
+          de novo.
+        </p>
       } @else {
+        <h1 id="participant-entry-title">Inscrições indisponíveis</h1>
         <p>Esta sessão não está recebendo inscrições. Fale com o anfitrião.</p>
       }
-    </div>
+    </app-surface-card>
   }
   @if (own(); as view) {
-    <div class="host-panel">
-      <div class="host-section-title">
+    <p class="sf-participant-event">{{ view.session.name }}</p>
+    <app-surface-card labelledBy="participant-status-title">
+      <div class="sf-session-heading">
         <div>
-          <h2>{{ view.participant.name }} · {{ view.session.name }}</h2>
-          <p>{{ status(view.participant.status) }}</p>
+          <h1 id="participant-status-title" tabindex="-1">Olá, {{ view.participant.name }}!</h1>
+          <app-status-badge [tone]="view.participant.status === 'ACTIVE' ? 'positive' : 'neutral'">
+            {{ view.participant.selfPaused ? 'Pausado' : status(view.participant.status) }}
+          </app-status-badge>
         </div>
-        <p-button
-          label="Atualizar"
-          ariaLabel="Atualizar"
-          icon="pi pi-refresh"
-          [outlined]="true"
-          [disabled]="busy()"
-          (onClick)="refresh()"
-        />
+        <div class="host-actions">
+          <button
+            type="button"
+            class="sf-icon-button"
+            aria-label="Atualizar"
+            title="Atualizar"
+            [disabled]="busy()"
+            (click)="refresh()"
+          >
+            <i class="pi pi-refresh" aria-hidden="true"></i>
+          </button>
+          @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
+            <app-options-menu
+              buttonId="participant-options"
+              label="Opções da participação"
+              [items]="participationOptions"
+              [disabled]="busy()"
+            />
+          }
+        </div>
       </div>
-      <p>{{ view.participant.completedPerformances }} apresentações concluídas</p>
-      @if (lastUpdated(); as date) {
-        <small
-          >Última atualização: {{ date | date: 'HH:mm:ss' }} · atualização automática a cada 10
-          segundos com a página visível.</small
-        >
-      }
       @if (disconnected()) {
         <p role="status">
           Sem confirmação de atualização. Os dados exibidos podem estar desatualizados.
         </p>
       }
       @if (view.session.status !== 'OPEN') {
-        <p class="host-notice">
-          Sessão encerrada. Seu histórico continua disponível até o acesso expirar.
-        </p>
-      }
-      @if (view.active; as call) {
-        <div class="current-call" role="status">
-          <h3>É a sua vez!</h3>
-          <p>O anfitrião confirmou sua convocação. Procure o palco.</p>
-          <strong>{{ call.title || 'Combine a próxima música com o anfitrião' }}</strong>
+        <p>Sessão encerrada. Seu histórico continua disponível até o acesso expirar.</p>
+      } @else if (view.active; as call) {
+        <div class="current-call sf-participant-wait">
+          <div role="status">
+            <h2>{{ call.acceptedAt ? 'Ida confirmada' : 'É a sua vez!' }}</h2>
+            <p>
+              {{
+                call.acceptedAt ? 'Pode se dirigir ao palco.' : 'O anfitrião está chamando você.'
+              }}
+            </p>
+            @if (call.acceptedAt) {
+              <p>{{ view.participant.name }}</p>
+            }
+            <strong>{{ call.title || 'Combine a próxima música com o anfitrião' }}</strong>
+            @if (call.artist) {
+              <p>{{ call.artist }}</p>
+            }
+          </div>
+          @if (!call.acceptedAt) {
+            <div class="host-actions">
+              <button
+                type="button"
+                class="sf-button sf-primary sf-full"
+                [disabled]="busy()"
+                (click)="respondToCall(call.id, 'accept')"
+              >
+                Confirmar ida
+              </button>
+              <button
+                type="button"
+                class="sf-button sf-outline sf-full"
+                [disabled]="busy()"
+                (click)="skippingCall.set(call.id)"
+              >
+                Pular esta vez
+              </button>
+            </div>
+          }
         </div>
-      } @else if (view.suggested) {
-        <p class="stage-wait">
-          Você está na sugestão para o anfitrião. Aguarde a confirmação da chamada; a sugestão pode
-          mudar.
-        </p>
+      } @else if (view.participant.selfPaused) {
+        <div class="sf-participant-wait">
+          <h2>Sua participação está pausada</h2>
+          <p>Volte à fila quando estiver pronto para cantar.</p>
+          <button
+            type="button"
+            class="sf-button sf-primary sf-full"
+            [disabled]="busy()"
+            (click)="resume()"
+          >
+            Estou pronto para voltar
+          </button>
+        </div>
+      } @else if (view.participant.status === 'ACTIVE') {
+        <div class="sf-participant-wait">
+          <i class="pi pi-music" aria-hidden="true"></i>
+          <h2>Você está na fila</h2>
+          <p>Acompanhe por aqui quando o anfitrião chamar você.</p>
+          @if (view.suggested) {
+            <p>Você está entre as sugestões. Aguarde a confirmação da chamada.</p>
+          }
+        </div>
       }
-    </div>
+      <p>{{ view.participant.completedPerformances }} apresentações concluídas</p>
+      @if (lastUpdated(); as date) {
+        <small>Atualizado às {{ date | date: 'HH:mm:ss' }}</small>
+      }
+    </app-surface-card>
     @if (view.participant.status === 'LEFT') {
       <div class="host-panel">
         <h2>Você está fora da fila</h2>
@@ -139,46 +220,158 @@
         }
       </div>
     }
-    <div class="host-panel">
-      <h2>Meus pedidos</h2>
-      @for (song of view.requests; track song.id) {
+    <app-surface-card labelledBy="participant-requests-title">
+      <h2 id="participant-requests-title">Meus pedidos</h2>
+      @if (view.session.status === 'OPEN' && view.participant.status === 'ACTIVE') {
+        <button
+          type="button"
+          class="sf-button sf-primary sf-full"
+          [disabled]="busy()"
+          aria-haspopup="dialog"
+          (click)="openSongForm()"
+        >
+          <i class="pi pi-plus" aria-hidden="true"></i>Adicionar música
+        </button>
+      }
+      @for (song of currentRequests(); track song.id) {
         <article class="participant-item">
-          <strong>{{ song.title }}</strong>
-          <p>{{ song.artist }} · {{ status(song.status) }}</p>
+          <ng-container
+            [ngTemplateOutlet]="songRow"
+            [ngTemplateOutletContext]="{ $implicit: song }"
+          />
           @if (
             song.status === 'PENDING' &&
             view.session.status === 'OPEN' &&
             view.participant.status === 'ACTIVE'
           ) {
-            <p-button
-              label="Cancelar pedido"
-              [outlined]="true"
+            <button
+              type="button"
+              class="sf-button sf-text"
               [disabled]="busy()"
-              (onClick)="cancel(song.id)"
-            />
+              (click)="cancellingSong.set(song)"
+            >
+              Cancelar pedido
+            </button>
           }
         </article>
+      } @empty {
+        <p>Você não tem pedidos nesta lista.</p>
       }
-      @if (view.session.status === 'OPEN' && view.participant.status === 'ACTIVE') {
-        <h3 class="stage-subtitle">Adicionar música</h3>
+    </app-surface-card>
+    @if (skippingCall(); as call) {
+      <app-confirmation-dialog
+        title="Pular esta vez?"
+        [busy]="busy()"
+        [error]="error()"
+        (dismissed)="skippingCall.set(null)"
+      >
+        <p>
+          Sua participação ficará pausada, sem registrar falta. Seus pedidos serão mantidos e você
+          pode voltar à fila quando estiver pronto.
+        </p>
+        <div class="host-actions">
+          <button
+            type="button"
+            class="sf-button sf-primary"
+            [disabled]="busy()"
+            (click)="respondToCall(call, 'skip')"
+          >
+            Confirmar que vou pular
+          </button>
+          <button
+            type="button"
+            class="sf-button sf-outline"
+            [disabled]="busy()"
+            (click)="skippingCall.set(null)"
+          >
+            Voltar
+          </button>
+        </div>
+      </app-confirmation-dialog>
+    }
+    @if (addingSong()) {
+      <app-confirmation-dialog
+        title="Adicionar música"
+        [busy]="busy()"
+        [error]="error()"
+        (dismissed)="closeSongForm()"
+      >
         <form [formGroup]="songForm" (ngSubmit)="add()" class="host-form">
-          <label>Música<input pInputText formControlName="title" maxlength="160" required /></label>
           <label
-            >Artista (opcional)<input pInputText formControlName="artist" maxlength="160"
+            >Música<input
+              pInputText
+              formControlName="title"
+              maxlength="160"
+              required
+              [readOnly]="busy()"
           /></label>
-          <p-button
-            type="submit"
-            label="Pedir música"
-            [disabled]="busy() || songForm.invalid"
-            [loading]="busy()"
-          />
+          <label
+            >Artista (opcional)<input
+              pInputText
+              formControlName="artist"
+              maxlength="160"
+              [readOnly]="busy()"
+          /></label>
+          <div class="host-actions">
+            <button
+              type="submit"
+              class="sf-button sf-primary"
+              [disabled]="busy() || songForm.invalid"
+            >
+              {{ busy() ? 'Enviando…' : 'Pedir música' }}
+            </button>
+            <button
+              type="button"
+              class="sf-button sf-outline"
+              [disabled]="busy()"
+              (click)="closeSongForm()"
+            >
+              Cancelar
+            </button>
+          </div>
         </form>
-      }
-    </div>
-    <div class="host-panel">
-      <h2>Meu histórico de palco</h2>
+      </app-confirmation-dialog>
+    }
+    @if (cancellingSong(); as song) {
+      <app-confirmation-dialog
+        title="Cancelar pedido?"
+        [busy]="busy()"
+        [error]="error()"
+        (dismissed)="cancellingSong.set(null)"
+      >
+        <p>
+          Cancelar o pedido de “{{ song.title }}”? Sua participação e os outros pedidos serão
+          mantidos.
+        </p>
+        <div class="host-actions">
+          <button
+            type="button"
+            class="sf-button sf-danger"
+            [disabled]="busy()"
+            (click)="cancel(song.id)"
+          >
+            Confirmar cancelamento do pedido
+          </button>
+          <button
+            type="button"
+            class="sf-button sf-outline"
+            [disabled]="busy()"
+            (click)="cancellingSong.set(null)"
+          >
+            Manter pedido
+          </button>
+        </div>
+      </app-confirmation-dialog>
+    }
+    <app-surface-card labelledBy="participant-history-title">
+      <h2 id="participant-history-title">Meu histórico de palco</h2>
       @for (call of view.history; track call.id) {
-        <p>{{ call.title || 'Música a escolher' }} · {{ status(call.status) }}</p>
+        <article class="participant-item">
+          <ng-container
+            [ngTemplateOutlet]="songRow"
+            [ngTemplateOutletContext]="{ $implicit: call }"
+          />
+        </article>
       } @empty {
         <p>Você ainda não teve uma convocação resolvida.</p>
       }
@@ -188,34 +381,47 @@
       </p>
       @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
         @if (confirmingExit()) {
-          <div class="stage-wait">
+          <app-confirmation-dialog
+            title="Sair da fila?"
+            returnFocus="participant-options"
+            [busy]="busy()"
+            [error]="error()"
+            (dismissed)="confirmingExit.set(false)"
+          >
             <p>
               Sair retira você da fila, cancela pedidos não atendidos e registra desistência se
               estiver convocado. Seu acesso e histórico serão mantidos. Se estiver pausado ou
               suspenso, o retorno continuará dependendo do anfitrião.
             </p>
-            <div class="stage-actions">
-              <p-button label="Confirmar saída da fila" [disabled]="busy()" (onClick)="leave()" />
-              <p-button
-                label="Continuar participando"
-                [text]="true"
+            <div class="host-actions">
+              <button
+                type="button"
+                class="sf-button sf-danger"
                 [disabled]="busy()"
-                (onClick)="confirmingExit.set(false)"
-              />
+                (click)="leave()"
+              >
+                {{ busy() ? 'Saindo…' : 'Confirmar saída da fila' }}
+              </button>
+              <button
+                type="button"
+                class="sf-button sf-outline"
+                [disabled]="busy()"
+                (click)="confirmingExit.set(false)"
+              >
+                Continuar participando
+              </button>
             </div>
-          </div>
-        } @else {
-          <p-button
-            label="Sair da fila"
-            [outlined]="true"
-            [disabled]="busy()"
-            (onClick)="confirmingExit.set(true)"
-          />
+          </app-confirmation-dialog>
         }
       }
       @if (view.participant.status === 'LEFT' || view.session.status !== 'OPEN') {
         @if (confirmingForget()) {
-          <div class="stage-wait">
+          <app-confirmation-dialog
+            title="Esquecer acesso neste aparelho?"
+            [busy]="busy()"
+            [error]="error()"
+            (dismissed)="confirmingForget.set(false)"
+          >
             <p>
               Este navegador perderá o acesso à sua participação, inclusive nas outras abas. Para
               voltar ao mesmo cadastro, você precisará do anfitrião. Seu histórico não será apagado.
@@ -231,16 +437,29 @@
               [disabled]="busy()"
               (onClick)="confirmingForget.set(false)"
             />
-          </div>
-        } @else {
-          <p-button
-            label="Esquecer meu acesso neste aparelho"
-            [outlined]="true"
-            [disabled]="busy()"
-            (onClick)="confirmingForget.set(true)"
-          />
+          </app-confirmation-dialog>
         }
+        <p-button
+          label="Esquecer meu acesso neste aparelho"
+          [outlined]="true"
+          [disabled]="busy()"
+          (onClick)="confirmingForget.set(true)"
+        />
       }
-    </div>
+    </app-surface-card>
   }
 </section>
+
+<ng-template #songRow let-song>
+  <div class="sf-participant-request">
+    <div>
+      <strong>{{ song.title || 'Música a escolher' }}</strong>
+      @if (song.artist) {
+        <p>{{ song.artist }}</p>
+      }
+    </div>
+    <app-status-badge [tone]="song.status === 'COMPLETED' ? 'positive' : 'neutral'">
+      {{ status(song.status) }}
+    </app-status-badge>
+  </div>
+</ng-template>

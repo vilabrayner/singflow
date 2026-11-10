@@ -8,6 +8,8 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.route('**/api/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/entry-link'))
+      return route.fulfill({ json: { url: 'https://singflow.example/participante/test/entry' } });
     if (path.endsWith('/stage'))
       return route.fulfill({ json: { suggestions: [], active: null, history: [], waits: [] } });
     if (path.endsWith('/auth/csrf'))
@@ -88,13 +90,26 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.getByLabel('E-mail', { exact: true }).fill('host@example.test');
   await page.getByLabel('Senha', { exact: true }).fill('test-password-only');
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar sessão', exact: true }).click();
   await page.getByLabel('Nome da sessão').fill('Ensaio assistido');
   await page.getByRole('button', { name: 'Criar sessão', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir sessão', exact: true }).click();
+  await page.getByRole('button', { name: 'Criar participante', exact: true }).click();
   await page.getByLabel('Nome do participante', { exact: true }).fill('Ana');
+  await page.getByText('Informações opcionais', { exact: true }).click();
   await page.getByLabel('Mesa (opcional)', { exact: true }).fill('3');
   await page.getByLabel('Primeira música', { exact: true }).fill('Evidências');
   await page.getByRole('button', { name: 'Inscrever com música', exact: true }).click();
+  const enrollmentNotice = page
+    .getByRole('status')
+    .filter({ hasText: 'Participante inscrito com a primeira música.' });
+  await expect(enrollmentNotice).toBeVisible();
+  const headerHeight = await page
+    .locator('.sf-panel-header')
+    .evaluate((header) => header.offsetHeight);
+  await expect(page.locator('p-toast')).toHaveCSS('top', `${headerHeight + 12}px`);
+  await expect(enrollmentNotice).toHaveCount(0, { timeout: 6500 });
+  await page.getByRole('button', { name: /Ana.*apresentações/ }).click();
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
   await page.getByLabel('Nova música', { exact: true }).fill('Outra canção');
@@ -103,7 +118,7 @@ test('host registers and adds songs without duplicating participation', async ({
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toHaveCount(1);
   await page.getByRole('button', { name: 'Registrar saída', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar saída', exact: true }).click();
-  await expect(page.getByText('Saiu', { exact: false })).toBeVisible();
+  await expect(page.getByText('Saiu', { exact: true })).toBeVisible();
   expect(participants).toHaveLength(1);
   expect(songs).toHaveLength(2);
 });

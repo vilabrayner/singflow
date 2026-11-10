@@ -22,7 +22,8 @@ public class Participation {
       long checkInOrder,
       int completedPerformances,
       int consecutiveAbsences,
-      Instant queueJoinedAt) {}
+      Instant queueJoinedAt,
+      boolean selfPaused) {}
 
   private final ParticipantRepository repository;
   private final SessionAccess sessions;
@@ -51,7 +52,8 @@ public class Participation {
         p.queueOrder,
         p.completedPerformances,
         p.consecutiveAbsences,
-        p.queueJoinedAt);
+        p.queueJoinedAt,
+        p.selfPaused);
   }
 
   @Transactional(readOnly = true)
@@ -144,6 +146,7 @@ public class Participation {
     if (!p.status.equals("LEFT")) {
       boolean selfReturnAllowed = voluntary && p.status.equals("ACTIVE");
       p.status = "LEFT";
+      p.selfPaused = false;
       audit.record(auditActor, session, "PARTICIPANT_LEFT", id);
       events.publishEvent(
           new ParticipantLeaving(session, id, actor, auditActor, voluntary, selfReturnAllowed));
@@ -164,8 +167,22 @@ public class Participation {
       int completedDelta,
       int absences,
       boolean newArrival) {
+    return updateStage(session, actor, id, status, completedDelta, absences, newArrival, false);
+  }
+
+  @Transactional
+  public ParticipantView updateStage(
+      UUID session,
+      String actor,
+      UUID id,
+      String status,
+      int completedDelta,
+      int absences,
+      boolean newArrival,
+      boolean selfPaused) {
     sessions.lockOwned(session, actor, true);
     if (!Set.of("ACTIVE", "PAUSED", "SUSPENDED", "INACTIVE", "LEFT").contains(status)
+        || (selfPaused && !status.equals("PAUSED"))
         || completedDelta < 0
         || completedDelta > 1
         || absences < 0
@@ -178,6 +195,7 @@ public class Participation {
                     new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Participante não encontrado."));
     p.status = status;
+    p.selfPaused = selfPaused;
     p.completedPerformances += completedDelta;
     p.consecutiveAbsences = absences;
     if (newArrival) {

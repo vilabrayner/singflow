@@ -17,6 +17,7 @@ export interface Participant {
   checkInOrder: number;
   completedPerformances: number;
   consecutiveAbsences: number;
+  selfPaused: boolean;
   queueJoinedAt: string;
 }
 export interface SongRequest {

@@ -10,10 +10,14 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/sessions/{session}/stage")
 class StageEndpoints {
-  record Confirm(@NotNull UUID operationId, @NotNull UUID participantId, UUID expectedRequestId) {}
+  record Confirm(
+      @NotNull UUID operationId,
+      @NotNull UUID participantId,
+      UUID expectedRequestId,
+      @Size(max = 160) String title,
+      @Size(max = 160) String artist) {}
 
-  record Resolve(
-      @NotBlank String outcome, @Size(max = 160) String title, @Size(max = 160) String artist) {}
+  record Resolve(@NotBlank String outcome) {}
 
   private final StageService stage;
 
@@ -34,7 +38,9 @@ class StageEndpoints {
         actor.getName(),
         input.operationId(),
         input.participantId(),
-        input.expectedRequestId());
+        input.expectedRequestId(),
+        input.title(),
+        input.artist());
   }
 
   @PostMapping("/calls/{call}/resolve")
@@ -43,8 +49,7 @@ class StageEndpoints {
       @PathVariable UUID call,
       @Valid @RequestBody Resolve input,
       Principal actor) {
-    return stage.resolve(
-        session, actor.getName(), call, input.outcome(), input.title(), input.artist());
+    return stage.resolve(session, actor.getName(), call, input.outcome());
   }
 
   @PostMapping("/participants/{participant}/{action}")

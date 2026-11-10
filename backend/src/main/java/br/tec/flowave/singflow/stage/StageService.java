@@ -37,7 +37,8 @@ public class StageService {
       String artist,
       String status,
       Instant createdAt,
-      Instant resolvedAt) {}
+      Instant resolvedAt,
+      Instant acceptedAt) {}
 
   public record WaitView(UUID participantId, String name, boolean manualRelease, int remaining) {}
 
@@ -99,7 +100,8 @@ public class StageService {
         c.artist(),
         c.status(),
         c.createdAt(),
-        c.resolvedAt());
+        c.resolvedAt(),
+        c.acceptedAt());
   }
 
   private List<Candidate> ranked(UUID session, String actor) {
@@ -187,13 +189,32 @@ public class StageService {
 
   @Transactional
   public StageView confirm(
-      UUID session, String actor, UUID operation, UUID participant, UUID expectedRequest) {
+      UUID session,
+      String actor,
+      UUID operation,
+      UUID participant,
+      UUID expectedRequest,
+      String selectedTitle,
+      String selectedArtist) {
     sessions.lockOwned(session, actor, true);
+    String title = clean(selectedTitle);
+    String artist = clean(selectedArtist);
+    if ((title != null && title.length() > 160) || (artist != null && artist.length() > 160))
+      throw conflict("Música e artista devem ter até 160 caracteres.");
     var previous = store.calls(session).stream().filter(c -> c.id().equals(operation)).findFirst();
     if (previous.isPresent()) {
-      if (!previous.get().participantId().equals(participant)
-          || !Objects.equals(previous.get().requestId(), expectedRequest))
+      var call = previous.get();
+      if (!call.participantId().equals(participant)
+          || !Objects.equals(call.requestId(), expectedRequest))
         throw conflict("Identificador já utilizado.");
+      if (expectedRequest == null && title != null) {
+        if (call.title() == null && call.status().equals("CALLED")) {
+          store.setSong(session, operation, title, artist);
+          audit.record(actor, session, "CALL_SONG_SELECTED", operation);
+        } else if (!Objects.equals(call.title(), title) || !Objects.equals(call.artist(), artist)) {
+          throw conflict("Identificador já utilizado com outra música.");
+        }
+      }
       return snapshot(session, actor);
     }
     if (active(session).isPresent())
@@ -204,21 +225,57 @@ public class StageService {
     if (!next.participantId().equals(participant)
         || !Objects.equals(next.requestId(), expectedRequest))
       throw conflict("A sugestão mudou. Atualize a lista antes de confirmar.");
-    if (expectedRequest != null)
+    if (expectedRequest == null && title == null)
+      throw conflict("Informe a música antes de confirmar a convocação.");
+    if (expectedRequest != null) {
       requests.transitionForStage(session, actor, expectedRequest, "PENDING", "RESERVED");
-    store.insert(operation, session, participant, expectedRequest, next.title(), next.artist());
+      title = next.title();
+      artist = next.artist();
+    }
+    store.insert(operation, session, participant, expectedRequest, title, artist);
     audit.record(actor, session, "CALL_CONFIRMED", operation);
     return snapshot(session, actor);
   }
 
   @Transactional
-  public StageView resolve(
-      UUID session,
-      String actor,
-      UUID id,
-      String outcome,
-      String selectedTitle,
-      String selectedArtist) {
+  public void respond(UUID session, String actor, UUID participant, UUID callId, boolean accept) {
+    sessions.lockOwned(session, actor, true);
+    var call =
+        store.calls(session).stream()
+            .filter(c -> c.id().equals(callId) && c.participantId().equals(participant))
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Convocação não encontrada."));
+    if (!accept && call.status().equals("DECLINED")) return;
+    if (!call.status().equals("CALLED")) throw conflict("Esta convocação já foi encerrada.");
+    if (call.acceptedAt() != null) {
+      if (accept) return;
+      throw conflict("Sua ida já foi confirmada.");
+    }
+    String auditActor = "participant:" + participant;
+    if (accept) {
+      store.accept(session, callId);
+      audit.record(auditActor, session, "CALL_ACCEPTED", callId);
+    } else {
+      finishAs(session, actor, call, "DECLINED", call.title(), call.artist(), auditActor, true);
+    }
+  }
+
+  @Transactional
+  public void resumeSelf(UUID session, String actor, UUID participant) {
+    sessions.lockOwned(session, actor, true);
+    var p = person(session, actor, participant);
+    if (p.status().equals("ACTIVE")) return;
+    if (!p.selfPaused()) throw conflict("Peça ao anfitrião para retomar sua participação.");
+    participants.updateStage(
+        session, actor, participant, "ACTIVE", 0, p.consecutiveAbsences(), false);
+    audit.record("participant:" + participant, session, "PARTICIPANT_RESUMED", participant);
+  }
+
+  @Transactional
+  public StageView resolve(UUID session, String actor, UUID id, String outcome) {
     sessions.lockOwned(session, actor, true);
     if (!Set.of("COMPLETED", "ABSENT", "DECLINED", "CANCELLED").contains(outcome))
       throw conflict("Resultado inválido.");
@@ -230,21 +287,14 @@ public class StageService {
                 () ->
                     new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Convocação não encontrada."));
-    String title = call.requestId() == null ? clean(selectedTitle) : call.title();
-    String artist = call.requestId() == null ? clean(selectedArtist) : call.artist();
     if (!call.status().equals("CALLED")) {
       if (!call.status().equals(outcome))
         throw conflict("Esta convocação já foi resolvida com outro resultado.");
-      if (outcome.equals("COMPLETED")
-          && (!Objects.equals(call.title(), title) || !Objects.equals(call.artist(), artist)))
-        throw conflict("A apresentação já foi concluída com outra música.");
       return snapshot(session, actor);
     }
-    if (outcome.equals("COMPLETED") && title == null)
-      throw conflict("Informe a música antes de concluir.");
-    if (title != null && title.length() > 160 || artist != null && artist.length() > 160)
-      throw conflict("Música e artista devem ter até 160 caracteres.");
-    finish(session, actor, call, outcome, title, artist);
+    if (outcome.equals("COMPLETED") && call.title() == null)
+      throw conflict("Defina a música da convocação antes de concluir.");
+    finish(session, actor, call, outcome, call.title(), call.artist());
     return snapshot(session, actor);
   }
 
@@ -254,7 +304,7 @@ public class StageService {
 
   private void finish(
       UUID session, String actor, Call call, String outcome, String title, String artist) {
-    finishAs(session, actor, call, outcome, title, artist, actor);
+    finishAs(session, actor, call, outcome, title, artist, actor, false);
   }
 
   private void finishAs(
@@ -264,7 +314,8 @@ public class StageService {
       String outcome,
       String title,
       String artist,
-      String auditActor) {
+      String auditActor,
+      boolean selfPaused) {
     var p = person(session, actor, call.participantId());
     if (outcome.equals("COMPLETED"))
       participants.updateStage(session, actor, p.id(), "ACTIVE", 1, 0, false);
@@ -278,7 +329,8 @@ public class StageService {
           Math.min(2, p.consecutiveAbsences() + 1),
           false);
     if (outcome.equals("DECLINED"))
-      participants.updateStage(session, actor, p.id(), "PAUSED", 0, p.consecutiveAbsences(), false);
+      participants.updateStage(
+          session, actor, p.id(), "PAUSED", 0, p.consecutiveAbsences(), false, selfPaused);
     if (call.requestId() != null)
       requests.transitionForStage(
           session,
@@ -388,7 +440,8 @@ public class StageService {
           "LEFT",
           call.get().title(),
           call.get().artist(),
-          event.auditActor());
+          event.auditActor(),
+          false);
     store.removeWait(event.sessionId(), event.participantId());
     if (sessions.requireOwned(event.sessionId(), event.actor()).status().equals("OPEN"))
       progress(event.sessionId(), event.actor(), event.participantId());
