@@ -254,6 +254,17 @@ public class StageService {
 
   private void finish(
       UUID session, String actor, Call call, String outcome, String title, String artist) {
+    finishAs(session, actor, call, outcome, title, artist, actor);
+  }
+
+  private void finishAs(
+      UUID session,
+      String actor,
+      Call call,
+      String outcome,
+      String title,
+      String artist,
+      String auditActor) {
     var p = person(session, actor, call.participantId());
     if (outcome.equals("COMPLETED"))
       participants.updateStage(session, actor, p.id(), "ACTIVE", 1, 0, false);
@@ -280,7 +291,7 @@ public class StageService {
     if (outcome.equals("ABSENT") && p.consecutiveAbsences() + 1 >= 2)
       requests.transitionParticipantRequests(session, actor, p.id(), "PENDING", "SUSPENDED");
     store.resolve(session, call.id(), outcome, title, artist);
-    audit.record(actor, session, "CALL_" + outcome, call.id());
+    audit.record(auditActor, session, "CALL_" + outcome, call.id());
     if (outcome.equals("ABSENT") && p.consecutiveAbsences() == 0) {
       var blockers =
           participants.list(session, actor).stream()
@@ -370,13 +381,14 @@ public class StageService {
     var call =
         active(event.sessionId()).filter(c -> c.participantId().equals(event.participantId()));
     if (call.isPresent())
-      finish(
+      finishAs(
           event.sessionId(),
           event.actor(),
           call.get(),
           "LEFT",
           call.get().title(),
-          call.get().artist());
+          call.get().artist(),
+          event.auditActor());
     store.removeWait(event.sessionId(), event.participantId());
     if (sessions.requireOwned(event.sessionId(), event.actor()).status().equals("OPEN"))
       progress(event.sessionId(), event.actor(), event.participantId());

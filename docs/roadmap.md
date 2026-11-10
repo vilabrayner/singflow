@@ -70,9 +70,13 @@ Aceite:
 
 Transições detalhadas e implementadas conforme revisão aprovada, com testes backend e interface aprovados. Reinício e operação real validados pelo responsável com serviços independentes e Docker.
 
-## Próximo incremento em revisão — participante pelo celular
+## Incremento em validação — participante pelo celular
 
-Recorte proposto: check-in sem conta por link/QR Code, envio e consulta de pedidos próprios, acompanhamento de convocação e saída, preservando o fluxo assistido. A [revisão do participante](participant-review.md) detalha decisões pendentes, credencial separada, duplicidade, privacidade e acesso por aparelho real. Nenhum código desse incremento foi autorizado.
+Recorte proposto: check-in sem conta por link/QR Code, envio e consulta de pedidos próprios, acompanhamento de convocação e saída, preservando o fluxo assistido. A [revisão do participante](participant-review.md) detalha decisões pendentes, credencial separada, duplicidade, privacidade e acesso por aparelho real. Recorte e parâmetros operacionais aprovados; implementação autorizada. O [roteiro de validação](acceptance/003-participant-flow.md) reúne os testes locais e Docker; aceite manual pendente.
+
+### Evolução aprovada — sair e voltar
+
+[Plano de retorno do participante](participant-return-review.md): saída voluntária mantém acesso limitado, retorno exige nova música e nova chegada, preservando apresentações e histórico. Retirada pelo anfitrião impede retorno autônomo. Regras e implementação autorizadas; evolução implementada e testes automatizados aprovados. [Ensaio local/Docker](acceptance/004-participant-return.md) pendente de aceite manual. Mantém o controle do anfitrião sobre pausas e faltas.
 
 ## Etapa 4 — Catálogo híbrido e tempo real
 

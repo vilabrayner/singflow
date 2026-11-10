@@ -26,6 +26,34 @@ public class SessionAccess {
     this.events = events;
   }
 
+  public record AudienceContext(String owner, SessionView session) {}
+
+  @Transactional(readOnly = true)
+  public AudienceContext audienceContext(UUID id) {
+    var s =
+        repository
+            .findById(id)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sessão não encontrada."));
+    return new AudienceContext(s.owner, view(s));
+  }
+
+  /**
+   * Obtain audience context only after the session lock, so state cannot be cached before a
+   * concurrent close.
+   */
+  @Transactional
+  public AudienceContext lockAudienceContext(UUID id, boolean requireOpen) {
+    var s =
+        repository
+            .lockById(id)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sessão não encontrada."));
+    if (requireOpen && !s.status.equals("OPEN"))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "A sessão precisa estar aberta.");
+    return new AudienceContext(s.owner, view(s));
+  }
+
   private SessionView view(KaraokeSession s) {
     return new SessionView(s.id, s.name, s.status, s.createdAt);
   }

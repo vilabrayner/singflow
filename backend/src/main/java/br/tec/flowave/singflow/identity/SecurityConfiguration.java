@@ -38,7 +38,10 @@ class SecurityConfiguration {
       throws Exception {
     http.authorizeHttpRequests(
         access -> {
-          access.requestMatchers("/actuator/health", "/api/auth/csrf").permitAll();
+          access
+              .requestMatchers(
+                  "/actuator/health", "/api/auth/csrf", "/api/public/**", "/api/participation/**")
+              .permitAll();
           if (environment.acceptsProfiles(Profiles.of("local"))) {
             access
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")

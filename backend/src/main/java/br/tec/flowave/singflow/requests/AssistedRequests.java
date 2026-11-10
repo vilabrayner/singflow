@@ -62,6 +62,45 @@ public class AssistedRequests {
   @Transactional
   public RequestView add(
       UUID session, String actor, UUID participant, UUID operation, String title, String artist) {
+    return addAs(session, actor, participant, operation, title, artist, actor, "ASSISTED");
+  }
+
+  @Transactional
+  public Registration registerSelf(
+      UUID session,
+      String owner,
+      UUID participant,
+      String name,
+      String table,
+      String title,
+      String artist) {
+    var p = participation.registerSelf(session, owner, participant, name, table);
+    return new Registration(p, addSelf(session, owner, participant, participant, title, artist));
+  }
+
+  @Transactional
+  public RequestView addSelf(
+      UUID session, String owner, UUID participant, UUID operation, String title, String artist) {
+    return addAs(
+        session,
+        owner,
+        participant,
+        operation,
+        title,
+        artist,
+        "participant:" + participant,
+        "SELF");
+  }
+
+  private RequestView addAs(
+      UUID session,
+      String actor,
+      UUID participant,
+      UUID operation,
+      String title,
+      String artist,
+      String auditActor,
+      String origin) {
     participation.requireActive(session, actor, participant);
     String cleanArtist = artist == null || artist.isBlank() ? null : artist.strip();
     var previous = repository.findById(operation);
@@ -77,13 +116,31 @@ public class AssistedRequests {
     var r =
         repository.saveAndFlush(
             new SongRequest(operation, session, participant, title.strip(), cleanArtist));
-    audit.record(actor, session, "ASSISTED_REQUEST_CREATED", operation);
+    audit.record(auditActor, session, origin + "_REQUEST_CREATED", operation);
     return view(r);
   }
 
   @Transactional
   public Participation.ParticipantView leave(UUID session, String actor, UUID participant) {
-    var result = participation.leave(session, actor, participant);
+    return leaveAs(session, actor, participant, actor);
+  }
+
+  @Transactional
+  public Participation.ParticipantView leaveAs(
+      UUID session, String actor, UUID participant, String auditActor) {
+    var result = participation.leaveAs(session, actor, participant, auditActor);
+    cancelOnExit(session, participant, auditActor);
+    return result;
+  }
+
+  @Transactional
+  public Participation.ParticipantView leaveSelf(UUID session, String owner, UUID participant) {
+    var result = participation.leaveSelf(session, owner, participant);
+    cancelOnExit(session, participant, "participant:" + participant);
+    return result;
+  }
+
+  private void cancelOnExit(UUID session, UUID participant, String auditActor) {
     repository.findBySessionIdOrderByCreatedAtAscIdAsc(session).stream()
         .filter(
             r ->
@@ -92,9 +149,29 @@ public class AssistedRequests {
         .forEach(
             r -> {
               r.status = "CANCELLED";
-              audit.record(actor, session, "REQUEST_CANCELLED_ON_EXIT", r.id);
+              audit.record(auditActor, session, "REQUEST_CANCELLED_ON_EXIT", r.id);
             });
-    return result;
+    repository.flush();
+  }
+
+  @Transactional
+  public void cancelSelf(UUID session, String owner, UUID participant, UUID id) {
+    sessions.lockOwned(session, owner, true);
+    var r =
+        repository
+            .findById(id)
+            .filter(
+                item -> item.sessionId.equals(session) && item.participantId.equals(participant))
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado."));
+    if (r.status.equals("CANCELLED")) return;
+    if (!r.status.equals("PENDING"))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Somente pedidos pendentes podem ser cancelados. Fale com o anfitrião.");
+    r.status = "CANCELLED";
+    repository.flush();
+    audit.record("participant:" + participant, session, "SELF_REQUEST_CANCELLED", id);
   }
 
   /** Narrow module API for reserving/releasing a request under the session lock. */

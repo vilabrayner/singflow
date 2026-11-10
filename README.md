@@ -8,6 +8,10 @@ Plataforma de gestão de karaokê ao vivo para participantes, anfitriões e mús
 
 Fundação e primeiro incremento assistido implementados: acesso do anfitrião, sessões, inscrição com primeira música, novos pedidos no mesmo cadastro, busca e saída com auditoria. Fila sugerida e operação do palco também estão implementadas, com testes aprovados e aceite manual confirmado nos dois modos. A verificação backend retornou `BUILD SUCCESS`, e o responsável concluiu o roteiro com serviços independentes e Docker, incluindo persistência após reinício.
 
+O incremento de participante está implementado, com link/QR local, check-in sem conta, pedidos próprios, acompanhamento de convocação e saída. O aceite integrado deste incremento ainda está pendente: siga o [roteiro do participante](docs/acceptance/003-participant-flow.md).
+
+Saída e retorno evoluídos: sair da fila mantém acesso e histórico; voltar exige nova música e nova chegada, preservando apresentações. Retirada pelo anfitrião e esquecimento revogam o acesso. V6 implementada, 35 testes backend aprovados pelo responsável, 22 testes de interface simulada e 5 de configuração aprovados. O [roteiro de saída/retorno](docs/acceptance/004-participant-return.md) aguarda aceite integrado.
+
 Consulte [Teste local do primeiro incremento](docs/local-mvp-testing.md) para acesso inicial, serviços independentes, imagens Docker e roteiro de aceite.
 
 ## Stack
@@ -125,6 +129,8 @@ Os workflows em `.github/workflows/` verificam backend e frontend no GitHub Acti
 - [Ensaio de fila e palco](docs/stage-testing.md)
 - [Aceite de fila e palco](docs/acceptance/002-stage-flow.md)
 - [Revisão — participante pelo celular e QR Code](docs/participant-review.md)
+- [Ensaio do participante — local e Docker](docs/acceptance/003-participant-flow.md)
+- [Ensaio de saída voluntária e retorno](docs/acceptance/004-participant-return.md)
 - [MVP — piloto no Café Tão](docs/mvp-cafe-tao.md)
 - [ADR 001 — Monólito modular](docs/decisions/001-modular-monolith.md)
 - [ADR 002 — Frontend Angular SPA](docs/decisions/002-angular-spa.md)

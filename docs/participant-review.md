@@ -1,6 +1,8 @@
 # Revisão — participante pelo celular, pedidos e QR Code
 
-Estado: proposta para revisão. Não implementado e não autorizado por este documento.
+Estado: recorte funcional e parâmetros operacionais aprovados; implementação autorizada na retomada do app. Validação e aceite manual em andamento; veja o [roteiro](acceptance/003-participant-flow.md).
+
+**Evolução aprovada em 10/11/2026:** [saída e retorno voluntário](participant-return-review.md). A evolução foi autorizada e implementada: saída voluntária mantém acesso limitado para consultar e voltar com outra música; retirada pelo anfitrião revoga o acesso. As propostas originais abaixo que exigiam revogação em toda saída foram substituídas. Veja o [roteiro atualizado](acceptance/004-participant-return.md).
 
 Base: [fluxo assistido aceito](acceptance/001-assisted-flow.md), [fila e palco aceitos](acceptance/002-stage-flow.md) e [regras de participação](decisions/004-participation-and-repeat-suggestions.md).
 
@@ -31,7 +33,7 @@ O participante acompanha seus pedidos, seu estado de participação e sua convoc
 | Atualização | Consultas periódicas a cada 10 segundos quando a página estiver visível, mais botão Atualizar; informar desconexão e última atualização, sem confirmar operações offline |
 | Privacidade | Mostrar ao participante apenas os próprios pedidos e dados; não publicar lista nominal completa nem dados dos demais |
 
-Cada item é proposta nova a aprovar. O comportamento de saída deve reutilizar as regras aceitas, sem permitir que um participante modifique outro ou afete o login do anfitrião.
+O recorte funcional foi aprovado pelo responsável. Os parâmetros operacionais estão detalhados abaixo e no roteiro de validação. O comportamento de saída deve reutilizar as regras aceitas, sem permitir que um participante modifique outro ou afete o login do anfitrião.
 
 ## Link e QR Code
 
@@ -77,4 +79,12 @@ Catálogo híbrido com aprovação, conta permanente, recuperação entre dispos
 
 ## Antes da implementação
 
-Aprovar o recorte e as decisões da tabela; definir expiração de credencial, proteção de requisições públicas e apresentação/rotação do link para o piloto. Depois autorizar explicitamente a implementação. O registro do aceite anterior não substitui essas decisões.
+O recorte e os parâmetros foram aprovados, com autorização para implementar. Acesso pela rede local ou publicação depende de autorização separada.
+
+## Parâmetros operacionais aprovados
+
+- Credencial válida por 24 horas a partir da emissão, sem renovação silenciosa. Saída revoga imediatamente. Sessão encerrada bloqueia alterações, preservando leitura própria até expirar a credencial.
+- Limites de requisições configuráveis: pedidos por credencial e entradas por sessão/origem de rede, considerando que várias pessoas no estabelecimento compartilham o mesmo IP. Informar quando tentar novamente e preservar idempotência para não duplicar pedidos. Valores e mecanismo documentados no roteiro de validação.
+- Link de entrada válido durante a sessão; anfitrião pode trocá-lo, invalidando somente o endereço anterior, sem desconectar participantes já inscritos. Encerramento bloqueia novas entradas.
+
+Implementação dos limites e valores iniciais descritos no roteiro de validação. Calibrar antes de publicar.

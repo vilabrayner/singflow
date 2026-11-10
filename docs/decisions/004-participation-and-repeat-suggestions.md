@@ -2,6 +2,8 @@
 
 Estado: regras de negócio aprovadas; fluxo assistido básico aceito, fila e palco implementados e aceitos nos dois modos.
 
+Atualização de 10/11/2026: a [revisão de saída e retorno](../participant-return-review.md) aprova manter acesso limitado após saída voluntária e retorno ao mesmo cadastro com nova música e nova chegada. Ela substitui, como comportamento desejado, a limpeza obrigatória do vínculo nas seções de saída/retorno abaixo. A evolução foi autorizada e implementada com a V6; o [roteiro atualizado](../acceptance/004-participant-return.md) cobre o aceite pendente. As regras anteriores de limpeza obrigatória do vínculo abaixo ficam como registro da versão anterior.
+
 ## Contexto
 
 Apenas ordenar pedidos não atende a sessões com poucos participantes. O anfitrião precisa receber sugestões de novas oportunidades mesmo quando não há músicas solicitadas. Também é necessário tratar quem sai voluntariamente, recusa uma oportunidade ou deixa o local sem encerrar sua participação.

@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { EntryShare } from '../participation/entry-share';
 import { StagePanel } from '../stage/stage-panel';
 import { StageApi } from '../stage/stage-api';
 import { DatePipe } from '@angular/common';
@@ -12,7 +13,7 @@ import { apiError } from '../../core/http/api-client';
 
 @Component({
   selector: 'app-host-dashboard',
-  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, DatePipe, StagePanel],
+  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, DatePipe, StagePanel, EntryShare],
   templateUrl: './host-dashboard.html',
 })
 export class HostDashboard implements OnInit {

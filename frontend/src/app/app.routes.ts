@@ -7,6 +7,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/home/home.page').then((m) => m.HomePage),
   },
   {
+    path: 'participante/:session/:code',
+    title: 'Minha participação · SingFlow',
+    loadComponent: () =>
+      import('./features/participation/participant.page').then((m) => m.ParticipantPage),
+  },
+  {
     path: 'participante',
     title: 'Participante · SingFlow',
     loadComponent: () =>

@@ -9,10 +9,13 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 class ApiErrors {
   @ExceptionHandler(ResponseStatusException.class)
-  ProblemDetail state(ResponseStatusException error) {
-    return ProblemDetail.forStatusAndDetail(
-        error.getStatusCode(),
-        error.getReason() == null ? "Operação indisponível." : error.getReason());
+  ResponseEntity<ProblemDetail> state(ResponseStatusException error) {
+    return ResponseEntity.status(error.getStatusCode())
+        .headers(error.getHeaders())
+        .body(
+            ProblemDetail.forStatusAndDetail(
+                error.getStatusCode(),
+                error.getReason() == null ? "Operação indisponível." : error.getReason()));
   }
 
   @ExceptionHandler(MethodArgumentNotValidException.class)

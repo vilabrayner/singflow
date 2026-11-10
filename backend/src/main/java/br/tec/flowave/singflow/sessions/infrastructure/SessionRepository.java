@@ -11,5 +11,9 @@ public interface SessionRepository extends JpaRepository<KaraokeSession, UUID> {
   @Query("select s from KaraokeSession s where s.id = :id and s.owner = :owner")
   Optional<KaraokeSession> lockOwned(UUID id, String owner);
 
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select s from KaraokeSession s where s.id = :id")
+  Optional<KaraokeSession> lockById(UUID id);
+
   Optional<KaraokeSession> findByIdAndOwner(UUID id, String owner);
 }

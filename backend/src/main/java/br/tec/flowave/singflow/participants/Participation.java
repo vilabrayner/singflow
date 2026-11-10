@@ -64,6 +64,23 @@ public class Participation {
 
   @Transactional
   public ParticipantView register(UUID session, String actor, UUID id, String name, String table) {
+    return registerWithOrigin(session, actor, id, name, table, "ASSISTED", actor);
+  }
+
+  @Transactional
+  public ParticipantView registerSelf(
+      UUID session, String owner, UUID id, String name, String table) {
+    return registerWithOrigin(session, owner, id, name, table, "SELF", "participant:" + id);
+  }
+
+  private ParticipantView registerWithOrigin(
+      UUID session,
+      String actor,
+      UUID id,
+      String name,
+      String table,
+      String origin,
+      String auditActor) {
     sessions.lockOwned(session, actor, true);
     var previous = repository.findByIdAndSessionId(id, session);
     String cleanTable = table == null || table.isBlank() ? null : table.strip();
@@ -73,10 +90,12 @@ public class Participation {
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Identificador já utilizado.");
       return view(p);
     }
-    var p = repository.saveAndFlush(new Participant(id, session, name.strip(), cleanTable));
+    var entity = new Participant(id, session, name.strip(), cleanTable);
+    entity.origin = origin;
+    var p = repository.saveAndFlush(entity);
     // Refresh generated server sequence, used as deterministic check-in order.
     entityManager.refresh(p);
-    audit.record(actor, session, "ASSISTED_CHECK_IN", id);
+    audit.record(auditActor, session, origin + "_CHECK_IN", id);
     return view(p);
   }
 
@@ -99,6 +118,21 @@ public class Participation {
 
   @Transactional
   public ParticipantView leave(UUID session, String actor, UUID id) {
+    return leaveAs(session, actor, id, actor);
+  }
+
+  @Transactional
+  public ParticipantView leaveAs(UUID session, String actor, UUID id, String auditActor) {
+    return leaveWithReason(session, actor, id, auditActor, false);
+  }
+
+  @Transactional
+  public ParticipantView leaveSelf(UUID session, String owner, UUID id) {
+    return leaveWithReason(session, owner, id, "participant:" + id, true);
+  }
+
+  private ParticipantView leaveWithReason(
+      UUID session, String actor, UUID id, String auditActor, boolean voluntary) {
     sessions.lockOwned(session, actor, false);
     var p =
         repository
@@ -108,9 +142,14 @@ public class Participation {
                     new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Participante não encontrado."));
     if (!p.status.equals("LEFT")) {
+      boolean selfReturnAllowed = voluntary && p.status.equals("ACTIVE");
       p.status = "LEFT";
-      audit.record(actor, session, "PARTICIPANT_LEFT", id);
-      events.publishEvent(new ParticipantLeaving(session, id, actor));
+      audit.record(auditActor, session, "PARTICIPANT_LEFT", id);
+      events.publishEvent(
+          new ParticipantLeaving(session, id, actor, auditActor, voluntary, selfReturnAllowed));
+    } else if (!voluntary) {
+      // Host removal must invalidate self-return even if the person already left voluntarily.
+      events.publishEvent(new ParticipantLeaving(session, id, actor, auditActor));
     }
     return view(p);
   }

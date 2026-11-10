@@ -34,7 +34,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(3);
+    assertThat(flyway.info().applied()).hasSize(6);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -431,5 +431,477 @@ class SingflowApplicationTests {
                 .findFirst()
                 .orElseThrow()
                 .checkInOrder());
+  }
+
+  @Autowired br.tec.flowave.singflow.audience.AudienceService audience;
+
+  private jakarta.servlet.http.Cookie prepareGuest(
+      UUID session, String code, MockHttpSession browser) throws Exception {
+    var result =
+        mvc.perform(
+                post("/api/participation/" + session + "/prepare")
+                    .session(browser)
+                    .with(csrf())
+                    .contentType("application/json")
+                    .content("{\"code\":\"" + code + "\"}"))
+            .andExpect(status().isNoContent())
+            .andReturn();
+    var cookie = result.getResponse().getCookie("SF_PARTICIPANT");
+    assertThat(cookie).isNotNull();
+    assertThat(cookie.isHttpOnly()).isTrue();
+    assertThat(cookie.getPath()).isEqualTo("/api/participation/" + session);
+    return cookie;
+  }
+
+  private String code(UUID session, String owner) {
+    String url = audience.entryLink(session, owner, null).url();
+    return url.substring(url.lastIndexOf('/') + 1);
+  }
+
+  private void joinGuest(UUID session, String code, jakarta.servlet.http.Cookie cookie)
+      throws Exception {
+    mvc.perform(
+            post("/api/participation/" + session + "/join")
+                .cookie(cookie)
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"code\":\"" + code + "\",\"name\":\"Ana\",\"title\":\"Equalize\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.participant.origin").value("SELF"));
+  }
+
+  @Test
+  void guestIdentityPrivacyRotationAndIdempotence() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var browser = new MockHttpSession();
+    var cookie = prepareGuest(session, code, browser);
+    joinGuest(session, code, cookie);
+    joinGuest(session, code, cookie);
+    var other = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, other);
+    var own = audience.me(session, cookie.getValue());
+    var theirs = audience.me(session, other.getValue());
+    assertThat(own.participant().id()).isNotEqualTo(theirs.participant().id());
+    assertThat(own.requests()).hasSize(1);
+    mvc.perform(get("/api/sessions/" + session + "/participants").cookie(cookie))
+        .andExpect(status().isUnauthorized());
+    mvc.perform(
+            post("/api/participation/" + session + "/requests")
+                .cookie(cookie)
+                .contentType("application/json")
+                .content("{}"))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post("/api/participation/"
+                    + session
+                    + "/requests/"
+                    + theirs.requests().getFirst().id()
+                    + "/cancel")
+                .cookie(cookie)
+                .with(csrf()))
+        .andExpect(status().isNotFound());
+    UUID op = UUID.randomUUID();
+    audience.add(session, cookie.getValue(), op, "Nova música", null);
+    audience.add(session, cookie.getValue(), op, "Nova música", null);
+    assertThat(audience.me(session, cookie.getValue()).requests()).hasSize(2);
+    audience.cancel(session, cookie.getValue(), op);
+    audience.cancel(session, cookie.getValue(), op);
+    assertThat(audience.me(session, cookie.getValue()).participant().checkInOrder())
+        .isEqualTo(own.participant().checkInOrder());
+    var recovered = prepareGuest(session, code, browser);
+    assertThat(audience.me(session, recovered.getValue()).participant().id())
+        .isEqualTo(own.participant().id());
+    UUID rotation = UUID.randomUUID();
+    String rotated = audience.entryLink(session, owner, rotation).url();
+    assertThat(audience.entryLink(session, owner, rotation).url()).isEqualTo(rotated);
+    mvc.perform(get("/api/public/sessions/" + session).param("code", code))
+        .andExpect(status().isNotFound());
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(recovered))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.requests.length()").value(2));
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='SELF_CHECK_IN'")
+                .param(session)
+                .query(Long.class)
+                .single())
+        .isEqualTo(2);
+  }
+
+  @Test
+  void guestLeaveResolvesCallRetainsAccessAndPreservesHistory() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    var own = audience.me(session, cookie.getValue());
+    stage.confirm(
+        session, owner, UUID.randomUUID(), own.participant().id(), own.requests().getFirst().id());
+    mvc.perform(
+            post("/api/participation/"
+                    + session
+                    + "/requests/"
+                    + own.requests().getFirst().id()
+                    + "/cancel")
+                .cookie(cookie)
+                .with(csrf()))
+        .andExpect(status().isConflict());
+    assertThat(audience.me(session, cookie.getValue()).active()).isNotNull();
+    mvc.perform(post("/api/participation/" + session + "/leave").cookie(cookie).with(csrf()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.canReturn").value(true))
+        .andExpect(header().doesNotExist("Set-Cookie"));
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.participant.status").value("LEFT"));
+    assertThat(stage.snapshot(session, owner).active()).isNull();
+    assertThat(stage.snapshot(session, owner).history().getFirst().status()).isEqualTo("LEFT");
+    assertThat(assistedRequests.list(session, owner).getFirst().status()).isEqualTo("CANCELLED");
+    assertThat(stage.snapshot(session, owner).suggestions()).isEmpty();
+    assertThatThrownBy(
+            () -> audience.add(session, cookie.getValue(), UUID.randomUUID(), "Outra", null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    // A host removal after voluntary departure must revoke access as well.
+    assistedRequests.leave(session, owner, own.participant().id());
+    stage.availability(session, owner, own.participant().id(), "reactivate");
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void guestExpiryAndClosedSession() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    mvc.perform(
+            post("/api/sessions/" + session + "/close")
+                .with(user(owner).roles("HOST"))
+                .with(csrf()))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isOk());
+    mvc.perform(
+            post("/api/participation/" + session + "/requests")
+                .cookie(cookie)
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"operationId\":\"" + UUID.randomUUID() + "\",\"title\":\"Outra\"}"))
+        .andExpect(status().isConflict());
+    jdbc.sql(
+            "UPDATE singflow.participant_grants SET expires_at=now()-interval '1 second' WHERE"
+                + " session_id=?")
+        .param(session)
+        .update();
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void guestRateLimitPersistsRejectedRequestsAndReturnsRetryHeader() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    for (int n = 0; n < 19; n++)
+      mvc.perform(
+              post("/api/participation/" + session + "/requests/" + UUID.randomUUID() + "/cancel")
+                  .cookie(cookie)
+                  .with(csrf()))
+          .andExpect(status().isNotFound());
+    mvc.perform(
+            post("/api/participation/" + session + "/requests/" + UUID.randomUUID() + "/cancel")
+                .cookie(cookie)
+                .with(csrf()))
+        .andExpect(status().isTooManyRequests())
+        .andExpect(header().string("Retry-After", "60"));
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  void concurrentGuestCheckInsShareOneParticipant() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var browser = new MockHttpSession();
+    var cookie = prepareGuest(session, code, browser);
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var a =
+          executor.submit(
+              () -> audience.join(session, cookie.getValue(), code, "Ana", null, "Equalize", null));
+      var b =
+          executor.submit(
+              () -> audience.join(session, cookie.getValue(), code, "Ana", null, "Equalize", null));
+      assertThat(a.get(10, TimeUnit.SECONDS).participant().id())
+          .isEqualTo(b.get(10, TimeUnit.SECONDS).participant().id());
+    }
+    assertThat(assistedRequests.list(session, owner)).hasSize(1);
+  }
+
+  @Test
+  void voluntaryReturnPreservesCountsAndHistoryAndDoesNotRenewAccess() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    var initial = audience.me(session, cookie.getValue());
+    var call =
+        stage
+            .confirm(
+                session,
+                owner,
+                UUID.randomUUID(),
+                initial.participant().id(),
+                initial.requests().getFirst().id())
+            .active();
+    stage.resolve(session, owner, call.id(), "COMPLETED", null, null);
+    var pending = UUID.randomUUID();
+    audience.add(session, cookie.getValue(), pending, "Segunda", null);
+    audience.leave(session, cookie.getValue());
+    audience.leave(session, cookie.getValue());
+    var op = UUID.randomUUID();
+    var returned = audience.returnToQueue(session, cookie.getValue(), op, "Retorno", "Artista");
+    assertThat(returned.participant().id()).isEqualTo(initial.participant().id());
+    assertThat(returned.participant().completedPerformances()).isEqualTo(1);
+    assertThat(returned.participant().checkInOrder())
+        .isGreaterThan(initial.participant().checkInOrder());
+    assertThat(returned.expiresAt()).isEqualTo(initial.expiresAt());
+    assertThat(returned.requests()).hasSize(3);
+    assertThat(
+            returned.requests().stream()
+                .filter(r -> r.id().equals(pending))
+                .findFirst()
+                .orElseThrow()
+                .status())
+        .isEqualTo("CANCELLED");
+    assertThat(returned.history()).hasSize(1);
+    var retry = audience.returnToQueue(session, cookie.getValue(), op, "Retorno", "Artista");
+    assertThat(retry.participant().checkInOrder()).isEqualTo(returned.participant().checkInOrder());
+    assertThat(retry.requests()).hasSize(3);
+    assertThatThrownBy(
+            () -> audience.returnToQueue(session, cookie.getValue(), op, "Alterada", null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    // A delayed retry of an older operation must never rejoin a later departure.
+    audience.leave(session, cookie.getValue());
+    assertThat(
+            audience
+                .returnToQueue(session, cookie.getValue(), op, "Retorno", "Artista")
+                .participant()
+                .status())
+        .isEqualTo("LEFT");
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='SELF_RETURNED'")
+                .param(session)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void simultaneousReturnsDoNotDuplicateSongOrArrival() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    audience.leave(session, cookie.getValue());
+    UUID op = UUID.randomUUID();
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var a =
+          executor.submit(
+              () -> audience.returnToQueue(session, cookie.getValue(), op, "Retorno", null));
+      var b =
+          executor.submit(
+              () -> audience.returnToQueue(session, cookie.getValue(), op, "Retorno", null));
+      var one = a.get(10, TimeUnit.SECONDS);
+      var two = b.get(10, TimeUnit.SECONDS);
+      assertThat(one.participant().checkInOrder()).isEqualTo(two.participant().checkInOrder());
+    }
+    assertThat(audience.me(session, cookie.getValue()).requests()).hasSize(2);
+    assertThatThrownBy(
+            () ->
+                audience.returnToQueue(
+                    session, cookie.getValue(), UUID.randomUUID(), "Outro retorno", null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThat(audience.me(session, cookie.getValue()).requests()).hasSize(2);
+  }
+
+  @Test
+  void returnRequiresSongCsrfOpenSessionAndValidCredential() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    audience.leave(session, cookie.getValue());
+    String body = "{\"operationId\":\"" + UUID.randomUUID() + "\",\"title\":\"Retorno\"}";
+    mvc.perform(
+            post("/api/participation/" + session + "/return")
+                .cookie(cookie)
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post("/api/participation/" + session + "/return")
+                .cookie(cookie)
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"operationId\":\"" + UUID.randomUUID() + "\",\"title\":\" \"}"))
+        .andExpect(status().isBadRequest());
+    mvc.perform(
+            post("/api/sessions/" + session + "/close")
+                .with(user(owner).roles("HOST"))
+                .with(csrf()))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.canReturn").value(false));
+    mvc.perform(
+            post("/api/participation/" + session + "/return")
+                .cookie(cookie)
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isConflict());
+    jdbc.sql(
+            "UPDATE singflow.participant_grants SET expires_at=now()-interval '1 second' WHERE"
+                + " session_id=?")
+        .param(session)
+        .update();
+    mvc.perform(
+            post("/api/participation/" + session + "/return")
+                .cookie(cookie)
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isUnauthorized());
+    assertThat(assistedRequests.list(session, owner)).hasSize(1);
+  }
+
+  @Test
+  void forgettingAccessRevokesCookieButNeverErasesHistoryOrHostLogin() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    mvc.perform(post("/api/participation/" + session + "/forget").cookie(cookie).with(csrf()))
+        .andExpect(status().isConflict());
+    audience.leave(session, cookie.getValue());
+    mvc.perform(
+            post("/api/participation/" + session + "/forget")
+                .cookie(cookie)
+                .with(user(owner).roles("HOST"))
+                .with(csrf()))
+        .andExpect(status().isNoContent())
+        .andExpect(cookie().maxAge("SF_PARTICIPANT", 0));
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isUnauthorized());
+    mvc.perform(get("/api/auth/me").with(user(owner).roles("HOST"))).andExpect(status().isOk());
+    assertThat(assistedRequests.list(session, owner)).hasSize(1);
+  }
+
+  @Test
+  void leavingDoesNotBypassHostPauseAndHostRemovalRevokesActiveAccess() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    joinGuest(session, code, cookie);
+    var id = audience.me(session, cookie.getValue()).participant().id();
+    stage.availability(session, owner, id, "pause");
+    var left = audience.leave(session, cookie.getValue());
+    assertThat(left.canReturn()).isFalse();
+    assertThatThrownBy(
+            () ->
+                audience.returnToQueue(
+                    session, cookie.getValue(), UUID.randomUUID(), "Retorno", null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    stage.availability(session, owner, id, "reactivate");
+    assistedRequests.leave(session, owner, id);
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
+  @Autowired br.tec.flowave.singflow.sessions.SessionAccess sessionAccess;
+
+  @Test
+  void waitingReturnObservesCommittedHostRemovalOrSessionClosure() throws Exception {
+    for (boolean close : new boolean[] {false, true}) {
+      String owner = host();
+      UUID session = UUID.randomUUID();
+      createOpen(session, owner);
+      String code = code(session, owner);
+      var cookie = prepareGuest(session, code, new MockHttpSession());
+      joinGuest(session, code, cookie);
+      var left = audience.leave(session, cookie.getValue());
+      long arrival = left.participant().checkInOrder();
+      var tx = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+      try (var executor = Executors.newSingleThreadExecutor()) {
+        var attempt =
+            tx.execute(
+                status -> {
+                  sessionAccess.lockOwned(session, owner, false);
+                  var future =
+                      executor.submit(
+                          () ->
+                              audience.returnToQueue(
+                                  session,
+                                  cookie.getValue(),
+                                  UUID.randomUUID(),
+                                  "Retorno concorrente",
+                                  null));
+                  long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                  boolean waiting = false;
+                  while (System.nanoTime() < deadline) {
+                    waiting =
+                        jdbc.sql(
+                                "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE"
+                                    + " cardinality(pg_blocking_pids(pid))>0 AND query LIKE"
+                                    + " '%sessions%')")
+                            .query(Boolean.class)
+                            .single();
+                    if (waiting) break;
+                    try {
+                      Thread.sleep(10);
+                    } catch (InterruptedException e) {
+                      throw new IllegalStateException(e);
+                    }
+                  }
+                  assertThat(waiting).as("return waits for the locked session").isTrue();
+                  if (close) sessionAccess.transition(session, owner, "CLOSED");
+                  else assistedRequests.leave(session, owner, left.participant().id());
+                  return future;
+                });
+        assertThatThrownBy(() -> attempt.get(10, TimeUnit.SECONDS))
+            .isInstanceOf(ExecutionException.class)
+            .hasCauseInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+      }
+      assertThat(assistedRequests.list(session, owner)).hasSize(1);
+      var person = participation.list(session, owner).getFirst();
+      assertThat(person.status()).isEqualTo("LEFT");
+      assertThat(person.checkInOrder()).isEqualTo(arrival);
+    }
   }
 }

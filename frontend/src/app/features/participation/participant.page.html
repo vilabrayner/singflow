@@ -1,0 +1,246 @@
+<section class="page-width participant-page">
+  <p class="eyebrow">Experiência do participante</p>
+  <h1>Sua voz tem lugar aqui.</h1>
+  @if (error()) {
+    <p role="alert" class="host-error">{{ error() }}</p>
+  }
+  @if (notice()) {
+    <p role="status" class="host-notice">{{ notice() }}</p>
+  }
+  @if (!ready()) {
+    <p role="status">Carregando sua participação…</p>
+  }
+  @if (departed()) {
+    <div class="host-panel">
+      <h2>Acesso esquecido neste aparelho</h2>
+      <p>Seu histórico foi preservado. Para voltar ao mesmo cadastro, procure o anfitrião.</p>
+    </div>
+  }
+  @if (entry(); as info) {
+    <div class="host-panel">
+      <h2>{{ info.name }}</h2>
+      @if (info.status === 'OPEN') {
+        <p>
+          Entre com seu nome e a primeira música. Já está inscrito pelo anfitrião ou em outro
+          aparelho? Fale com ele antes de se cadastrar novamente.
+        </p>
+        <form [formGroup]="joinForm" (ngSubmit)="join()" class="host-form">
+          <label
+            >Seu nome<input
+              pInputText
+              formControlName="name"
+              maxlength="120"
+              autocomplete="given-name"
+              required
+          /></label>
+          <label
+            >Mesa (opcional)<input pInputText formControlName="tableLabel" maxlength="40"
+          /></label>
+          <label
+            >Primeira música<input pInputText formControlName="title" maxlength="160" required
+          /></label>
+          <label
+            >Artista (opcional)<input pInputText formControlName="artist" maxlength="160"
+          /></label>
+          <p>
+            Enquanto você participar, o anfitrião poderá sugerir novas oportunidades mesmo sem
+            pedidos pendentes. Nenhuma sugestão confirma uma chamada.
+          </p>
+          <p-button
+            label="Entrar com minha música"
+            type="submit"
+            [loading]="busy()"
+            [disabled]="busy() || joinForm.invalid"
+          />
+        </form>
+      } @else {
+        <p>Esta sessão não está recebendo inscrições. Fale com o anfitrião.</p>
+      }
+    </div>
+  }
+  @if (own(); as view) {
+    <div class="host-panel">
+      <div class="host-section-title">
+        <div>
+          <h2>{{ view.participant.name }} · {{ view.session.name }}</h2>
+          <p>{{ status(view.participant.status) }}</p>
+        </div>
+        <p-button
+          label="Atualizar"
+          ariaLabel="Atualizar"
+          icon="pi pi-refresh"
+          [outlined]="true"
+          [disabled]="busy()"
+          (onClick)="refresh()"
+        />
+      </div>
+      <p>{{ view.participant.completedPerformances }} apresentações concluídas</p>
+      @if (lastUpdated(); as date) {
+        <small
+          >Última atualização: {{ date | date: 'HH:mm:ss' }} · atualização automática a cada 10
+          segundos com a página visível.</small
+        >
+      }
+      @if (disconnected()) {
+        <p role="status">
+          Sem confirmação de atualização. Os dados exibidos podem estar desatualizados.
+        </p>
+      }
+      @if (view.session.status !== 'OPEN') {
+        <p class="host-notice">
+          Sessão encerrada. Seu histórico continua disponível até o acesso expirar.
+        </p>
+      }
+      @if (view.active; as call) {
+        <div class="current-call" role="status">
+          <h3>É a sua vez!</h3>
+          <p>O anfitrião confirmou sua convocação. Procure o palco.</p>
+          <strong>{{ call.title || 'Combine a próxima música com o anfitrião' }}</strong>
+        </div>
+      } @else if (view.suggested) {
+        <p class="stage-wait">
+          Você está na sugestão para o anfitrião. Aguarde a confirmação da chamada; a sugestão pode
+          mudar.
+        </p>
+      }
+    </div>
+    @if (view.participant.status === 'LEFT') {
+      <div class="host-panel">
+        <h2>Você está fora da fila</h2>
+        @if (view.canReturn) {
+          <p>
+            Quer cantar de novo? Escolha uma nova música. Você mantém suas apresentações e recebe
+            uma nova chegada. Pedidos cancelados continuam cancelados.
+          </p>
+          <form [formGroup]="returnForm" (ngSubmit)="returnToQueue()" class="host-form">
+            <label
+              >Música para voltar<input pInputText formControlName="title" maxlength="160" required
+            /></label>
+            <label
+              >Artista do retorno (opcional)<input
+                pInputText
+                formControlName="artist"
+                maxlength="160"
+            /></label>
+            <p-button
+              label="Voltar com esta música"
+              type="submit"
+              [loading]="busy()"
+              [disabled]="busy() || returnForm.invalid"
+            />
+          </form>
+        } @else if (view.session.status === 'OPEN') {
+          <p>
+            Seu retorno precisa ser liberado pelo anfitrião. Pausas e ausências continuam sob
+            responsabilidade dele.
+          </p>
+        } @else {
+          <p>A sessão está encerrada. Você pode consultar seu histórico.</p>
+        }
+      </div>
+    }
+    <div class="host-panel">
+      <h2>Meus pedidos</h2>
+      @for (song of view.requests; track song.id) {
+        <article class="participant-item">
+          <strong>{{ song.title }}</strong>
+          <p>{{ song.artist }} · {{ status(song.status) }}</p>
+          @if (
+            song.status === 'PENDING' &&
+            view.session.status === 'OPEN' &&
+            view.participant.status === 'ACTIVE'
+          ) {
+            <p-button
+              label="Cancelar pedido"
+              [outlined]="true"
+              [disabled]="busy()"
+              (onClick)="cancel(song.id)"
+            />
+          }
+        </article>
+      }
+      @if (view.session.status === 'OPEN' && view.participant.status === 'ACTIVE') {
+        <h3 class="stage-subtitle">Adicionar música</h3>
+        <form [formGroup]="songForm" (ngSubmit)="add()" class="host-form">
+          <label>Música<input pInputText formControlName="title" maxlength="160" required /></label>
+          <label
+            >Artista (opcional)<input pInputText formControlName="artist" maxlength="160"
+          /></label>
+          <p-button
+            type="submit"
+            label="Pedir música"
+            [disabled]="busy() || songForm.invalid"
+            [loading]="busy()"
+          />
+        </form>
+      }
+    </div>
+    <div class="host-panel">
+      <h2>Meu histórico de palco</h2>
+      @for (call of view.history; track call.id) {
+        <p>{{ call.title || 'Música a escolher' }} · {{ status(call.status) }}</p>
+      } @empty {
+        <p>Você ainda não teve uma convocação resolvida.</p>
+      }
+      <p>
+        O acesso vale por 24 horas a partir da emissão, até
+        {{ view.expiresAt | date: 'dd/MM HH:mm' }}. Sair e voltar não renovam esse prazo.
+      </p>
+      @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
+        @if (confirmingExit()) {
+          <div class="stage-wait">
+            <p>
+              Sair retira você da fila, cancela pedidos não atendidos e registra desistência se
+              estiver convocado. Seu acesso e histórico serão mantidos. Se estiver pausado ou
+              suspenso, o retorno continuará dependendo do anfitrião.
+            </p>
+            <div class="stage-actions">
+              <p-button label="Confirmar saída da fila" [disabled]="busy()" (onClick)="leave()" />
+              <p-button
+                label="Continuar participando"
+                [text]="true"
+                [disabled]="busy()"
+                (onClick)="confirmingExit.set(false)"
+              />
+            </div>
+          </div>
+        } @else {
+          <p-button
+            label="Sair da fila"
+            [outlined]="true"
+            [disabled]="busy()"
+            (onClick)="confirmingExit.set(true)"
+          />
+        }
+      }
+      @if (view.participant.status === 'LEFT' || view.session.status !== 'OPEN') {
+        @if (confirmingForget()) {
+          <div class="stage-wait">
+            <p>
+              Este navegador perderá o acesso à sua participação, inclusive nas outras abas. Para
+              voltar ao mesmo cadastro, você precisará do anfitrião. Seu histórico não será apagado.
+            </p>
+            <p-button
+              label="Confirmar esquecimento do acesso"
+              [disabled]="busy()"
+              (onClick)="forget()"
+            />
+            <p-button
+              label="Manter meu acesso"
+              [text]="true"
+              [disabled]="busy()"
+              (onClick)="confirmingForget.set(false)"
+            />
+          </div>
+        } @else {
+          <p-button
+            label="Esquecer meu acesso neste aparelho"
+            [outlined]="true"
+            [disabled]="busy()"
+            (onClick)="confirmingForget.set(true)"
+          />
+        }
+      }
+    </div>
+  }
+</section>

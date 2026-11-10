@@ -7,8 +7,8 @@ import { ExperienceShell } from '../../shared/components/experience-shell';
     heading="Sua próxima música começa aqui."
     description="Um espaço para escolher, participar e acompanhar seu momento no palco."
     icon="pi-microphone"
-    emptyTitle="Vamos preparar sua entrada."
-    emptyDescription="O check-in e as solicitações musicais estarão disponíveis em um próximo incremento."
+    emptyTitle="Peça o QR Code ao anfitrião."
+    emptyDescription="Abra o link da sessão para entrar com sua primeira música. Se precisar de ajuda, o anfitrião também pode fazer sua inscrição."
   />`,
 })
 export class ParticipantLayout {}

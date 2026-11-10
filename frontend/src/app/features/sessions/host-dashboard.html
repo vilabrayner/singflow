@@ -101,6 +101,9 @@
       </aside>
       <div>
         @if (selected(); as session) {
+          @for (id of [session.id]; track id) {
+            <app-entry-share [session]="id" />
+          }
           <section class="host-panel">
             <div class="host-section-title">
               <div>
@@ -241,7 +244,12 @@
                       <h3>{{ participant.name }}</h3>
                       <p>
                         {{ participant.tableLabel ? 'Mesa ' + participant.tableLabel + ' · ' : ''
-                        }}{{ participantStatus(participant.status) }} · Inscrição assistida
+                        }}{{ participantStatus(participant.status) }} ·
+                        {{
+                          participant.origin === 'SELF'
+                            ? 'Inscrição pelo celular'
+                            : 'Inscrição assistida'
+                        }}
                       </p>
                       <small
                         >Check-in:

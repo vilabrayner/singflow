@@ -686,3 +686,30 @@ h2 {
   border-radius: 10px;
   margin-top: 12px;
 }
+
+.participant-page {
+  max-width: 780px;
+  padding-top: 40px;
+  padding-bottom: 40px;
+}
+.participant-page h1 {
+  font-size: clamp(28px, 5vw, 40px);
+  font-weight: 800;
+  margin: 10px 0 28px;
+}
+.entry-qr {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 16px 0;
+}
+.entry-link {
+  overflow-wrap: anywhere;
+  width: 100%;
+  min-width: 0;
+}
+input.entry-link {
+  padding: 10px;
+  border: 1px solid #dce2ed;
+  border-radius: 8px;
+}

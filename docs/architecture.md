@@ -35,6 +35,7 @@ Os subpacotes serão criados conforme a necessidade. Não haverá um pacote glob
 | requests | Solicitações musicais e seus estados |
 | stage | Fila sugerida, convocações e apresentações |
 | audit | Registro de ações relevantes e motivos de intervenção |
+| audience | Entrada pública, links de sessão, credenciais e acesso limitado ao próprio participante |
 
 - `endpoints/`: controllers REST, DTOs HTTP e validação de entrada; sem regras de negócio.
 - `application/`: casos de uso, transações e coordenação do domínio.
@@ -119,7 +120,7 @@ Auditoria deve registrar ator, sessão, ação, alvo, instante, motivo quando ap
 
 Spring Security no backend; permissões verificadas por operação e por sessão. Guards do Angular apenas orientam a navegação.
 
-Proposta inicial: sessões em cookies HttpOnly, Secure em produção, proteção CSRF e publicação no mesmo domínio. Anfitriões e músicos autenticados; participante recebe identidade limitada à sessão após check-in. Nome de exibição não serve como credencial. O primeiro incremento implementa acesso do anfitrião provisionado por configuração, com senha BCrypt e sem cadastro público. Login/logout usam cookie de sessão e token CSRF obtido via API. Recuperação de acesso e identidade do participante autônomo ainda precisam de definição.
+Proposta inicial: sessões em cookies HttpOnly, Secure em produção, proteção CSRF e publicação no mesmo domínio. Anfitriões e músicos autenticados; participante recebe identidade limitada à sessão após check-in. Nome de exibição não serve como credencial. O primeiro incremento implementa acesso do anfitrião provisionado por configuração, com senha BCrypt e sem cadastro público. Login/logout usam cookie de sessão e token CSRF obtido via API. O módulo `audience` implementa identidade autônoma de 24 horas em cookie próprio HttpOnly, separada do anfitrião, com CSRF, token aleatório armazenado somente como hash, revogação, limites persistidos e rotação do link de entrada. Reutiliza as APIs públicas dos módulos existentes sob o mesmo bloqueio transacional da sessão. O servidor filtra o estado de palco e pedidos antes de responder, sem expor outros participantes. Recuperação entre dispositivos e transferência de cadastro assistido permanecem fora do recorte. Consulte o [roteiro do participante](acceptance/003-participant-flow.md).
 
 ## REST e tempo real
 
