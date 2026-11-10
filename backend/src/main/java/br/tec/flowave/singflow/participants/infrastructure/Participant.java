@@ -33,6 +33,15 @@ public class Participant {
   @Column(nullable = false)
   public int completedPerformances;
 
+  @Column(nullable = false, insertable = false)
+  public long queueOrder;
+
+  @Column(nullable = false)
+  public Instant queueJoinedAt;
+
+  @Column(nullable = false)
+  public int consecutiveAbsences;
+
   @Version public long version;
 
   protected Participant() {}
@@ -45,5 +54,6 @@ public class Participant {
     this.status = "ACTIVE";
     this.origin = "ASSISTED";
     this.checkedInAt = Instant.now();
+    this.queueJoinedAt = this.checkedInAt;
   }
 }

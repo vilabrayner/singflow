@@ -1,0 +1,196 @@
+<section class="host-panel stage-panel" aria-labelledby="stage-title">
+  <div class="host-section-title">
+    <div>
+      <p class="eyebrow">Operação do palco</p>
+      <h2 id="stage-title">Fila sugerida e convocações</h2>
+    </div>
+    <p-button
+      label="Atualizar palco"
+      ariaLabel="Atualizar palco"
+      icon="pi pi-refresh"
+      [outlined]="true"
+      [disabled]="busy() || disabled()"
+      (onClick)="refresh()"
+    />
+  </div>
+  @if (error()) {
+    <p class="host-error" role="alert">{{ error() }}</p>
+  }
+  @if (notice()) {
+    <p class="host-notice" role="status">{{ notice() }}</p>
+  }
+  @if (state(); as state) {
+    @if (state.active; as call) {
+      <div class="current-call">
+        <p class="eyebrow">Convocação confirmada</p>
+        <h3>{{ call.participantName }}</h3>
+        <p>{{ call.title || 'Música a escolher' }}{{ call.artist ? ' — ' + call.artist : '' }}</p>
+        <small>Convocada às {{ call.createdAt | date: 'HH:mm:ss' }}</small>
+        @if (!call.requestId) {
+          <form [formGroup]="songForm" class="host-form form-grid">
+            <label
+              >Música escolhida<input
+                pInputText
+                formControlName="title"
+                maxlength="160"
+                required /></label
+            ><label
+              >Artista da apresentação (opcional)<input
+                pInputText
+                formControlName="artist"
+                maxlength="160"
+            /></label>
+          </form>
+        }
+        <div class="host-actions stage-actions">
+          <p-button
+            label="Concluir apresentação"
+            ariaLabel="Concluir apresentação"
+            [disabled]="busy() || disabled() || !open()"
+            (onClick)="pendingOutcome.set('COMPLETED')"
+          />
+          <p-button
+            label="Registrar falta"
+            ariaLabel="Registrar falta"
+            severity="warn"
+            [outlined]="true"
+            [disabled]="busy() || disabled() || !open()"
+            (onClick)="pendingOutcome.set('ABSENT')"
+          />
+          <p-button
+            label="Agora não quer cantar"
+            ariaLabel="Agora não quer cantar"
+            severity="secondary"
+            [outlined]="true"
+            [disabled]="busy() || disabled() || !open()"
+            (onClick)="pendingOutcome.set('DECLINED')"
+          />
+          <p-button
+            label="Cancelar por engano"
+            ariaLabel="Cancelar por engano"
+            severity="secondary"
+            [text]="true"
+            [disabled]="busy() || disabled() || !open()"
+            (onClick)="pendingOutcome.set('CANCELLED')"
+          />
+        </div>
+        @if (pendingOutcome(); as outcome) {
+          <div class="host-confirm">
+            <p>
+              Confirmar: {{ labels(outcome) }}?
+              {{
+                outcome === 'ABSENT'
+                  ? 'A falta conta para a suspensão e inativação por ausência.'
+                  : outcome === 'DECLINED'
+                    ? 'A pessoa ficará pausada, sem registrar falta.'
+                    : outcome === 'CANCELLED'
+                      ? 'Sem falta nem apresentação; o pedido volta a pendente.'
+                      : 'A apresentação será contabilizada uma única vez.'
+              }}
+            </p>
+            <p-button
+              label="Confirmar resultado"
+              ariaLabel="Confirmar resultado"
+              [disabled]="busy() || disabled()"
+              (onClick)="resolve()"
+            /><p-button
+              label="Voltar"
+              ariaLabel="Voltar"
+              [text]="true"
+              [disabled]="busy()"
+              (onClick)="pendingOutcome.set(null)"
+            />
+          </div>
+        }
+      </div>
+    } @else {
+      <p>Nenhuma convocação em andamento.</p>
+    }
+    @if (open()) {
+      <h3 class="stage-subtitle">Próximas oportunidades</h3>
+      <p>
+        A ordem pode mudar até a confirmação. Uma oportunidade por pessoa; pedidos extras não ocupam
+        posições adicionais.
+      </p>
+      <ol class="stage-suggestions">
+        @for (suggestion of state.suggestions; track suggestion.participantId; let first = $first) {
+          <li>
+            <div>
+              <strong>{{ suggestion.name }}</strong
+              ><span>{{ suggestion.tableLabel ? ' · Mesa ' + suggestion.tableLabel : '' }}</span>
+              <p>{{ suggestion.title || 'Música a escolher' }}</p>
+              <small>{{ suggestion.reason }}</small>
+            </div>
+            @if (first && !state.active) {
+              <p-button
+                label="Aprovar e convocar"
+                ariaLabel="Aprovar e convocar"
+                [disabled]="busy() || disabled()"
+                (onClick)="choose(suggestion)"
+              />
+            }
+          </li>
+        } @empty {
+          <li>Nenhum participante elegível. Confira pausas, ausências e saídas.</li>
+        }
+      </ol>
+      @if (choosingNext(); as next) {
+        <div class="host-confirm">
+          <p>Convocar {{ next.name }} para {{ next.title || 'escolher uma música' }}?</p>
+          <p-button
+            label="Confirmar convocação"
+            ariaLabel="Confirmar convocação"
+            [disabled]="busy() || disabled()"
+            (onClick)="confirm()"
+          /><p-button
+            label="Voltar"
+            ariaLabel="Voltar"
+            [text]="true"
+            [disabled]="busy()"
+            (onClick)="choosingNext.set(null)"
+          />
+        </div>
+      }
+    }
+    @if (state.waits.length) {
+      <h3 class="stage-subtitle">Aguardando nova oportunidade</h3>
+      @for (wait of state.waits; track wait.participantId) {
+        <div class="stage-wait">
+          <strong>{{ wait.name }}</strong>
+          <p>
+            {{
+              wait.manualRelease
+                ? 'Sem outros elegíveis na primeira falta. O anfitrião decide quando tentar novamente.'
+                : 'Aguardando ' + wait.remaining + ' oportunidade(s) dos demais participantes.'
+            }}
+          </p>
+          @if (wait.manualRelease && open()) {
+            <p-button
+              label="Liberar segunda tentativa"
+              ariaLabel="Liberar segunda tentativa"
+              [outlined]="true"
+              [disabled]="busy() || disabled()"
+              (onClick)="release(wait.participantId)"
+            />
+          }
+        </div>
+      }
+    }
+    <details class="stage-history">
+      <summary>Histórico do palco ({{ state.history.length }})</summary>
+      @for (call of state.history; track call.id) {
+        <article>
+          <strong>{{ call.participantName }}</strong>
+          <p>
+            {{ call.title || 'Música não definida' }} · {{ labels(call.status) }} ·
+            {{ call.resolvedAt | date: 'HH:mm:ss' }}
+          </p>
+        </article>
+      } @empty {
+        <p>Nenhuma convocação resolvida.</p>
+      }
+    </details>
+  } @else if (!error()) {
+    <p role="status">Carregando palco…</p>
+  }
+</section>

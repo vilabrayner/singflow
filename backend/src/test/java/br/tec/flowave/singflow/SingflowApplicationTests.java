@@ -1,6 +1,6 @@
 package br.tec.flowave.singflow;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -34,7 +34,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(2);
+    assertThat(flyway.info().applied()).hasSize(3);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -232,5 +232,204 @@ class SingflowApplicationTests {
                 .query(Long.class)
                 .single())
         .isEqualTo(1);
+  }
+
+  @Autowired br.tec.flowave.singflow.stage.StageService stage;
+  @Autowired br.tec.flowave.singflow.participants.Participation participation;
+
+  private UUID enroll(UUID session, String owner, String name) {
+    UUID id = UUID.randomUUID();
+    assistedRequests.register(session, owner, id, name, null, "Música de " + name, null);
+    return id;
+  }
+
+  private br.tec.flowave.singflow.stage.StageService.CallView callNext(UUID session, String owner) {
+    var next = stage.snapshot(session, owner).suggestions().getFirst();
+    return stage
+        .confirm(session, owner, UUID.randomUUID(), next.participantId(), next.requestId())
+        .active();
+  }
+
+  @Test
+  void stageCyclesRequestsAndSuggestsRepeatsWithoutCreatingRequests() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID a = enroll(session, owner, "Ana"),
+        b = enroll(session, owner, "Bruno"),
+        c = enroll(session, owner, "Carla");
+    var first = callNext(session, owner);
+    assertThat(first.participantId()).isEqualTo(a);
+    assertThatThrownBy(() -> stage.confirm(session, owner, UUID.randomUUID(), b, b))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    mvc.perform(
+            post("/api/sessions/" + session + "/close")
+                .with(user(owner).roles("HOST"))
+                .with(csrf()))
+        .andExpect(status().isConflict());
+    for (UUID expected : java.util.List.of(a, b, c)) {
+      var current = stage.snapshot(session, owner).active();
+      if (current == null) current = callNext(session, owner);
+      assertThat(current.participantId()).isEqualTo(expected);
+      stage.resolve(session, owner, current.id(), "COMPLETED", null, null);
+      stage.resolve(session, owner, current.id(), "COMPLETED", null, null);
+    }
+    assertThat(participation.list(session, owner))
+        .allSatisfy(p -> assertThat(p.completedPerformances()).isEqualTo(1));
+    var repeat = callNext(session, owner);
+    assertThat(repeat.participantId()).isEqualTo(a);
+    assertThat(repeat.requestId()).isNull();
+    assertThatThrownBy(() -> stage.resolve(session, owner, repeat.id(), "COMPLETED", null, null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    stage.resolve(session, owner, repeat.id(), "COMPLETED", "Escolha no palco", "Artista");
+    stage.resolve(session, owner, repeat.id(), "COMPLETED", "Escolha no palco", "Artista");
+    assertThat(assistedRequests.list(session, owner)).hasSize(3);
+    assertThat(stage.snapshot(session, owner).history()).hasSize(4);
+  }
+
+  @Test
+  void absenceRoundRecusalAndReactivationPreserveFairness() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID a = enroll(session, owner, "Ana"),
+        b = enroll(session, owner, "Bruno"),
+        c = enroll(session, owner, "Carla");
+    var first = callNext(session, owner);
+    stage.resolve(session, owner, first.id(), "ABSENT", null, null);
+    stage.resolve(session, owner, first.id(), "ABSENT", null, null);
+    assertThat(stage.snapshot(session, owner).waits().getFirst().remaining()).isEqualTo(2);
+    assertThatThrownBy(() -> stage.availability(session, owner, a, "resume"))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    var second = callNext(session, owner);
+    assertThat(second.participantId()).isEqualTo(b);
+    stage.resolve(session, owner, second.id(), "DECLINED", null, null);
+    UUID newcomer = enroll(session, owner, "Daniel");
+    assertThat(stage.snapshot(session, owner).waits().getFirst().remaining()).isEqualTo(1);
+    var third = callNext(session, owner);
+    assertThat(third.participantId()).isEqualTo(c);
+    stage.resolve(session, owner, third.id(), "COMPLETED", null, null);
+    assertThat(stage.snapshot(session, owner).waits()).isEmpty();
+    var again = callNext(session, owner);
+    assertThat(again.participantId()).isEqualTo(a);
+    stage.resolve(session, owner, again.id(), "ABSENT", null, null);
+    var absent =
+        participation.list(session, owner).stream()
+            .filter(p -> p.id().equals(a))
+            .findFirst()
+            .orElseThrow();
+    assertThat(absent.status()).isEqualTo("INACTIVE");
+    assertThat(absent.consecutiveAbsences()).isEqualTo(2);
+    assertThat(
+            assistedRequests.list(session, owner).stream().filter(r -> r.participantId().equals(a)))
+        .allSatisfy(r -> assertThat(r.status()).isEqualTo("SUSPENDED"));
+    long previous = absent.checkInOrder();
+    stage.availability(session, owner, a, "reactivate");
+    var returned =
+        participation.list(session, owner).stream()
+            .filter(p -> p.id().equals(a))
+            .findFirst()
+            .orElseThrow();
+    assertThat(returned.checkInOrder()).isGreaterThan(previous);
+    assertThat(returned.consecutiveAbsences()).isZero();
+    assertThat(returned.completedPerformances()).isZero();
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().participantId())
+        .isEqualTo(newcomer);
+  }
+
+  @Test
+  void onlyPersonNeedsManualSecondAttemptAndCancellationHasNoPenalty() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID person = enroll(session, owner, "Só uma pessoa");
+    var call = callNext(session, owner);
+    stage.resolve(session, owner, call.id(), "CANCELLED", null, null);
+    assertThat(participation.list(session, owner).getFirst().consecutiveAbsences()).isZero();
+    call = callNext(session, owner);
+    stage.resolve(session, owner, call.id(), "ABSENT", null, null);
+    assertThat(stage.snapshot(session, owner).suggestions()).isEmpty();
+    assertThat(stage.snapshot(session, owner).waits().getFirst().manualRelease()).isTrue();
+    stage.availability(session, owner, person, "resume");
+    assertThat(participation.list(session, owner).getFirst().consecutiveAbsences()).isEqualTo(1);
+    call = callNext(session, owner);
+    stage.resolve(session, owner, call.id(), "COMPLETED", null, null);
+    assertThat(participation.list(session, owner).getFirst().consecutiveAbsences()).isZero();
+    assertThat(participation.list(session, owner).getFirst().completedPerformances()).isEqualTo(1);
+  }
+
+  @Test
+  void leavingDuringCallCancelsReservationAndReturningDoesNotReviveCancelledRequests()
+      throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID person = enroll(session, owner, "Ana");
+    var call = callNext(session, owner);
+    assistedRequests.leave(session, owner, person);
+    assertThat(stage.snapshot(session, owner).active()).isNull();
+    assertThat(stage.snapshot(session, owner).history().getFirst().status()).isEqualTo("LEFT");
+    assertThat(assistedRequests.list(session, owner).getFirst().status()).isEqualTo("CANCELLED");
+    stage.availability(session, owner, person, "reactivate");
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().requestId()).isNull();
+  }
+
+  @Test
+  void concurrentConfirmationsAndCompletionsHaveOneEffect() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID person = enroll(session, owner, "Ana"), operation = UUID.randomUUID();
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var a = executor.submit(() -> stage.confirm(session, owner, operation, person, person));
+      var b = executor.submit(() -> stage.confirm(session, owner, operation, person, person));
+      assertThat(a.get(15, TimeUnit.SECONDS).active().id()).isEqualTo(operation);
+      assertThat(b.get(15, TimeUnit.SECONDS).active().id()).isEqualTo(operation);
+      var c =
+          executor.submit(() -> stage.resolve(session, owner, operation, "COMPLETED", null, null));
+      var d =
+          executor.submit(() -> stage.resolve(session, owner, operation, "COMPLETED", null, null));
+      c.get(15, TimeUnit.SECONDS);
+      d.get(15, TimeUnit.SECONDS);
+    }
+    assertThat(stage.snapshot(session, owner).history()).hasSize(1);
+    assertThat(participation.list(session, owner).getFirst().completedPerformances()).isEqualTo(1);
+  }
+
+  @Test
+  void pauseAndLeavingRemoveBlockersWithoutForgettingTheFirstAbsence() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID a = enroll(session, owner, "Ana"),
+        b = enroll(session, owner, "Bruno"),
+        c = enroll(session, owner, "Carla");
+    var call = callNext(session, owner);
+    stage.resolve(session, owner, call.id(), "ABSENT", null, null);
+    stage.availability(session, owner, b, "pause");
+    assistedRequests.leave(session, owner, c);
+    assertThat(stage.snapshot(session, owner).waits()).isEmpty();
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().participantId())
+        .isEqualTo(a);
+    assertThat(
+            participation.list(session, owner).stream()
+                .filter(p -> p.id().equals(a))
+                .findFirst()
+                .orElseThrow()
+                .consecutiveAbsences())
+        .isEqualTo(1);
+    stage.availability(session, owner, b, "resume");
+    assertThat(
+            participation.list(session, owner).stream()
+                .filter(p -> p.id().equals(b))
+                .findFirst()
+                .orElseThrow()
+                .checkInOrder())
+        .isLessThan(
+            participation.list(session, owner).stream()
+                .filter(p -> p.id().equals(c))
+                .findFirst()
+                .orElseThrow()
+                .checkInOrder());
   }
 }

@@ -15,10 +15,15 @@ public class SessionAccess {
 
   private final SessionRepository repository;
   private final AuditTrail audit;
+  private final org.springframework.context.ApplicationEventPublisher events;
 
-  public SessionAccess(SessionRepository repository, AuditTrail audit) {
+  public SessionAccess(
+      SessionRepository repository,
+      AuditTrail audit,
+      org.springframework.context.ApplicationEventPublisher events) {
     this.repository = repository;
     this.audit = audit;
+    this.events = events;
   }
 
   private SessionView view(KaraokeSession s) {
@@ -73,6 +78,7 @@ public class SessionAccess {
     if (s.status.equals(target)) return view(s);
     if (s.status.equals("CLOSED") || (!target.equals("OPEN") && !target.equals("CLOSED")))
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Transição inválida.");
+    if (target.equals("CLOSED")) events.publishEvent(new SessionClosing(id, owner));
     s.status = target;
     audit.record(owner, id, "SESSION_" + target, id);
     return view(s);

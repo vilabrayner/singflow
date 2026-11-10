@@ -90,7 +90,7 @@ A entrada assistida é um fluxo principal e permite operar o evento sem celular 
 
 ## Regras estabelecidas
 
-- Menor número de apresentações concluídas na sessão tem prioridade. Em empate, pedido elegível tem preferência sobre repetição sem pedido; persistindo empate, vale o check-in.
+- Menor número de apresentações concluídas na sessão tem prioridade. Em empate, evitar repetição imediata da pessoa que acabou de concluir; depois priorizar pedido elegível e, persistindo empate, o check-in.
 - O motor também sugere pessoas sem pedido, com “música a escolher”, sem criar pedido fictício. O anfitrião aprova antes da convocação.
 - Múltiplas solicitações são balanceadas por pessoa; não geram múltiplas chamadas na mesma rodada.
 - Catálogo híbrido admite sugestões sujeitas a aprovação.

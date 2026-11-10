@@ -20,16 +20,24 @@ public class Participation {
       String origin,
       Instant checkedInAt,
       long checkInOrder,
-      int completedPerformances) {}
+      int completedPerformances,
+      int consecutiveAbsences,
+      Instant queueJoinedAt) {}
 
   private final ParticipantRepository repository;
   private final SessionAccess sessions;
   private final AuditTrail audit;
+  private final org.springframework.context.ApplicationEventPublisher events;
 
-  public Participation(ParticipantRepository repository, SessionAccess sessions, AuditTrail audit) {
+  public Participation(
+      ParticipantRepository repository,
+      SessionAccess sessions,
+      AuditTrail audit,
+      org.springframework.context.ApplicationEventPublisher events) {
     this.repository = repository;
     this.sessions = sessions;
     this.audit = audit;
+    this.events = events;
   }
 
   private ParticipantView view(Participant p) {
@@ -40,14 +48,16 @@ public class Participation {
         p.status,
         p.origin,
         p.checkedInAt,
-        p.checkInOrder,
-        p.completedPerformances);
+        p.queueOrder,
+        p.completedPerformances,
+        p.consecutiveAbsences,
+        p.queueJoinedAt);
   }
 
   @Transactional(readOnly = true)
   public List<ParticipantView> list(UUID session, String actor) {
     sessions.requireOwned(session, actor);
-    return repository.findBySessionIdOrderByCheckInOrderAsc(session).stream()
+    return repository.findBySessionIdOrderByQueueOrderAsc(session).stream()
         .map(this::view)
         .toList();
   }
@@ -100,7 +110,47 @@ public class Participation {
     if (!p.status.equals("LEFT")) {
       p.status = "LEFT";
       audit.record(actor, session, "PARTICIPANT_LEFT", id);
+      events.publishEvent(new ParticipantLeaving(session, id, actor));
     }
+    return view(p);
+  }
+
+  /** Called only by stage use cases while the owning session is transactionally locked. */
+  @Transactional
+  public ParticipantView updateStage(
+      UUID session,
+      String actor,
+      UUID id,
+      String status,
+      int completedDelta,
+      int absences,
+      boolean newArrival) {
+    sessions.lockOwned(session, actor, true);
+    if (!Set.of("ACTIVE", "PAUSED", "SUSPENDED", "INACTIVE", "LEFT").contains(status)
+        || completedDelta < 0
+        || completedDelta > 1
+        || absences < 0
+        || absences > 2) throw new IllegalArgumentException("Invalid stage transition");
+    var p =
+        repository
+            .findByIdAndSessionId(id, session)
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Participante não encontrado."));
+    p.status = status;
+    p.completedPerformances += completedDelta;
+    p.consecutiveAbsences = absences;
+    if (newArrival) {
+      p.queueOrder =
+          ((Number)
+                  entityManager
+                      .createNativeQuery("SELECT nextval('singflow.participant_queue_order_seq')")
+                      .getSingleResult())
+              .longValue();
+      p.queueJoinedAt = Instant.now();
+    }
+    repository.flush();
     return view(p);
   }
 }

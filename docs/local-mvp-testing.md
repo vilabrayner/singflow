@@ -140,7 +140,7 @@ Com o frontend já iniciado pelo responsável, `npm test` em `frontend/` executa
 - Cinco testes de configuração: aprovados.
 - Oito testes de interface: aprovados em desktop e celular, usando API simulada no frontend já ativo.
 - Imagens backend e frontend: compiladas, sem iniciar os serviços finais.
-- Integração PostgreSQL desta entrega: aguardando execução de `verify` pelo responsável; não confundir com o resultado da fundação anterior.
-- Aceite manual dos dois modos: pendente.
+- Integração PostgreSQL: responsável informou `BUILD SUCCESS` no `verify` do backend.
+- Aceite manual dos dois modos: concluído e informado pelo responsável, com persistência após reinício. Registro em [Aceite 001](acceptance/001-assisted-flow.md).
 
 Nenhum resultado de compilação substitui a validação funcional com banco real.

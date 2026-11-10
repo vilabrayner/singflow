@@ -168,6 +168,13 @@
               </div>
             }
           </section>
+          <app-stage-panel
+            [sessionId]="session.id"
+            [open]="session.status === 'OPEN'"
+            [disabled]="busy()"
+            [revision]="stageRevision()"
+            (changed)="refresh()"
+          />
           @if (session.status === 'OPEN') {
             <section class="host-panel">
               <h2>Inscrever participante</h2>
@@ -215,7 +222,10 @@
           }
           <section class="host-panel">
             <h2>Participantes por ordem de chegada</h2>
-            <p>A fila sugerida e as convocações serão entregues no próximo incremento.</p>
+            <p>
+              Consulte a fila sugerida acima. Pausas preservam a chegada; reativações após saída ou
+              duas faltas recebem nova ordem.
+            </p>
             <label class="host-search"
               >Buscar por nome ou mesa<input
                 pInputText
@@ -231,17 +241,54 @@
                       <h3>{{ participant.name }}</h3>
                       <p>
                         {{ participant.tableLabel ? 'Mesa ' + participant.tableLabel + ' · ' : ''
-                        }}{{ participant.status === 'ACTIVE' ? 'Participando' : 'Saiu' }} ·
-                        Inscrição assistida
+                        }}{{ participantStatus(participant.status) }} · Inscrição assistida
                       </p>
                       <small
-                        >Check-in: {{ participant.checkedInAt | date: 'HH:mm:ss' }} · Apresentações:
-                        {{ participant.completedPerformances }}</small
+                        >Check-in:
+                        {{
+                          participant.queueJoinedAt || participant.checkedInAt | date: 'HH:mm:ss'
+                        }}
+                        · Apresentações: {{ participant.completedPerformances }} · Faltas
+                        consecutivas: {{ participant.consecutiveAbsences || 0 }}</small
                       >
                     </div>
-                    @if (participant.status === 'ACTIVE') {
+                    @if (session.status === 'OPEN') {
                       <div class="host-actions">
-                        @if (session.status === 'OPEN') {
+                        @if (participant.status === 'ACTIVE') {
+                          <p-button
+                            label="Pausar participação"
+                            ariaLabel="Pausar participação"
+                            size="small"
+                            severity="secondary"
+                            [text]="true"
+                            [disabled]="busy()"
+                            (onClick)="availability(participant, 'pause')"
+                          />
+                        }
+                        @if (participant.status === 'PAUSED') {
+                          <p-button
+                            label="Retomar participação"
+                            ariaLabel="Retomar participação"
+                            size="small"
+                            [disabled]="busy()"
+                            (onClick)="availability(participant, 'resume')"
+                          />
+                        }
+                        @if (participant.status === 'INACTIVE' || participant.status === 'LEFT') {
+                          <p-button
+                            label="Reativar participante"
+                            ariaLabel="Reativar participante"
+                            size="small"
+                            [outlined]="true"
+                            [disabled]="busy()"
+                            (onClick)="availability(participant, 'reactivate')"
+                          />
+                        }
+                      </div>
+                    }
+                    @if (participant.status !== 'LEFT') {
+                      <div class="host-actions">
+                        @if (session.status === 'OPEN' && participant.status === 'ACTIVE') {
                           <p-button
                             label="Adicionar música"
                             size="small"
@@ -267,7 +314,7 @@
                       <li>
                         <i class="pi pi-music" aria-hidden="true"></i> {{ song.title
                         }}{{ song.artist ? ' — ' + song.artist : '' }}
-                        <span>{{ song.status === 'CANCELLED' ? 'Cancelada' : 'Pendente' }}</span>
+                        <span>{{ requestStatus(song.status) }}</span>
                       </li>
                     }
                   </ul>

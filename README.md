@@ -6,7 +6,7 @@ Plataforma de gestão de karaokê ao vivo para participantes, anfitriões e mús
 
 ## Estado do projeto
 
-Fundação e primeiro incremento assistido implementados: acesso do anfitrião, sessões, inscrição com primeira música, novos pedidos no mesmo cadastro, busca e saída com auditoria. A fila sugerida e as convocações ficam para o próximo incremento. A validação funcional com PostgreSQL desta entrega ainda aguarda execução pelo responsável.
+Fundação e primeiro incremento assistido implementados: acesso do anfitrião, sessões, inscrição com primeira música, novos pedidos no mesmo cadastro, busca e saída com auditoria. Fila sugerida e operação do palco também estão implementadas, com testes aprovados e aceite manual confirmado nos dois modos. A verificação backend retornou `BUILD SUCCESS`, e o responsável concluiu o roteiro com serviços independentes e Docker, incluindo persistência após reinício.
 
 Consulte [Teste local do primeiro incremento](docs/local-mvp-testing.md) para acesso inicial, serviços independentes, imagens Docker e roteiro de aceite.
 
@@ -73,7 +73,7 @@ cd backend
 ./mvnw -B verify
 ```
 
-O teste completo da fundação passou anteriormente com Docker; o teste ampliado deste incremento está pendente de execução pelo responsável. Para verificar somente os limites de módulos, sem iniciar banco: `./mvnw -B test -Dtest=ArchitectureTests`.
+O teste completo da fundação passou anteriormente com Docker; o teste ampliado deste incremento também retornou `BUILD SUCCESS`, informado pelo responsável. Para verificar somente os limites de módulos, sem iniciar banco: `./mvnw -B test -Dtest=ArchitectureTests`.
 
 Para parar o banco de desenvolvimento preservando seus dados, execute da raiz:
 
@@ -109,7 +109,7 @@ npx playwright install chromium
 npm test
 ```
 
-A saída estática fica em `frontend/dist/singflow-web/browser`. Uma hospedagem futura deve fornecer `config.json` por ambiente antes de liberar tráfego, aplicar fallback das rotas para `index.html` e encaminhar API/WebSocket. A configuração é carregada antes do Angular, sem exigir recompilação. Consulte [Configuração por ambiente](docs/runtime-configuration.md). O proxy Angular só existe no desenvolvimento. Login do anfitrião está disponível. PWA, fila sugerida e convocações continuam fora deste incremento.
+A saída estática fica em `frontend/dist/singflow-web/browser`. Uma hospedagem futura deve fornecer `config.json` por ambiente antes de liberar tráfego, aplicar fallback das rotas para `index.html` e encaminhar API/WebSocket. A configuração é carregada antes do Angular, sem exigir recompilação. Consulte [Configuração por ambiente](docs/runtime-configuration.md). O proxy Angular só existe no desenvolvimento. Login do anfitrião está disponível. Fila sugerida e convocações estão implementadas e aceitas nos dois modos; PWA permanece para outro incremento.
 
 Os workflows em `.github/workflows/` verificam backend e frontend no GitHub Actions. Configure `PRIMEUI_LICENSE_KEY` nos secrets para os builds autorizados; a ausência não é tratada como chave válida. Os workflows ainda não foram executados no GitHub.
 
@@ -120,6 +120,11 @@ Os workflows em `.github/workflows/` verificam backend e frontend no GitHub Acti
 - [Teste local — serviços independentes e Docker](docs/local-mvp-testing.md)
 - [Preparar PostgreSQL instalado na máquina](docs/postgres-local.md)
 - [Roadmap e critérios de aceite](docs/roadmap.md)
+- [Aceite do primeiro fluxo assistido](docs/acceptance/001-assisted-flow.md)
+- [Regras aprovadas — fila e palco](docs/stage-review.md)
+- [Ensaio de fila e palco](docs/stage-testing.md)
+- [Aceite de fila e palco](docs/acceptance/002-stage-flow.md)
+- [Revisão — participante pelo celular e QR Code](docs/participant-review.md)
 - [MVP — piloto no Café Tão](docs/mvp-cafe-tao.md)
 - [ADR 001 — Monólito modular](docs/decisions/001-modular-monolith.md)
 - [ADR 002 — Frontend Angular SPA](docs/decisions/002-angular-spa.md)

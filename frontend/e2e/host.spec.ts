@@ -8,6 +8,8 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.route('**/api/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/stage'))
+      return route.fulfill({ json: { suggestions: [], active: null, history: [], waits: [] } });
     if (path.endsWith('/auth/csrf'))
       return route.fulfill({ json: { token: 'test-csrf', headerName: 'X-CSRF-TOKEN' } });
     if (path.endsWith('/auth/login')) {

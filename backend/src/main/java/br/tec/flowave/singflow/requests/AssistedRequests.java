@@ -84,13 +84,47 @@ public class AssistedRequests {
   @Transactional
   public Participation.ParticipantView leave(UUID session, String actor, UUID participant) {
     var result = participation.leave(session, actor, participant);
-    repository
-        .findBySessionIdAndParticipantIdAndStatus(session, participant, "PENDING")
+    repository.findBySessionIdOrderByCreatedAtAscIdAsc(session).stream()
+        .filter(
+            r ->
+                r.participantId.equals(participant)
+                    && Set.of("PENDING", "SUSPENDED").contains(r.status))
         .forEach(
             r -> {
               r.status = "CANCELLED";
               audit.record(actor, session, "REQUEST_CANCELLED_ON_EXIT", r.id);
             });
     return result;
+  }
+
+  /** Narrow module API for reserving/releasing a request under the session lock. */
+  @Transactional
+  public void transitionForStage(
+      UUID session, String actor, UUID id, String expected, String target) {
+    sessions.lockOwned(session, actor, true);
+    var r =
+        repository
+            .findById(id)
+            .filter(item -> item.sessionId.equals(session))
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado."));
+    if (!r.status.equals(expected))
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "O pedido mudou. Atualize a lista.");
+    if (!Set.of("PENDING", "RESERVED", "COMPLETED", "SUSPENDED", "CANCELLED").contains(target))
+      throw new IllegalArgumentException("Invalid request status");
+    r.status = target;
+    repository.flush();
+    audit.record(actor, session, "REQUEST_" + target, id);
+  }
+
+  @Transactional
+  public void transitionParticipantRequests(
+      UUID session, String actor, UUID participant, String from, String to) {
+    sessions.lockOwned(session, actor, true);
+    for (var r : repository.findBySessionIdAndParticipantIdAndStatus(session, participant, from)) {
+      r.status = to;
+      audit.record(actor, session, "REQUEST_" + to, r.id);
+    }
+    repository.flush();
   }
 }

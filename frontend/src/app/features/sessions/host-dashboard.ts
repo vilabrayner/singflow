@@ -1,4 +1,6 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { StagePanel } from '../stage/stage-panel';
+import { StageApi } from '../stage/stage-api';
 import { DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -10,13 +12,15 @@ import { apiError } from '../../core/http/api-client';
 
 @Component({
   selector: 'app-host-dashboard',
-  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, DatePipe],
+  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, DatePipe, StagePanel],
   templateUrl: './host-dashboard.html',
 })
 export class HostDashboard implements OnInit {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly auth = inject(HostAuth);
   private readonly api = inject(SessionApi);
+  private readonly stageApi = inject(StageApi);
+  readonly stageRevision = signal(0);
   readonly ready = signal(false);
   readonly email = signal('');
   readonly busy = signal(false);
@@ -137,6 +141,7 @@ export class HostDashboard implements OnInit {
     this.leaving.set(null);
     this.confirmingClose.set(false);
     this.search.set('');
+    this.stageRevision.update((value) => value + 1);
   }
   async select(session: KaraokeSession) {
     await this.run(() => this.loadSession(session));
@@ -204,5 +209,41 @@ export class HostDashboard implements OnInit {
   }
   songsFor(id: string) {
     return this.requests().filter((r) => r.participantId === id);
+  }
+
+  participantStatus(status: string) {
+    return (
+      (
+        {
+          ACTIVE: 'Participando',
+          PAUSED: 'Pausado',
+          SUSPENDED: 'Aguardando rodada',
+          INACTIVE: 'Inativo por ausência',
+          LEFT: 'Saiu',
+        } as Record<string, string>
+      )[status] ?? status
+    );
+  }
+  requestStatus(status: string) {
+    return (
+      (
+        {
+          PENDING: 'Pendente',
+          RESERVED: 'Convocada',
+          COMPLETED: 'Atendida',
+          SUSPENDED: 'Suspensa',
+          CANCELLED: 'Cancelada',
+        } as Record<string, string>
+      )[status] ?? status
+    );
+  }
+  async availability(person: Participant, action: string) {
+    const session = this.selected();
+    if (!session) return;
+    await this.run(async () => {
+      await this.stageApi.availability(session.id, person.id, action);
+      await this.loadSession(session);
+      this.notice.set('Participação atualizada.');
+    });
   }
 }

@@ -11,18 +11,20 @@ export interface Participant {
   id: string;
   name: string;
   tableLabel: string | null;
-  status: 'ACTIVE' | 'LEFT';
+  status: 'ACTIVE' | 'PAUSED' | 'SUSPENDED' | 'INACTIVE' | 'LEFT';
   origin: string;
   checkedInAt: string;
   checkInOrder: number;
   completedPerformances: number;
+  consecutiveAbsences: number;
+  queueJoinedAt: string;
 }
 export interface SongRequest {
   id: string;
   participantId: string;
   title: string;
   artist: string | null;
-  status: 'PENDING' | 'CANCELLED';
+  status: 'PENDING' | 'RESERVED' | 'COMPLETED' | 'SUSPENDED' | 'CANCELLED';
   createdAt: string;
 }
 export interface RegistrationInput {

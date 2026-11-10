@@ -1,6 +1,6 @@
 # ADR 004 — Participação, ausências e sugestões de repetição
 
-Estado: aprovado na revisão de negócio; implementação pendente.
+Estado: regras de negócio aprovadas; fluxo assistido básico aceito, fila e palco implementados e aceitos nos dois modos.
 
 ## Contexto
 
@@ -10,7 +10,7 @@ A prioridade é por pessoa na sessão. Mesa pode identificar a pessoa, mas não 
 
 ## Inscrição assistida pelo anfitrião
 
-Estado: aprovado para o MVP do Café Tão; implementação pendente.
+Estado: inscrição, novos pedidos, busca e saída assistidos implementados e aceitos; sugestões, pausa e retorno implementados e aceitos no fluxo assistido.
 
 A sessão aceita entrada pelo próprio participante e entrada assistida pelo anfitrião. Ambas alimentam a mesma fila e seguem as mesmas regras. A origem do cadastro não muda prioridade nem cria uma fila separada.
 
@@ -54,10 +54,11 @@ Considerar participantes ativos e elegíveis, excluindo os temporariamente suspe
 Ordenar por:
 
 1. Menor número de apresentações concluídas naquela sessão.
-2. Em empate, existência de pedido elegível, antes de repetição sem pedido.
-3. Persistindo o empate, ordem de check-in.
+2. Entre pessoas empatadas nessa contagem, preferir quem não acabou de concluir, evitando repetição imediata.
+3. Persistindo empate, existência de pedido elegível, antes de repetição sem pedido.
+4. Persistindo o empate, ordem de check-in.
 
-Evitar repetição imediata da mesma pessoa quando houver outra elegível. Não impor espera artificial quando houver apenas uma pessoa elegível. A precedência exata dessa proteção em situações de contagens desiguais precisa ser especificada antes do motor de fila; ela não autoriza alterar silenciosamente a prioridade principal.
+O desempate contra repetição imediata foi aprovado na revisão de fila e palco. Ele nunca supera a prioridade por menos apresentações. Não impor espera artificial quando houver apenas uma pessoa elegível.
 
 Múltiplos pedidos não dão direito a várias chamadas na mesma rodada. A projeção deve balancear por pessoa e considerar posições já projetadas e convocações confirmadas para não reservar oportunidades duplicadas. O cálculo técnico dessas reservas será especificado antes da implementação.
 
@@ -80,7 +81,7 @@ Quando o módulo de solicitações existir, a saída cancela os pedidos pendente
 
 ## Recusa e não comparecimento
 
-Recusar com “agora não quero cantar” pausa temporariamente as sugestões, sem registrar falta. O mecanismo de retomada e eventual duração dessa pausa ainda precisam ser definidos.
+Recusar com “agora não quero cantar” pausa temporariamente as sugestões, sem registrar falta. A retomada é manual pelo anfitrião, preservando posição de chegada, apresentações, pedidos e faltas anteriores.
 
 Não comparecimento depende de confirmação do anfitrião. Tempo decorrido pode orientar a operação, mas não confirma ausência automaticamente.
 
@@ -91,13 +92,13 @@ Não comparecimento depende de confirmação do anfitrião. Tempo decorrido pode
 | Segunda falta consecutiva | Inativação automática por ausência e retirada da fila sugerida |
 | Apresentação concluída | Zera a sequência de faltas |
 
-Uma rodada oferece oportunidade aos demais participantes elegíveis antes de tentar novamente. Se não houver outros, o anfitrião decide quando repetir a chamada. Os detalhes para mudanças de elegibilidade durante a rodada precisam de especificação técnica.
+Uma rodada oferece oportunidade aos demais participantes elegíveis antes de tentar novamente. Se não houver outros, o anfitrião decide quando repetir a chamada. O conjunto de espera é fixado na primeira falta; novas entradas não o ampliam, e quem sai ou pausa deixa de bloquear. Detalhes aprovados na revisão de fila e palco.
 
 A sequência de faltas é por participante na sessão, não por pedido. Falta não conta como apresentação concluída. Na inativação, os pedidos pendentes ficam suspensos, preservando o histórico; isso é diferente do cancelamento por saída voluntária. A convocação recebe resultado “não compareceu”.
 
 ## Retorno
 
-Após inativação por ausência, a pessoa pode solicitar reativação, com confirmação do anfitrião. Recebe nova posição de chegada, mantendo apresentações concluídas. O tratamento da sequência de faltas e da retomada dos pedidos na reativação ainda precisa ser definido.
+Após inativação por ausência, a pessoa pode solicitar reativação, com confirmação do anfitrião. Recebe nova posição de chegada, mantendo apresentações concluídas. A revisão aprovada define faltas zeradas e pedidos suspensos devolvidos a pendentes na reativação.
 
 Após saída voluntária, nova entrada recebe nova posição de check-in e deve preservar apresentações concluídas quando for possível reconhecer a mesma pessoa. Sem conta e após limpar a identidade local, esse reconhecimento não é garantido. Não usar apenas nome ou mesa para reunir identidades automaticamente.
 
@@ -121,3 +122,7 @@ Critérios de aceite para os incrementos correspondentes:
 O motor sugere participantes e pedidos, em vez de depender exclusivamente de pedidos enfileirados. Ter poucos participantes não exige que o anfitrião memorize repetições. Confirmar a oportunidade continua sendo uma decisão do anfitrião.
 
 Estas decisões documentam o comportamento desejado e não autorizam iniciar implementação. Limites de pedidos, escolha entre pedidos da mesma pessoa, reativação, pausas, reservas e detalhes de rodada serão revisados antes dos respectivos incrementos.
+
+## Evolução e aceite
+
+O [Aceite 001](../acceptance/001-assisted-flow.md) cobre somente o primeiro fluxo assistido. O detalhamento de rodadas, pausas, reservas, reativação e concorrência foi aprovado em [Revisão de fila e palco](../stage-review.md), incluindo o desempate contra repetição imediata. A implementação foi autorizada e concluída; o aceite manual foi confirmado nos dois modos em [Aceite 002](../acceptance/002-stage-flow.md). Veja [Ensaio de fila e palco](../stage-testing.md).

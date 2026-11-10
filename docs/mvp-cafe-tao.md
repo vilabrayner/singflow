@@ -65,3 +65,11 @@ O responsável inicia, reinicia e encerra serviços pelo terminal da IDE. O agen
 ## Atualização — primeira entrega autorizada
 
 O responsável autorizou acesso provisionado do anfitrião, criar/abrir/encerrar sessão, inscrição assistida com primeira música, busca e novos pedidos no mesmo cadastro, lista por check-in e saída. Hospedagem será escolhida depois dos testes locais, tanto com serviços independentes como com imagens Docker. O [roteiro local](local-mvp-testing.md) registra escopo implementado, verificações e pendências. Os demais fluxos seguem sujeitos a revisão e autorização.
+
+## Aceite da primeira entrega
+
+Responsável confirmou teste completo com serviços independentes e Docker, com persistência após reinício. Registro em [Aceite 001](acceptance/001-assisted-flow.md). A próxima entrega está em [revisão de fila e palco](stage-review.md); ainda não foi autorizada sua implementação.
+
+## Aceite de fila e palco e próxima revisão
+
+O responsável confirmou roteiro de fila e palco com serviços independentes e Docker, incluindo reinício com convocação ativa e espera de rodada; ver [Aceite 002](acceptance/002-stage-flow.md). A [revisão do participante pelo celular](participant-review.md) está preparada, sem autorização de implementação. Hospedagem e exposição de rede continuam pendentes.

@@ -628,3 +628,61 @@ h2 {
     padding: 18px;
   }
 }
+
+.current-call {
+  background: #f3edff;
+  border: 1px solid #d5c0fa;
+  border-radius: 14px;
+  padding: 22px;
+  margin: 20px 0;
+}
+.current-call h3 {
+  font-size: 24px;
+  font-weight: 800;
+}
+.stage-actions {
+  margin-top: 18px;
+}
+.stage-subtitle {
+  font-size: 16px;
+  font-weight: 800;
+  margin-top: 25px;
+}
+.stage-suggestions {
+  list-style: decimal;
+  padding-left: 24px;
+}
+.stage-suggestions li {
+  padding: 16px 4px;
+  border-bottom: 1px solid #e7ebf2;
+  overflow-wrap: anywhere;
+}
+.stage-suggestions li p {
+  margin: 5px 0;
+}
+.stage-suggestions p-button {
+  display: block;
+  margin-top: 12px;
+}
+.stage-panel small {
+  color: #59667b;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.stage-history {
+  margin-top: 25px;
+}
+.stage-history summary {
+  cursor: pointer;
+  font-weight: 750;
+}
+.stage-history article {
+  padding: 14px 0;
+  border-bottom: 1px solid #e7ebf2;
+}
+.stage-wait {
+  padding: 15px;
+  background: #fff7e3;
+  border-radius: 10px;
+  margin-top: 12px;
+}
