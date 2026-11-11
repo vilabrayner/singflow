@@ -160,7 +160,7 @@ export class ParticipantMobileAccess implements OnDestroy {
     clearTimeout(this.timer);
     const generation = ++this.generation;
     const invitation = await this.api.post<{ url: string; expiresAt: string }>(this.path);
-    const qr = await import('qrcode');
+    const { default: qr } = await import('qrcode');
     const image = await qr.toDataURL(invitation.url, {
       width: 256,
       margin: 4,

@@ -206,7 +206,7 @@ export class EntryShare implements OnInit {
       const result = rotate
         ? await this.api.post<{ url: string }>(`${path}/rotate`, { operationId: this.rotation })
         : await this.api.get<{ url: string }>(path);
-      const qr = await import('qrcode');
+      const { default: qr } = await import('qrcode');
       const image = await qr.toDataURL(result.url, {
         width: 256,
         margin: 4,
