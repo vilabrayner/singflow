@@ -34,7 +34,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(7);
+    assertThat(flyway.info().applied()).hasSize(10);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -510,6 +510,241 @@ class SingflowApplicationTests {
   }
 
   @Test
+  void assistedMobileAccessPreservesTheQueueAndRequiresExplicitReplacement() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID ana = enroll(session, owner, "Ana");
+    var call = callNext(session, owner);
+    long order = participation.list(session, owner).getFirst().checkInOrder();
+    var browser = new MockHttpSession();
+    String path = "/api/participation/" + session + "/mobile-access";
+    String hostPath = "/api/sessions/" + session + "/participants/" + ana + "/mobile-access";
+    mvc.perform(post(hostPath).with(csrf())).andExpect(status().isUnauthorized());
+    mvc.perform(post(hostPath).with(csrf()).with(user(host()).roles("HOST")))
+        .andExpect(status().isNotFound());
+
+    String code =
+        java.net.URI.create(audience.issueAccess(session, owner, ana).url()).getFragment();
+    String body = "{\"code\":\"" + code + "\"}";
+    mvc.perform(
+            post(path + "/preview")
+                .session(browser)
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("Ana"));
+    var result =
+        mvc.perform(
+                post(path + "/claim")
+                    .session(browser)
+                    .with(csrf())
+                    .contentType("application/json")
+                    .content(body))
+            .andExpect(status().isNoContent())
+            .andReturn();
+    var cookie = result.getResponse().getCookie("SF_PARTICIPANT");
+    assertThat(cookie).isNotNull();
+    assertThat(cookie.isHttpOnly()).isTrue();
+    assertThat(cookie.getPath()).isEqualTo("/api/participation/" + session);
+    var view = audience.me(session, cookie.getValue());
+    assertThat(view.participant().id()).isEqualTo(ana);
+    assertThat(view.participant().checkInOrder()).isEqualTo(order);
+    assertThat(view.participant().origin()).isEqualTo("ASSISTED");
+    assertThat(view.requests())
+        .singleElement()
+        .satisfies(r -> assertThat(r.title()).isEqualTo("Música de Ana"));
+    assertThat(view.active().id()).isEqualTo(call.id());
+    assertThat(participation.list(session, owner)).hasSize(1);
+    var song = audience.add(session, cookie.getValue(), UUID.randomUUID(), "Nova música", null);
+    assertThat(song.requests()).hasSize(2);
+    mvc.perform(post(path + "/claim").with(csrf()).contentType("application/json").content(body))
+        .andExpect(status().isNotFound());
+
+    String expired =
+        java.net.URI.create(audience.issueAccess(session, owner, ana).url()).getFragment();
+    jdbc.sql(
+            "UPDATE singflow.participant_access_invites SET expires_at=now() WHERE session_id=? AND"
+                + " participant_id=?")
+        .params(session, ana)
+        .update();
+    mvc.perform(
+            post(path + "/preview")
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"code\":\"" + expired + "\"}"))
+        .andExpect(status().isNotFound());
+    assertThat(audience.mobileAccess(session, owner, ana).linked()).isTrue();
+
+    String guestCode = code(session, owner);
+    var replacementBrowser = new MockHttpSession();
+    var guestCookie = prepareGuest(session, guestCode, replacementBrowser);
+    joinGuest(session, guestCode, guestCookie);
+    UUID guest = audience.me(session, guestCookie.getValue()).participant().id();
+    String replacement =
+        java.net.URI.create(audience.issueAccess(session, owner, ana).url()).getFragment();
+    String replacementBody = "{\"code\":\"" + replacement + "\"}";
+    assertThat(audience.mobileAccess(session, owner, ana).pending()).isTrue();
+    assertThat(audience.me(session, cookie.getValue()).participant().id()).isEqualTo(ana);
+    mvc.perform(
+            post(path + "/preview")
+                .cookie(guestCookie)
+                .session(replacementBrowser)
+                .with(csrf())
+                .contentType("application/json")
+                .content(replacementBody))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.currentId").value(guest.toString()));
+    mvc.perform(
+            post(path + "/claim")
+                .cookie(guestCookie)
+                .session(replacementBrowser)
+                .with(csrf())
+                .contentType("application/json")
+                .content(replacementBody))
+        .andExpect(status().isConflict());
+    var newCookie =
+        mvc.perform(
+                post(path + "/claim")
+                    .cookie(guestCookie)
+                    .session(replacementBrowser)
+                    .with(csrf())
+                    .contentType("application/json")
+                    .content(
+                        "{\"code\":\""
+                            + replacement
+                            + "\",\"replaceParticipantId\":\""
+                            + guest
+                            + "\"}"))
+            .andExpect(status().isNoContent())
+            .andReturn()
+            .getResponse()
+            .getCookie("SF_PARTICIPANT");
+    String base = "/api/participation/" + session;
+    mvc.perform(get(base + "/me").cookie(cookie)).andExpect(status().isUnauthorized());
+    mvc.perform(get(base + "/me").cookie(guestCookie)).andExpect(status().isUnauthorized());
+    mvc.perform(
+            post(base + "/leave")
+                .cookie(newCookie)
+                .with(csrf())
+                .header("X-SingFlow-Participant", guest.toString()))
+        .andExpect(status().isConflict());
+    assertThat(audience.me(session, newCookie.getValue()).active().id()).isEqualTo(call.id());
+    assertThat(participation.list(session, owner)).hasSize(2);
+  }
+
+  @Test
+  void skipGivesOneOpportunityToTheNextPersonAndPreservesRequests() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID ana = enroll(session, owner, "Ana");
+    assertThatThrownBy(() -> stage.skipNext(session, owner, UUID.randomUUID(), ana, ana))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    UUID bruno = enroll(session, owner, "Bruno");
+    UUID carla = enroll(session, owner, "Carla");
+    UUID operation = UUID.randomUUID();
+    String path = "/api/sessions/" + session + "/stage/skip";
+    String body =
+        "{\"operationId\":\""
+            + operation
+            + "\",\"participantId\":\""
+            + ana
+            + "\",\"expectedRequestId\":\""
+            + ana
+            + "\"}";
+    mvc.perform(post(path).with(csrf()).contentType("application/json").content(body))
+        .andExpect(status().isUnauthorized());
+    mvc.perform(
+            post(path)
+                .with(user(host()).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isNotFound());
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var first = executor.submit(() -> stage.skipNext(session, owner, operation, ana, ana));
+      var retry = executor.submit(() -> stage.skipNext(session, owner, operation, ana, ana));
+      assertThat(first.get(10, TimeUnit.SECONDS).suggestions().getFirst().participantId())
+          .isEqualTo(bruno);
+      assertThat(retry.get(10, TimeUnit.SECONDS).suggestions().getFirst().participantId())
+          .isEqualTo(bruno);
+    }
+    assertThat(stage.snapshot(session, owner).suggestions())
+        .extracting(br.tec.flowave.singflow.stage.StageService.Suggestion::participantId)
+        .containsExactly(bruno, ana, carla);
+    assertThat(participation.list(session, owner))
+        .allSatisfy(
+            p -> {
+              assertThat(p.status()).isEqualTo("ACTIVE");
+              assertThat(p.completedPerformances()).isZero();
+              assertThat(p.consecutiveAbsences()).isZero();
+            });
+    assertThat(assistedRequests.list(session, owner))
+        .allSatisfy(r -> assertThat(r.status()).isEqualTo("PENDING"));
+    assertThat(stage.snapshot(session, owner).history()).isEmpty();
+    assertThatThrownBy(() -> stage.skipNext(session, owner, UUID.randomUUID(), ana, ana))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    var call = callNext(session, owner);
+    assertThat(call.participantId()).isEqualTo(bruno);
+    stage.resolve(session, owner, call.id(), "COMPLETED");
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().participantId())
+        .isEqualTo(ana);
+    stage.skipNext(session, owner, operation, ana, ana);
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().participantId())
+        .isEqualTo(ana);
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='QUEUE_OPPORTUNITY_SKIPPED'")
+                .param(session)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void onlyOnePhoneCanConsumeAnIndividualInvitation() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID participant = enroll(session, owner, "Ana");
+    String code =
+        java.net.URI.create(audience.issueAccess(session, owner, participant).url()).getFragment();
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      Callable<Boolean> claim =
+          () -> {
+            try {
+              audience.claimAccess(session, code, null, UUID.randomUUID().toString(), null);
+              return true;
+            } catch (org.springframework.web.server.ResponseStatusException error) {
+              assertThat(error.getStatusCode().value()).isEqualTo(404);
+              return false;
+            }
+          };
+      var first = executor.submit(claim);
+      var second = executor.submit(claim);
+      assertThat(
+              java.util.List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder(true, false);
+    }
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.participant_grants WHERE session_id=? AND"
+                        + " participant_id=? AND NOT revoked")
+                .params(session, participant)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+    String replacement =
+        java.net.URI.create(audience.issueAccess(session, owner, participant).url()).getFragment();
+    participation.leave(session, owner, participant);
+    assertThatThrownBy(() -> audience.claimAccess(session, replacement, null, "late-phone", null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+  }
+
+  @Test
   void guestRespondsOnlyToOwnCallAndResumesTheirOwnPause() throws Exception {
     String owner = host();
     UUID session = UUID.randomUUID();
@@ -658,6 +893,44 @@ class SingflowApplicationTests {
   }
 
   @Test
+  void participantAccessFollowsTheOpenSessionAndReportsTheSuggestedPosition() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String code = code(session, owner);
+    var cookie = prepareGuest(session, code, new MockHttpSession());
+    assertThat(cookie.getMaxAge()).isGreaterThan(86400);
+    joinGuest(session, code, cookie);
+    var initial = audience.me(session, cookie.getValue());
+    assertThat(initial.expiresAt()).isNull();
+    assertThat(initial.queuePosition()).isEqualTo(1);
+    UUID next = enroll(session, owner, "Bruno");
+    stage.skipNext(
+        session,
+        owner,
+        UUID.randomUUID(),
+        initial.participant().id(),
+        initial.requests().getFirst().id());
+    var moved = audience.me(session, cookie.getValue());
+    assertThat(moved.queuePosition()).isEqualTo(2);
+    assertThat(moved.suggested()).isFalse();
+    var called = callNext(session, owner);
+    assertThat(called.participantId()).isEqualTo(next);
+    assertThat(audience.me(session, cookie.getValue()).queuePosition()).isEqualTo(1);
+    stage.resolve(session, owner, called.id(), "COMPLETED");
+    var selfCall = callNext(session, owner);
+    assertThat(selfCall.participantId()).isEqualTo(initial.participant().id());
+    assertThat(audience.me(session, cookie.getValue()).queuePosition()).isNull();
+    mvc.perform(
+            post("/api/sessions/" + session + "/close")
+                .with(user(owner).roles("HOST"))
+                .with(csrf()))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void guestExpiryAndClosedSession() throws Exception {
     String owner = host();
     UUID session = UUID.randomUUID();
@@ -671,14 +944,14 @@ class SingflowApplicationTests {
                 .with(csrf()))
         .andExpect(status().isOk());
     mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
-        .andExpect(status().isOk());
+        .andExpect(status().isUnauthorized());
     mvc.perform(
             post("/api/participation/" + session + "/requests")
                 .cookie(cookie)
                 .with(csrf())
                 .contentType("application/json")
                 .content("{\"operationId\":\"" + UUID.randomUUID() + "\",\"title\":\"Outra\"}"))
-        .andExpect(status().isConflict());
+        .andExpect(status().isUnauthorized());
     jdbc.sql(
             "UPDATE singflow.participant_grants SET expires_at=now()-interval '1 second' WHERE"
                 + " session_id=?")
@@ -857,15 +1130,14 @@ class SingflowApplicationTests {
                 .with(csrf()))
         .andExpect(status().isOk());
     mvc.perform(get("/api/participation/" + session + "/me").cookie(cookie))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.canReturn").value(false));
+        .andExpect(status().isUnauthorized());
     mvc.perform(
             post("/api/participation/" + session + "/return")
                 .cookie(cookie)
                 .with(csrf())
                 .contentType("application/json")
                 .content(body))
-        .andExpect(status().isConflict());
+        .andExpect(status().isUnauthorized());
     jdbc.sql(
             "UPDATE singflow.participant_grants SET expires_at=now()-interval '1 second' WHERE"
                 + " session_id=?")

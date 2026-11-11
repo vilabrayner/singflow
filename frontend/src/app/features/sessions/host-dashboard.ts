@@ -1,5 +1,7 @@
+import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { MenuItem } from 'primeng/api';
+import { MenuPopover } from '../../shared/components/menu-popover';
 import { OptionsMenu } from '../../shared/components/options-menu';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import {
@@ -31,6 +33,7 @@ import { apiError } from '../../core/http/api-client';
   imports: [
     ConfirmationDialog,
     OptionsMenu,
+    MenuPopover,
     ReactiveFormsModule,
     InputTextModule,
     StagePanel,
@@ -109,7 +112,7 @@ export class HostDashboard implements OnInit {
   readonly sessionForm = this.fb.group({
     name: ['', [Validators.required, Validators.maxLength(120)]],
   });
-  private createKey = crypto.randomUUID();
+  private createKey = createOperationId();
 
   constructor() {
     effect((onCleanup) => {
@@ -255,7 +258,7 @@ export class HostDashboard implements OnInit {
     if (this.sessionForm.invalid) return;
     await this.run(async () => {
       const session = await this.api.create(this.sessionForm.controls.name.value, this.createKey);
-      this.createKey = crypto.randomUUID();
+      this.createKey = createOperationId();
       this.sessionForm.reset();
       await this.loadSessions();
       await this.loadSession(session);

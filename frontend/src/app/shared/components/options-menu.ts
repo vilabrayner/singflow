@@ -1,34 +1,15 @@
-import { Component, input } from '@angular/core';
+import { Component, computed, input, viewChild } from '@angular/core';
 import { MenuModule } from 'primeng/menu';
 import { MenuItem } from 'primeng/api';
+import { MenuPopover } from './menu-popover';
 
 @Component({
   selector: 'app-options-menu',
-  imports: [MenuModule],
+  imports: [MenuModule, MenuPopover],
   template: `
-    <button
-      type="button"
-      class="sf-icon-button"
-      [id]="buttonId()"
-      [attr.aria-label]="label()"
-      [title]="label()"
-      aria-haspopup="menu"
-      [attr.aria-controls]="buttonId() + '-menu'"
-      [attr.aria-expanded]="menu.visible()"
-      [disabled]="disabled()"
-      (click)="menu.toggle($event)"
-    >
-      <i class="pi pi-ellipsis-h" aria-hidden="true"></i>
-    </button>
-    <p-menu
-      #menu
-      [id]="buttonId() + '-menu'"
-      [popup]="true"
-      [model]="items()"
-      [ariaLabel]="label()"
-      appendTo="body"
-      styleClass="sf-options-popup"
-    />
+    <app-menu-popover [buttonId]="buttonId()" [label]="label()" [disabled]="disabled()">
+      <p-menu [model]="commands()" [ariaLabel]="label()" styleClass="sf-options-popup" />
+    </app-menu-popover>
   `,
 })
 export class OptionsMenu {
@@ -36,4 +17,14 @@ export class OptionsMenu {
   readonly label = input.required<string>();
   readonly items = input.required<MenuItem[]>();
   readonly disabled = input(false);
+  private readonly popover = viewChild.required(MenuPopover);
+  readonly commands = computed(() =>
+    this.items().map((item) => ({
+      ...item,
+      command: (event: Parameters<NonNullable<MenuItem['command']>>[0]) => {
+        this.popover().close();
+        item.command?.(event);
+      },
+    })),
+  );
 }

@@ -18,6 +18,18 @@ class LocalEnvironmentTests {
   }
 
   @Test
+  void localLinksUseLanAddressAndKeepConfiguredPort() {
+    assertThat(LocalEnvironment.localAppUrl("http://localhost:4200", "192.168.1.20"))
+        .isEqualTo("http://192.168.1.20:4200");
+    assertThat(LocalEnvironment.localAppUrl("http://127.0.0.1:4300/", "192.168.1.20"))
+        .isEqualTo("http://192.168.1.20:4300/");
+    assertThat(LocalEnvironment.localAppUrl("https://singflow.example", "192.168.1.20"))
+        .isEqualTo("https://singflow.example");
+    assertThat(LocalEnvironment.localAppUrl("http://192.168.1.50:4200", "192.168.1.20"))
+        .isEqualTo("http://192.168.1.50:4200");
+  }
+
+  @Test
   void loadsSameFileFromRootAndBackendAndParsesQuotes() throws Exception {
     project();
     Files.writeString(

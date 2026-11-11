@@ -13,13 +13,17 @@ export class ApiClient {
   get<T>(path: string): Promise<T> {
     return firstValueFrom(this.http.get<T>(this.url(path)).pipe(timeout(15000)));
   }
-  async post<T>(path: string, body: unknown = {}): Promise<T> {
+  async post<T>(
+    path: string,
+    body: unknown = {},
+    headers: Record<string, string> = {},
+  ): Promise<T> {
     // Fetch the current token for every mutation, including after login/logout rotation.
     const csrf = await this.get<{ token: string; headerName: string }>('/auth/csrf');
     return firstValueFrom(
       this.http
         .post<T>(this.url(path), body, {
-          headers: { [csrf.headerName]: csrf.token },
+          headers: { ...headers, [csrf.headerName]: csrf.token },
         })
         .pipe(timeout(15000)),
     );

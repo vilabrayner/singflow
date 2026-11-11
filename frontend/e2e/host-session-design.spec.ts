@@ -184,6 +184,11 @@ test('account disclosure preserves session selection, cancellation, keyboard esc
   await expect(page.getByRole('heading', { name: 'Café Tão', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Opções da conta' }).click();
   const menu = page.locator('#host-account-options');
+  await expect(page.locator('.sf-menu-backdrop')).toBeVisible();
+  await page.mouse.click(2, 2);
+  await expect(menu).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Opções da conta' })).toBeFocused();
+  await page.getByRole('button', { name: 'Opções da conta' }).click();
   await expect(menu.getByRole('button', { name: 'Café Tão Aberta' })).toBeVisible();
   await expect(menu.getByRole('button', { name: 'Evento anterior Encerrada' })).toHaveCount(0);
   await expect(menu.getByRole('button', { name: 'Próxima festa Rascunho' })).toHaveCount(0);
@@ -224,6 +229,15 @@ test('floating session menu preserves layout and modal cancellation restores foc
   const bounds = await page.locator('.sf-session-card').boundingBox();
   await page.getByRole('button', { name: 'Opções da sessão' }).click();
   await expect(page.getByRole('menuitem', { name: 'Atualizar', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Opções da sessão' })).toHaveCSS(
+    'background-color',
+    'rgb(124, 58, 237)',
+  );
+  await expect(page.locator('.sf-menu-backdrop')).toBeVisible();
+  await page.mouse.click(2, 2);
+  await expect(page.getByRole('menuitem', { name: 'Atualizar', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Opções da sessão' })).toBeFocused();
+  await page.getByRole('button', { name: 'Opções da sessão' }).click();
   expect(await page.locator('.sf-session-card').boundingBox()).toEqual(bounds);
   await page.screenshot({
     path: testInfo.outputPath('menu-flutuante.png'),

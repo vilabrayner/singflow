@@ -91,6 +91,21 @@ Recorte proposto: check-in sem conta por link/QR Code, envio e consulta de pedid
 
 [Plano de retorno do participante](participant-return-review.md): saída voluntária mantém acesso limitado, retorno exige nova música e nova chegada, preservando apresentações e histórico. Retirada pelo anfitrião impede retorno autônomo. Regras e implementação autorizadas; evolução implementada e testes automatizados aprovados. [Ensaio local/Docker](acceptance/004-participant-return.md) pendente de aceite manual. Mantém o controle do anfitrião sobre pausas e faltas.
 
+### Evolução aprovada — acesso pelo celular para inscrição assistida
+
+Implementado nesta versão. O anfitrião encontra o ícone de QR Code na lista de participantes assistidos e nos detalhes da pessoa. O modal mostra o estado do vínculo e permite trocar de celular.
+
+A migration V8 adiciona convites individuais. Cada QR tem validade de cinco minutos, uso único e validação sob o bloqueio da sessão. Gerar outro QR substitui o convite pendente. A confirmação preserva a origem assistida e os dados da participação. A saída invalida o convite pendente.
+
+Validação de backend com PostgreSQL confirmada pelo responsável via `./mvnw -B verify`, incluindo inclusão de música após o vínculo, preservação da convocação, expiração, autorização, revogação do aparelho anterior, confirmação explícita de troca e disputa simultânea pelo mesmo código. Os 48 testes de interface passaram com API simulada em desktop e mobile. O ensaio integrado em celular físico fica disponível para validação pelo responsável após atualizar o backend pela IDE.
+
+1. O anfitrião toca no ícone de QR Code ao lado do participante. O modal **Conceder acesso** mostra um QR individual, de uso único e com validade curta.
+2. Ao escanear, a pessoa vê o nome do participante e confirma que quer assumir aquela participação. O celular é vinculado à inscrição existente, preservando a prioridade do check-in, os pedidos, o histórico e a convocação em andamento.
+3. Pelo celular, o participante pode gerenciar seus pedidos, responder a convocações e sair da fila. O anfitrião continua podendo ajudar com músicas e operar o palco.
+4. O anfitrião vê **Celular vinculado** e pode usar **Trocar celular**. O acesso anterior só é revogado quando o novo aparelho conclui o vínculo. Se o QR expirar, o acesso existente segue válido. Se o aparelho já estiver vinculado a outra pessoa na sessão, a troca requer confirmação explícita.
+
+O QR geral da sessão serve para novas inscrições. O QR individual aparece no modal do anfitrião e concede acesso apenas à participação selecionada.
+
 ## Etapa 3B — Redesenho, acessibilidade e usabilidade dos painéis (dois incrementos do anfitrião implementados)
 
 Etapa solicitada pelo responsável: redesenhar os painéis do anfitrião e do participante, preservando identidade SingFlow, stack e regras de negócio. O [plano de redesenho](panels-redesign.md) detalha os fluxos e critérios de acessibilidade, com referência WCAG 2.2 AA.

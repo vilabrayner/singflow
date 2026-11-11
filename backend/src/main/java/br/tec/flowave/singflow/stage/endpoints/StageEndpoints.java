@@ -17,6 +17,19 @@ class StageEndpoints {
       @Size(max = 160) String title,
       @Size(max = 160) String artist) {}
 
+  record Skip(@NotNull UUID operationId, @NotNull UUID participantId, UUID expectedRequestId) {}
+
+  @PostMapping("/skip")
+  StageService.StageView skip(
+      @PathVariable UUID session, @Valid @RequestBody Skip input, Principal actor) {
+    return stage.skipNext(
+        session,
+        actor.getName(),
+        input.operationId(),
+        input.participantId(),
+        input.expectedRequestId());
+  }
+
   record Resolve(@NotBlank String outcome) {}
 
   private final StageService stage;

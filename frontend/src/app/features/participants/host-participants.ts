@@ -1,3 +1,7 @@
+import { MenuItem } from 'primeng/api';
+import { OptionsMenu } from '../../shared/components/options-menu';
+import { MenuPopover } from '../../shared/components/menu-popover';
+import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import {
@@ -11,6 +15,7 @@ import {
   output,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -19,6 +24,7 @@ import { SurfaceCard } from '../../shared/components/surface-card';
 import { StatusBadge } from '../../shared/components/status-badge';
 import { apiError } from '../../core/http/api-client';
 import { KaraokeSession, Participant, SessionApi, SongRequest } from '../sessions/session-api';
+import { ParticipantMobileAccess } from './participant-mobile-access';
 import { StageApi } from '../stage/stage-api';
 
 @Component({
@@ -30,6 +36,12 @@ import { StageApi } from '../stage/stage-api';
     InputTextModule,
     SurfaceCard,
     StatusBadge,
+    ParticipantMobileAccess,
+    OptionsMenu,
+    MenuPopover,
+  ],
+  styles: [
+    '.sf-people-list > li:has(app-participant-mobile-access) { display: flex; align-items: center; gap: .5rem; }',
   ],
   templateUrl: './host-participants.html',
 })
@@ -44,12 +56,55 @@ export class HostParticipants {
   private readonly stage = inject(StageApi);
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly document = inject(DOCUMENT);
+  private readonly directoryDialog = viewChild<ConfirmationDialog>('directoryDialog');
+  private readonly detailAccess = viewChild<ParticipantMobileAccess>('detailAccess');
   private readonly injector = inject(Injector);
   readonly busy = signal(false);
   readonly locked = computed(() => this.busy() || this.disabled());
   readonly registering = signal(false);
   readonly personId = signal<string | null>(null);
   readonly person = computed(() => this.people().find((p) => p.id === this.personId()) ?? null);
+  readonly participantMenu = computed<MenuItem[]>(() => {
+    const person = this.person();
+    if (!person || this.session().status !== 'OPEN') return [];
+    const items: MenuItem[] = [];
+    if (person.origin === 'ASSISTED' && person.status !== 'LEFT') {
+      items.push({
+        label: 'Acesso pelo celular',
+        icon: 'pi pi-qrcode',
+        command: () => void this.detailAccess()?.open(),
+      });
+    }
+    if (person.status === 'ACTIVE') {
+      items.push({
+        label: 'Pausar participação',
+        icon: 'pi pi-pause',
+        command: () => this.ask('pause'),
+      });
+    }
+    if (person.status === 'PAUSED') {
+      items.push({
+        label: 'Retomar participação',
+        icon: 'pi pi-play',
+        command: () => this.ask('resume'),
+      });
+    }
+    if (person.status === 'LEFT' || person.status === 'INACTIVE') {
+      items.push({
+        label: 'Reativar participante',
+        icon: 'pi pi-user-plus',
+        command: () => this.ask('reactivate'),
+      });
+    }
+    if (person.status !== 'LEFT') {
+      items.push({
+        label: 'Registrar saída',
+        icon: 'pi pi-sign-out',
+        command: () => this.ask('leave'),
+      });
+    }
+    return items;
+  });
   readonly addingSong = signal(false);
   readonly directoryOpen = signal(false);
   readonly search = signal('');
@@ -93,8 +148,8 @@ export class HostParticipants {
     title: ['', [Validators.required, Validators.maxLength(160)]],
     artist: ['', Validators.maxLength(160)],
   });
-  private registrationKey = crypto.randomUUID();
-  private songKey = crypto.randomUUID();
+  private registrationKey = createOperationId();
+  private songKey = createOperationId();
   private context = '';
   constructor() {
     effect(() => {
@@ -118,8 +173,8 @@ export class HostParticipants {
         this.error.set('');
         this.registrationForm.reset();
         this.songForm.reset();
-        this.registrationKey = crypto.randomUUID();
-        this.songKey = crypto.randomUUID();
+        this.registrationKey = createOperationId();
+        this.songKey = createOperationId();
       });
     });
   }
@@ -135,12 +190,27 @@ export class HostParticipants {
     this.registering.set(false);
     this.focus('create-participant-button');
   }
+  openDirectory() {
+    this.personId.set(null);
+    this.directoryOpen.set(true);
+  }
+  closeDirectory() {
+    this.directoryOpen.set(false);
+    this.personId.set(null);
+    this.confirmation.set(null);
+    this.addingSong.set(false);
+    this.error.set('');
+  }
+  private focusDetails() {
+    afterNextRender(() => this.directoryDialog()?.focusTitle(), { injector: this.injector });
+  }
   showPerson(id: string) {
+    this.directoryOpen.set(true);
     this.personId.set(id);
     this.confirmation.set(null);
     this.addingSong.set(false);
     this.error.set('');
-    this.focus('participant-detail-title');
+    this.focusDetails();
   }
   back() {
     const id = this.personId();
@@ -156,7 +226,7 @@ export class HostParticipants {
   }
   startSong() {
     this.songForm.reset();
-    this.songKey = crypto.randomUUID();
+    this.songKey = createOperationId();
     this.addingSong.set(true);
     this.focus('new-song-title');
   }
@@ -192,12 +262,11 @@ export class HostParticipants {
         ...this.registrationForm.getRawValue(),
         operationId: this.registrationKey,
       });
-      this.registrationKey = crypto.randomUUID();
+      this.registrationKey = createOperationId();
       this.registrationForm.reset();
       this.registering.set(false);
       this.directoryOpen.set(true);
       this.notifications.success('Participante inscrito com a primeira música.');
-      this.focus('participant-directory-title');
     });
   }
   async addSong() {
@@ -208,10 +277,10 @@ export class HostParticipants {
         ...this.songForm.getRawValue(),
         operationId: this.songKey,
       });
-      this.songKey = crypto.randomUUID();
+      this.songKey = createOperationId();
       this.addingSong.set(false);
       this.notifications.success('Nova música adicionada ao mesmo participante.');
-      this.focus('participant-detail-title');
+      this.focusDetails();
     });
   }
   async confirmAction() {
@@ -225,7 +294,7 @@ export class HostParticipants {
       this.notifications.success(
         action === 'leave' ? 'Saída registrada. Histórico preservado.' : 'Participação atualizada.',
       );
-      this.focus('participant-detail-title');
+      this.focusDetails();
     });
   }
   status(status: string) {

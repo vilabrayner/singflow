@@ -1,4 +1,4 @@
-@if (error() && !confirmation()) {
+@if (error() && !confirmation() && !directoryOpen()) {
   <p class="host-error" role="alert">{{ error() }}</p>
 }
 @if (registering()) {
@@ -67,189 +67,7 @@
     </form>
   </app-surface-card>
 }
-@if (person(); as person) {
-  <app-surface-card labelledBy="participant-detail-title">
-    <button class="sf-button sf-text" type="button" [disabled]="locked()" (click)="back()">
-      <i class="pi pi-arrow-left" aria-hidden="true"></i>Voltar à lista
-    </button>
-    <h2 id="participant-detail-title" tabindex="-1">{{ person.name }}</h2>
-    <app-status-badge [tone]="person.status === 'ACTIVE' ? 'positive' : 'neutral'">{{
-      status(person.status)
-    }}</app-status-badge>
-    <p>
-      {{ person.tableLabel ? 'Mesa ' + person.tableLabel + ' · ' : ''
-      }}{{ person.origin === 'SELF' ? 'Inscrição pelo celular' : 'Inscrição assistida' }}
-    </p>
-    <dl class="sf-person-facts">
-      <div>
-        <dt>Apresentações</dt>
-        <dd>{{ person.completedPerformances }}</dd>
-      </div>
-      <div>
-        <dt>Faltas consecutivas</dt>
-        <dd>{{ person.consecutiveAbsences || 0 }}</dd>
-      </div>
-      <div>
-        <dt>Chegada</dt>
-        <dd>{{ person.queueJoinedAt || person.checkedInAt | date: 'HH:mm' }}</dd>
-      </div>
-    </dl>
-    @if (session().status === 'OPEN') {
-      @if (person.status === 'ACTIVE' && !addingSong()) {
-        <button
-          id="add-participant-song"
-          type="button"
-          class="sf-button sf-primary sf-full"
-          [disabled]="locked()"
-          (click)="startSong()"
-        >
-          <i class="pi pi-plus" aria-hidden="true"></i>Adicionar música
-        </button>
-      }
-      @if (addingSong()) {
-        <form class="host-form" [formGroup]="songForm" (ngSubmit)="addSong()">
-          <label
-            >Nova música<input
-              id="new-song-title"
-              pInputText
-              formControlName="title"
-              maxlength="160"
-              required
-              [readOnly]="locked()"
-          /></label>
-          <label
-            >Artista (opcional)<input
-              pInputText
-              formControlName="artist"
-              maxlength="160"
-              [readOnly]="locked()"
-          /></label>
-          <button
-            type="submit"
-            class="sf-button sf-primary"
-            [disabled]="songForm.invalid || locked()"
-          >
-            Salvar música
-          </button>
-          <button
-            type="button"
-            class="sf-button sf-text"
-            [disabled]="locked()"
-            (click)="cancelSong()"
-          >
-            Cancelar música
-          </button>
-        </form>
-      }
-    }
-    <h3 class="sf-subtitle">Músicas desta pessoa</h3>
-    <ul class="sf-request-list">
-      @for (song of songs(); track song.id) {
-        <li>
-          <div>
-            <strong>{{ song.title }}</strong>
-            @if (song.artist) {
-              <p>{{ song.artist }}</p>
-            }
-          </div>
-          <app-status-badge [tone]="song.status === 'COMPLETED' ? 'positive' : 'neutral'">{{
-            requestStatus(song.status)
-          }}</app-status-badge>
-        </li>
-      } @empty {
-        <li>Nenhuma música solicitada.</li>
-      }
-    </ul>
-    @if (session().status === 'OPEN') {
-      <div class="host-actions">
-        @if (person.status === 'ACTIVE') {
-          <button
-            type="button"
-            class="sf-button sf-outline"
-            [disabled]="locked()"
-            (click)="ask('pause')"
-          >
-            Pausar participação
-          </button>
-        }
-        @if (person.status === 'PAUSED') {
-          <button
-            type="button"
-            class="sf-button sf-outline"
-            [disabled]="locked()"
-            (click)="ask('resume')"
-          >
-            Retomar participação
-          </button>
-        }
-        @if (person.status === 'LEFT' || person.status === 'INACTIVE') {
-          <button
-            type="button"
-            class="sf-button sf-outline"
-            [disabled]="locked()"
-            (click)="ask('reactivate')"
-          >
-            Reativar participante
-          </button>
-        }
-        @if (person.status !== 'LEFT') {
-          <button
-            type="button"
-            class="sf-button sf-text sf-danger-text"
-            [disabled]="locked()"
-            (click)="ask('leave')"
-          >
-            Registrar saída
-          </button>
-        }
-      </div>
-      @if (person.status === 'SUSPENDED') {
-        <p>Aguarda a rodada dos demais. Consulte no palco se há liberação manual disponível.</p>
-      }
-      @if (confirmation(); as action) {
-        <app-confirmation-dialog
-          [title]="confirmationTitle()"
-          [busy]="locked()"
-          [error]="error()"
-          (dismissed)="cancelAction()"
-        >
-          <p>
-            {{
-              action === 'leave'
-                ? 'Pedidos pendentes serão cancelados e o histórico será mantido. O acesso pelo celular será revogado.'
-                : action === 'reactivate'
-                  ? 'O histórico será mantido e a chegada será registrada novamente. Reativar não recupera um acesso revogado.'
-                  : action === 'pause'
-                    ? 'A pessoa ficará fora das sugestões, sem registrar falta. A chegada será preservada.'
-                    : 'A pessoa volta a participar com a chegada preservada.'
-            }}
-          </p>
-          <div class="host-actions">
-            <button
-              type="button"
-              class="sf-button"
-              [class.sf-danger]="action === 'leave'"
-              [class.sf-primary]="action !== 'leave'"
-              [disabled]="locked()"
-              (click)="confirmAction()"
-            >
-              {{ action === 'leave' ? 'Confirmar saída' : 'Confirmar participação' }}
-            </button>
-            <button
-              type="button"
-              class="sf-button sf-outline"
-              [disabled]="locked()"
-              (click)="cancelAction()"
-            >
-              Cancelar alteração
-            </button>
-          </div>
-        </app-confirmation-dialog>
-      }
-    }
-  </app-surface-card>
-}
-<div [hidden]="registering() || person()">
+<div [hidden]="registering()">
   <ng-content select="[session-entry]" />
   @if (session().status === 'OPEN') {
     @if (people().length === 0) {
@@ -280,76 +98,290 @@
     }
   }
   <ng-content />
-  @if (people().length) {
-    <details
-      class="sf-disclosure sf-people-directory"
-      [open]="directoryOpen()"
-      (toggle)="directoryOpen.set($any($event.target).open)"
-    >
-      <summary id="participant-directory-title" tabindex="0">
-        Participantes e pausas ({{ people().length }})
-      </summary>
-      <app-surface-card labelledBy="participant-list-title">
-        <h2 id="participant-list-title">Todos os participantes</h2>
-        <p>Cadastros por ordem de chegada. A fila sugerida aparece no palco.</p>
-        <label class="host-search"
-          >Buscar por nome ou mesa<input
-            pInputText
-            type="search"
-            [value]="search()"
-            (input)="search.set($any($event.target).value)"
-        /></label>
-        <div class="sf-filter-group" role="group" aria-label="Filtrar participantes">
-          <button
-            type="button"
-            class="sf-button sf-text"
-            [attr.aria-pressed]="filter() === 'all'"
-            (click)="filter.set('all')"
-          >
-            Todos
-          </button>
-          <button
-            type="button"
-            class="sf-button sf-text"
-            [attr.aria-pressed]="filter() === 'active'"
-            (click)="filter.set('active')"
-          >
-            Participando
-          </button>
-          <button
-            type="button"
-            class="sf-button sf-text"
-            [attr.aria-pressed]="filter() === 'outside'"
-            (click)="filter.set('outside')"
-          >
-            Fora da fila
-          </button>
+</div>
+@if (directoryOpen()) {
+  <app-confirmation-dialog
+    #directoryDialog
+    [title]="person()?.name ?? 'Participantes (' + people().length + ')'"
+    [busy]="locked()"
+    [error]="confirmation() ? '' : error()"
+    returnFocus="queue-options-button"
+    (dismissed)="closeDirectory()"
+  >
+    <div dialog-leading [hidden]="!person()">
+      @if (person()) {
+        <button
+          type="button"
+          class="sf-icon-button"
+          aria-label="Voltar à lista"
+          title="Voltar à lista"
+          [disabled]="locked()"
+          (click)="back()"
+        >
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        </button>
+      }
+    </div>
+    <div dialog-actions>
+      @if (person()) {
+        <div class="host-actions">
+          @if (participantMenu().length) {
+            <app-options-menu
+              buttonId="participant-details-options"
+              label="Opções do participante"
+              [items]="participantMenu()"
+              [disabled]="locked()"
+            />
+          }
         </div>
-        <ul class="sf-people-list">
-          @for (person of visiblePeople(); track person.id) {
+      }
+    </div>
+    @if (person(); as person) {
+      @if (
+        session().status === 'OPEN' && person.origin === 'ASSISTED' && person.status !== 'LEFT'
+      ) {
+        <app-participant-mobile-access
+          #detailAccess
+          [session]="session().id"
+          [participant]="person.id"
+          [name]="person.name"
+          [disabled]="locked()"
+          [triggerHidden]="true"
+          returnFocus="participant-details-options"
+        />
+      }
+      <div class="sf-person-status">
+        <app-status-badge [tone]="person.status === 'ACTIVE' ? 'positive' : 'neutral'">{{
+          status(person.status)
+        }}</app-status-badge>
+        @if (person.origin === 'ASSISTED') {
+          <app-menu-popover
+            class="sf-origin-badge"
+            buttonId="participant-origin"
+            label="Origem da inscrição"
+            icon="pi pi-user-edit"
+            [primary]="false"
+          >
+            <div class="sf-participant-origin" tabindex="0">
+              <p>Participante criado pelo anfitrião.</p>
+            </div>
+          </app-menu-popover>
+        }
+      </div>
+      @if (person.tableLabel) {
+        <p>Mesa {{ person.tableLabel }}</p>
+      }
+      <dl class="sf-person-facts">
+        <div>
+          <dt>Chegada</dt>
+          <dd>{{ person.queueJoinedAt || person.checkedInAt | date: 'HH:mm' }}</dd>
+        </div>
+        <div>
+          <dt>Apresentações</dt>
+          <dd>{{ person.completedPerformances }}</dd>
+        </div>
+        <div>
+          <dt>Faltas consecutivas</dt>
+          <dd>{{ person.consecutiveAbsences || 0 }}</dd>
+        </div>
+      </dl>
+      <section class="sf-participant-songs" aria-labelledby="participant-songs-title">
+        <h3 id="participant-songs-title">Músicas</h3>
+        @if (session().status === 'OPEN') {
+          @if (person.status === 'ACTIVE' && !addingSong()) {
+            <button
+              id="add-participant-song"
+              type="button"
+              class="sf-button sf-primary sf-full"
+              [disabled]="locked()"
+              (click)="startSong()"
+            >
+              <i class="pi pi-plus" aria-hidden="true"></i>Adicionar música
+            </button>
+          }
+          @if (addingSong()) {
+            <form class="host-form" [formGroup]="songForm" (ngSubmit)="addSong()">
+              <label
+                >Nova música<input
+                  id="new-song-title"
+                  pInputText
+                  formControlName="title"
+                  maxlength="160"
+                  required
+                  [readOnly]="locked()"
+              /></label>
+              <label
+                >Artista (opcional)<input
+                  pInputText
+                  formControlName="artist"
+                  maxlength="160"
+                  [readOnly]="locked()"
+              /></label>
+              <div class="sf-dialog-actions">
+                <button
+                  type="submit"
+                  class="sf-button sf-primary"
+                  [disabled]="songForm.invalid || locked()"
+                >
+                  Salvar música
+                </button>
+                <button
+                  type="button"
+                  class="sf-button sf-text"
+                  [disabled]="locked()"
+                  (click)="cancelSong()"
+                >
+                  Cancelar música
+                </button>
+              </div>
+            </form>
+          }
+        }
+        <ul class="sf-request-list">
+          @for (song of songs(); track song.id) {
             <li>
-              <button
-                [id]="'participant-' + person.id"
-                type="button"
-                class="sf-person-row"
-                [disabled]="locked()"
-                (click)="showPerson(person.id)"
-              >
-                <span
-                  ><strong>{{ person.name }}</strong
-                  ><span
-                    >{{ person.tableLabel ? 'Mesa ' + person.tableLabel + ' · ' : ''
-                    }}{{ person.completedPerformances }} apresentações ·
-                    {{ status(person.status) }}</span
-                  ></span
-                ><i class="pi pi-chevron-right" aria-hidden="true"></i>
-              </button>
+              <div>
+                <strong>{{ song.title }}</strong>
+                @if (song.artist) {
+                  <p>{{ song.artist }}</p>
+                }
+              </div>
+              <app-status-badge [tone]="song.status === 'COMPLETED' ? 'positive' : 'neutral'">{{
+                requestStatus(song.status)
+              }}</app-status-badge>
             </li>
           } @empty {
-            <li>Nenhum participante encontrado.</li>
+            <li>Nenhuma música solicitada.</li>
           }
         </ul>
-      </app-surface-card>
-    </details>
-  }
-</div>
+      </section>
+      @if (session().status === 'OPEN') {
+        @if (person.status === 'SUSPENDED') {
+          <p>Aguarda a rodada dos demais. Consulte no palco se há liberação manual disponível.</p>
+        }
+        @if (confirmation(); as action) {
+          <app-confirmation-dialog
+            [title]="confirmationTitle()"
+            returnFocus="participant-details-options"
+            [busy]="locked()"
+            [error]="error()"
+            (dismissed)="cancelAction()"
+          >
+            <p>
+              {{
+                action === 'leave'
+                  ? 'Pedidos pendentes serão cancelados e o histórico será mantido. O acesso pelo celular será revogado.'
+                  : action === 'reactivate'
+                    ? 'O histórico será mantido e a chegada será registrada novamente. Reativar não recupera um acesso revogado.'
+                    : action === 'pause'
+                      ? 'A pessoa ficará fora das sugestões, sem registrar falta. A chegada será preservada.'
+                      : 'A pessoa volta a participar com a chegada preservada.'
+              }}
+            </p>
+            <div class="sf-dialog-actions">
+              <button
+                type="button"
+                class="sf-button"
+                [class.sf-danger]="action === 'leave'"
+                [class.sf-primary]="action !== 'leave'"
+                [disabled]="locked()"
+                (click)="confirmAction()"
+              >
+                {{ action === 'leave' ? 'Confirmar saída' : 'Confirmar participação' }}
+              </button>
+              <button
+                type="button"
+                class="sf-button sf-outline"
+                [disabled]="locked()"
+                (click)="cancelAction()"
+              >
+                Cancelar alteração
+              </button>
+            </div>
+          </app-confirmation-dialog>
+        }
+      }
+    } @else {
+      <p>Cadastros por ordem de chegada. A fila sugerida aparece no palco.</p>
+      <label class="host-search"
+        >Buscar por nome ou mesa<input
+          pInputText
+          type="search"
+          [value]="search()"
+          (input)="search.set($any($event.target).value)"
+      /></label>
+      <div class="sf-filter-group" role="group" aria-label="Filtrar participantes">
+        <button
+          type="button"
+          class="sf-button sf-text"
+          [attr.aria-pressed]="filter() === 'all'"
+          (click)="filter.set('all')"
+        >
+          Todos
+        </button>
+        <button
+          type="button"
+          class="sf-button sf-text"
+          [attr.aria-pressed]="filter() === 'active'"
+          (click)="filter.set('active')"
+        >
+          Participando
+        </button>
+        <button
+          type="button"
+          class="sf-button sf-text"
+          [attr.aria-pressed]="filter() === 'outside'"
+          (click)="filter.set('outside')"
+        >
+          Fora da fila
+        </button>
+      </div>
+      <ul class="sf-people-list sf-dialog-list">
+        @for (person of visiblePeople(); track person.id) {
+          <li>
+            <button
+              [id]="'participant-' + person.id"
+              type="button"
+              class="sf-person-row"
+              [disabled]="locked()"
+              (click)="showPerson(person.id)"
+            >
+              <span
+                ><strong>{{ person.name }}</strong
+                ><span
+                  >{{ person.tableLabel ? 'Mesa ' + person.tableLabel + ' · ' : ''
+                  }}{{ person.completedPerformances }} apresentações ·
+                  {{ status(person.status) }}</span
+                ></span
+              ><i class="pi pi-chevron-right" aria-hidden="true"></i>
+            </button>
+            @if (
+              session().status === 'OPEN' &&
+              person.origin === 'ASSISTED' &&
+              person.status !== 'LEFT'
+            ) {
+              <app-participant-mobile-access
+                [session]="session().id"
+                [participant]="person.id"
+                [name]="person.name"
+                [disabled]="locked()"
+              />
+            }
+          </li>
+        } @empty {
+          <li>Nenhum participante encontrado.</li>
+        }
+      </ul>
+    }
+    <div class="sf-dialog-actions">
+      <button
+        type="button"
+        class="sf-button sf-outline sf-full"
+        [disabled]="locked()"
+        (click)="closeDirectory()"
+      >
+        Fechar
+      </button>
+    </div>
+  </app-confirmation-dialog>
+}

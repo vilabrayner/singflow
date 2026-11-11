@@ -1,5 +1,6 @@
 @import '@fontsource-variable/manrope';
 @import 'primeicons/primeicons.css';
+@import '@angular/cdk/overlay-prebuilt.css';
 @layer theme, base, primeng, components, utilities;
 @import 'tailwindcss';
 @import 'tailwindcss-primeui';
@@ -50,6 +51,9 @@ button:focus-visible {
   top: 10px;
 }
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   min-height: 94px;
   padding: 20px 5vw;
   display: flex;
@@ -669,11 +673,9 @@ h2 {
   line-height: 1.7;
 }
 .stage-history {
-  margin-top: 25px;
-}
-.stage-history summary {
-  cursor: pointer;
-  font-weight: 750;
+  max-height: min(50dvh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .stage-history article {
   padding: 14px 0;

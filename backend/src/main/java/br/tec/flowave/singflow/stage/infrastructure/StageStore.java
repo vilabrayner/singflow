@@ -112,6 +112,49 @@ public class StageStore {
     if (updated != 1) throw new IllegalStateException("Call was not active under session lock");
   }
 
+  public record QueueSkip(UUID sessionId, UUID participantId, UUID requestId) {}
+
+  public Optional<QueueSkip> skipOperation(UUID operation) {
+    return jdbc.sql(
+            "SELECT session_id,participant_id,expected_request_id FROM singflow.stage_queue_skips"
+                + " WHERE operation_id=?")
+        .param(operation)
+        .query(
+            (rs, n) ->
+                new QueueSkip(
+                    rs.getObject(1, UUID.class),
+                    rs.getObject(2, UUID.class),
+                    rs.getObject(3, UUID.class)))
+        .optional();
+  }
+
+  public Optional<UUID> nextAfterSkip(UUID session) {
+    return jdbc.sql(
+            "SELECT next_participant_id FROM singflow.stage_queue_skips WHERE session_id=? AND"
+                + " active")
+        .param(session)
+        .query(UUID.class)
+        .optional();
+  }
+
+  public void consumeSkip(UUID session) {
+    jdbc.sql("UPDATE singflow.stage_queue_skips SET active=false WHERE session_id=? AND active")
+        .param(session)
+        .update();
+  }
+
+  public void skip(UUID session, UUID operation, UUID participant, UUID request, UUID next) {
+    consumeSkip(session);
+    jdbc.sql(
+            """
+            INSERT INTO singflow.stage_queue_skips
+            (operation_id,session_id,participant_id,expected_request_id,next_participant_id)
+            VALUES (?,?,?,?,?)
+            """)
+        .params(operation, session, participant, request, next)
+        .update();
+  }
+
   public void waitFor(UUID session, UUID participant, List<UUID> blockers) {
     jdbc.sql(
             "INSERT INTO singflow.stage_waits(session_id,participant_id,manual_release) VALUES"

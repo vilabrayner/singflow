@@ -1,3 +1,4 @@
+import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { MenuItem } from 'primeng/api';
 import { OptionsMenu } from '../../shared/components/options-menu';
@@ -44,6 +45,26 @@ export class StagePanel {
   readonly revision = input(0);
   readonly changed = output<void>();
   readonly personSelected = output<string>();
+  readonly participantsRequested = output<void>();
+  readonly entryRequested = output<void>();
+  readonly queueMenuItems = computed<MenuItem[]>(() => [
+    {
+      label: 'Compartilhar link e QR Code',
+      icon: 'pi pi-qrcode',
+      disabled: !this.open(),
+      command: () => this.entryRequested.emit(),
+    },
+    {
+      label: 'Participantes',
+      icon: 'pi pi-users',
+      command: () => this.participantsRequested.emit(),
+    },
+    {
+      label: 'Histórico do palco',
+      icon: 'pi pi-history',
+      command: () => this.showingHistory.set(true),
+    },
+  ]);
   readonly working = output<boolean>();
   readonly stageMenuItems = computed<MenuItem[]>(() => [
     {
@@ -66,6 +87,7 @@ export class StagePanel {
     },
   ]);
   readonly search = signal('');
+  readonly showingHistory = signal(false);
   readonly visibleSuggestions = computed(() => {
     const query = this.search().trim().toLocaleLowerCase();
     return (this.state()?.suggestions ?? []).filter((p) =>
@@ -104,9 +126,14 @@ export class StagePanel {
     this.choosingNext.set(null);
     this.focus(this.definingActiveSong() ? 'define-active-song' : 'approve-next');
   }
+  private skipOperation: {
+    participantId: string;
+    requestId: string | null;
+    operationId: string;
+  } | null = null;
   private context = '';
   private generation = 0;
-  private confirmationKey: string = crypto.randomUUID();
+  private confirmationKey: string = createOperationId();
   constructor() {
     effect(() => {
       const session = this.sessionId();
@@ -167,6 +194,8 @@ export class StagePanel {
     this.loading.set(true);
     if (this.context !== session) {
       this.context = session;
+      this.skipOperation = null;
+      this.showingHistory.set(false);
       this.search.set('');
       this.state.set(null);
       this.songForm.reset();
@@ -188,13 +217,10 @@ export class StagePanel {
       if (generation === this.generation) this.loading.set(false);
     }
   }
-  async refresh() {
-    if (!this.locked()) await this.load(this.sessionId());
-  }
   definingActiveSong() {
     return this.state()?.active?.id === this.confirmationKey;
   }
-  choose(suggestion: CallSelection, operation: string = crypto.randomUUID()) {
+  choose(suggestion: CallSelection, operation: string = createOperationId()) {
     this.confirmationKey = operation;
     this.error.set('');
     this.songForm.reset();
@@ -237,6 +263,26 @@ export class StagePanel {
       this.working.emit(false);
     }
   }
+  async skip(suggestion: Suggestion) {
+    if (this.locked()) return;
+    if (
+      this.skipOperation?.participantId !== suggestion.participantId ||
+      this.skipOperation?.requestId !== suggestion.requestId
+    ) {
+      this.skipOperation = {
+        participantId: suggestion.participantId,
+        requestId: suggestion.requestId,
+        operationId: createOperationId(),
+      };
+    }
+    const operationId = this.skipOperation.operationId;
+    await this.run(async () => {
+      const next = await this.api.skip(this.sessionId(), operationId, suggestion);
+      this.skipOperation = null;
+      return next;
+    });
+  }
+
   async confirm() {
     const next = this.choosingNext();
     if (!next) return;

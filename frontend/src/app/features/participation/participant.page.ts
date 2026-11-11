@@ -1,3 +1,5 @@
+import { ParticipationMemory } from './participation-memory';
+import { createOperationId } from '../../shared/operation-id';
 import { MenuItem } from 'primeng/api';
 import { OptionsMenu } from '../../shared/components/options-menu';
 import { PanelHeader } from '../../shared/components/panel-header';
@@ -36,7 +38,8 @@ interface OwnView {
   } | null;
   history: { id: string; title: string | null; artist: string | null; status: string }[];
   suggested: boolean;
-  expiresAt: string;
+  expiresAt: string | null;
+  queuePosition: number | null;
   canReturn: boolean;
 }
 @Component({
@@ -56,6 +59,7 @@ interface OwnView {
 })
 export class ParticipantPage implements OnInit, OnDestroy {
   private readonly api = inject(ApiClient);
+  private readonly memory = inject(ParticipationMemory);
   private readonly document = inject(DOCUMENT);
   private readonly injector = inject(Injector);
   private readonly route = inject(ActivatedRoute);
@@ -118,7 +122,9 @@ export class ParticipantPage implements OnInit, OnDestroy {
     try {
       await this.load();
     } catch (error) {
-      if (error instanceof HttpErrorResponse && error.status === 401) {
+      if (error instanceof HttpErrorResponse && [401, 410].includes(error.status))
+        this.memory.forget(this.session);
+      if (error instanceof HttpErrorResponse && error.status === 401 && this.code !== 'vinculado') {
         try {
           this.entry.set(
             await this.api.get(
@@ -137,6 +143,14 @@ export class ParticipantPage implements OnInit, OnDestroy {
     }, 10000);
     document.addEventListener('visibilitychange', this.visible);
   }
+  retryAccess() {
+    if (!this.ready()) return;
+    clearInterval(this.timer);
+    document.removeEventListener('visibilitychange', this.visible);
+    this.error.set('');
+    this.ready.set(false);
+    void this.ngOnInit();
+  }
   ngOnDestroy() {
     this.destroyed = true;
     clearInterval(this.timer);
@@ -154,7 +168,20 @@ export class ParticipantPage implements OnInit, OnDestroy {
   }
   private accept(view: OwnView) {
     if (this.destroyed) return;
+    const previous = this.own();
+    if (previous && previous.participant.id !== view.participant.id) {
+      this.addingSong.set(false);
+      this.confirmingExit.set(false);
+      this.confirmingForget.set(false);
+      this.cancellingSong.set(null);
+      this.songForm.reset();
+      this.returnForm.reset();
+      this.songOperation = null;
+      this.returnOperation = null;
+    }
     this.own.set(view);
+    if (view.session.status === 'OPEN') this.memory.remember(this.session);
+    else this.memory.forget(this.session);
     if (view.active?.id !== this.skippingCall() || view.active?.acceptedAt) {
       this.skippingCall.set(null);
     }
@@ -177,8 +204,10 @@ export class ParticipantPage implements OnInit, OnDestroy {
     } catch (error) {
       this.disconnected.set(true);
       this.error.set(this.message(error));
-      if (error instanceof HttpErrorResponse && [401, 410].includes(error.status))
+      if (error instanceof HttpErrorResponse && [401, 410].includes(error.status)) {
         this.own.set(null);
+        this.memory.forget(this.session);
+      }
     } finally {
       this.loading = false;
     }
@@ -194,6 +223,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
       if (error instanceof HttpErrorResponse && [401, 410].includes(error.status)) {
         this.own.set(null);
         this.entry.set(null);
+        this.memory.forget(this.session);
       }
     } finally {
       this.busy.set(false);
@@ -228,15 +258,24 @@ export class ParticipantPage implements OnInit, OnDestroy {
     this.addingSong.set(false);
     this.error.set('');
   }
+  private update(path: string, body: unknown = {}) {
+    const participant = this.own()?.participant.id;
+    return this.api.post<OwnView>(
+      `${this.base}${path}`,
+      body,
+      participant ? { 'X-SingFlow-Participant': participant } : {},
+    );
+  }
+
   async add() {
     if (this.songForm.invalid || !this.own()) return;
     await this.run(async () => {
       const values = this.songForm.getRawValue();
       const body = JSON.stringify(values);
       if (this.songOperation?.body !== body)
-        this.songOperation = { body, operationId: crypto.randomUUID() };
+        this.songOperation = { body, operationId: createOperationId() };
       this.accept(
-        await this.api.post<OwnView>(`${this.base}/requests`, {
+        await this.update(`/requests`, {
           ...values,
           operationId: this.songOperation.operationId,
         }),
@@ -249,14 +288,14 @@ export class ParticipantPage implements OnInit, OnDestroy {
   }
   async cancel(id: string) {
     await this.run(async () => {
-      this.accept(await this.api.post<OwnView>(`${this.base}/requests/${id}/cancel`));
+      this.accept(await this.update(`/requests/${id}/cancel`));
       this.cancellingSong.set(null);
       this.notifications.success('Pedido cancelado.');
     });
   }
   async respondToCall(call: string, response: 'accept' | 'skip') {
     await this.run(async () => {
-      this.accept(await this.api.post<OwnView>(`${this.base}/calls/${call}/${response}`));
+      this.accept(await this.update(`/calls/${call}/${response}`));
       this.notifications.success(
         response === 'accept' ? 'Ida confirmada.' : 'Participação pausada.',
       );
@@ -264,13 +303,13 @@ export class ParticipantPage implements OnInit, OnDestroy {
   }
   async resume() {
     await this.run(async () => {
-      this.accept(await this.api.post<OwnView>(`${this.base}/resume`));
+      this.accept(await this.update(`/resume`));
       this.notifications.success('Você voltou à fila.');
     });
   }
   async leave() {
     await this.run(async () => {
-      this.accept(await this.api.post<OwnView>(`${this.base}/leave`));
+      this.accept(await this.update(`/leave`));
       this.confirmingExit.set(false);
       this.songForm.reset();
       this.songOperation = null;
@@ -285,9 +324,9 @@ export class ParticipantPage implements OnInit, OnDestroy {
       const values = this.returnForm.getRawValue();
       const body = JSON.stringify(values);
       if (this.returnOperation?.body !== body)
-        this.returnOperation = { body, operationId: crypto.randomUUID() };
+        this.returnOperation = { body, operationId: createOperationId() };
       this.accept(
-        await this.api.post<OwnView>(`${this.base}/return`, {
+        await this.update(`/return`, {
           ...values,
           operationId: this.returnOperation.operationId,
         }),
@@ -301,7 +340,8 @@ export class ParticipantPage implements OnInit, OnDestroy {
   }
   async forget() {
     await this.run(async () => {
-      await this.api.post(`${this.base}/forget`);
+      await this.update('/forget');
+      this.memory.forget(this.session);
       this.own.set(null);
       this.entry.set(null);
       this.departed.set(true);

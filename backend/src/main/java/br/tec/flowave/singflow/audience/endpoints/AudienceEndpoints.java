@@ -83,9 +83,19 @@ class AudienceEndpoints {
       throw new ResponseStatusException(
           HttpStatus.UNAUTHORIZED, "Abra o link da sessão para participar.");
     rate(
-        (write ? "write:" : "read:") + session + ":" + service.credentialKey(session, token),
+        (write ? "write:" : "read:")
+            + session
+            + ":"
+            + service.credentialKey(
+                session, token, write ? request.getHeader("X-SingFlow-Participant") : null),
         write ? writes : reads);
     return token;
+  }
+
+  private Duration cookieAge(Instant expiry) {
+    // Cookie persistence allows reopening the browser. The server validates the session on every
+    // use.
+    return expiry == null ? Duration.ofDays(365) : Duration.between(Instant.now(), expiry);
   }
 
   private String setCookie(UUID session, String token, Duration age) {
@@ -110,6 +120,57 @@ class AudienceEndpoints {
     return service.entryLink(session, actor.getName(), input.operationId());
   }
 
+  record Claim(@NotBlank @Size(max = 64) String code, UUID replaceParticipantId) {}
+
+  @GetMapping("/api/sessions/{session}/participants/{participant}/mobile-access")
+  AudienceService.MobileAccess mobileAccess(
+      @PathVariable UUID session, @PathVariable UUID participant, Principal actor) {
+    return service.mobileAccess(session, actor.getName(), participant);
+  }
+
+  @PostMapping("/api/sessions/{session}/participants/{participant}/mobile-access")
+  ResponseEntity<AudienceService.AccessInvite> issueAccess(
+      @PathVariable UUID session, @PathVariable UUID participant, Principal actor) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(service.issueAccess(session, actor.getName(), participant));
+  }
+
+  @PostMapping("/api/participation/{session}/mobile-access/preview")
+  ResponseEntity<AudienceService.ClaimInfo> claimInfo(
+      @PathVariable UUID session, @Valid @RequestBody Code input, HttpServletRequest request) {
+    rateClaim(session, request);
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(
+            service.claimInfo(
+                session, input.code(), cookie(request), request.getSession().getId()));
+  }
+
+  @PostMapping("/api/participation/{session}/mobile-access/claim")
+  ResponseEntity<Void> claimAccess(
+      @PathVariable UUID session, @Valid @RequestBody Claim input, HttpServletRequest request) {
+    rateClaim(session, request);
+    var prepared =
+        service.claimAccess(
+            session,
+            input.code(),
+            cookie(request),
+            request.getSession().getId(),
+            input.replaceParticipantId());
+    return ResponseEntity.noContent()
+        .cacheControl(CacheControl.noStore())
+        .header(
+            HttpHeaders.SET_COOKIE,
+            setCookie(session, prepared.token(), cookieAge(prepared.expiresAt())))
+        .build();
+  }
+
+  private void rateClaim(UUID session, HttpServletRequest request) {
+    rate("claim-network:" + session + ":" + request.getRemoteAddr(), joins);
+    rate("claim-session:" + session, joins * 3);
+  }
+
   @GetMapping("/api/public/sessions/{session}")
   AudienceService.EntryInfo info(
       @PathVariable UUID session, @RequestParam String code, HttpServletRequest request) {
@@ -127,8 +188,7 @@ class AudienceEndpoints {
     return ResponseEntity.noContent()
         .header(
             HttpHeaders.SET_COOKIE,
-            setCookie(
-                session, prepared.token(), Duration.between(Instant.now(), prepared.expiresAt())))
+            setCookie(session, prepared.token(), cookieAge(prepared.expiresAt())))
         .build();
   }
 
@@ -146,8 +206,14 @@ class AudienceEndpoints {
   }
 
   @GetMapping("/api/participation/{session}/me")
-  AudienceService.OwnView me(@PathVariable UUID session, HttpServletRequest request) {
-    return service.me(session, credential(session, request, false));
+  ResponseEntity<AudienceService.OwnView> me(
+      @PathVariable UUID session, HttpServletRequest request) {
+    String token = credential(session, request, false);
+    var view = service.me(session, token);
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .header(HttpHeaders.SET_COOKIE, setCookie(session, token, cookieAge(view.expiresAt())))
+        .body(view);
   }
 
   @PostMapping("/api/participation/{session}/requests")

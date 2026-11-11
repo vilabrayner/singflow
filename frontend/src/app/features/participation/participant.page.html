@@ -11,6 +11,11 @@
   ) {
     <p role="alert" class="sf-dialog-error">{{ error() }}</p>
   }
+  @if (ready() && error() && !own() && !entry() && !departed()) {
+    <button type="button" class="sf-button sf-outline sf-full" (click)="retryAccess()">
+      Tentar novamente
+    </button>
+  }
   @if (!ready()) {
     <p role="status">Carregando sua participação…</p>
   }
@@ -118,7 +123,7 @@
         </p>
       }
       @if (view.session.status !== 'OPEN') {
-        <p>Sessão encerrada. Seu histórico continua disponível até o acesso expirar.</p>
+        <p>Esta sessão foi encerrada.</p>
       } @else if (view.active; as call) {
         <div class="current-call sf-participant-wait">
           <div role="status">
@@ -171,13 +176,16 @@
           </button>
         </div>
       } @else if (view.participant.status === 'ACTIVE') {
-        <div class="sf-participant-wait">
+        <div class="sf-participant-wait" role="status" aria-live="polite" aria-atomic="true">
           <i class="pi pi-music" aria-hidden="true"></i>
-          <h2>Você está na fila</h2>
-          <p>Acompanhe por aqui quando o anfitrião chamar você.</p>
-          @if (view.suggested) {
-            <p>Você está entre as sugestões. Aguarde a confirmação da chamada.</p>
+          <h2>
+            {{ view.queuePosition === 1 ? 'Você é o próximo — prepare-se!' : 'Você está na fila' }}
+          </h2>
+          @if (view.queuePosition) {
+            <p>Posição sugerida · {{ view.queuePosition }}º</p>
           }
+          <p>Acompanhe por aqui quando o anfitrião chamar você.</p>
+          <p>A ordem pode mudar até a convocação.</p>
         </div>
       }
       <p>{{ view.participant.completedPerformances }} apresentações concluídas</p>
@@ -269,7 +277,7 @@
           Sua participação ficará pausada, sem registrar falta. Seus pedidos serão mantidos e você
           pode voltar à fila quando estiver pronto.
         </p>
-        <div class="host-actions">
+        <div class="sf-dialog-actions">
           <button
             type="button"
             class="sf-button sf-primary"
@@ -312,7 +320,7 @@
               maxlength="160"
               [readOnly]="busy()"
           /></label>
-          <div class="host-actions">
+          <div class="sf-dialog-actions">
             <button
               type="submit"
               class="sf-button sf-primary"
@@ -343,7 +351,7 @@
           Cancelar o pedido de “{{ song.title }}”? Sua participação e os outros pedidos serão
           mantidos.
         </p>
-        <div class="host-actions">
+        <div class="sf-dialog-actions">
           <button
             type="button"
             class="sf-button sf-danger"
@@ -376,8 +384,8 @@
         <p>Você ainda não teve uma convocação resolvida.</p>
       }
       <p>
-        O acesso vale por 24 horas a partir da emissão, até
-        {{ view.expiresAt | date: 'dd/MM HH:mm' }}. Sair e voltar não renovam esse prazo.
+        O acesso vale enquanto a sessão do karaokê estiver aberta. Você pode sair e voltar, mas
+        fique atento às mudanças na sua posição da fila.
       </p>
       @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
         @if (confirmingExit()) {
@@ -393,7 +401,7 @@
               estiver convocado. Seu acesso e histórico serão mantidos. Se estiver pausado ou
               suspenso, o retorno continuará dependendo do anfitrião.
             </p>
-            <div class="host-actions">
+            <div class="sf-dialog-actions">
               <button
                 type="button"
                 class="sf-button sf-danger"
@@ -426,17 +434,24 @@
               Este navegador perderá o acesso à sua participação, inclusive nas outras abas. Para
               voltar ao mesmo cadastro, você precisará do anfitrião. Seu histórico não será apagado.
             </p>
-            <p-button
-              label="Confirmar esquecimento do acesso"
-              [disabled]="busy()"
-              (onClick)="forget()"
-            />
-            <p-button
-              label="Manter meu acesso"
-              [text]="true"
-              [disabled]="busy()"
-              (onClick)="confirmingForget.set(false)"
-            />
+            <div class="sf-dialog-actions">
+              <button
+                type="button"
+                class="sf-button sf-danger"
+                [disabled]="busy()"
+                (click)="forget()"
+              >
+                Confirmar esquecimento do acesso
+              </button>
+              <button
+                type="button"
+                class="sf-button sf-outline"
+                [disabled]="busy()"
+                (click)="confirmingForget.set(false)"
+              >
+                Manter meu acesso
+              </button>
+            </div>
           </app-confirmation-dialog>
         }
         <p-button

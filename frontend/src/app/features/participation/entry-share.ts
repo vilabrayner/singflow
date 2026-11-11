@@ -1,3 +1,4 @@
+import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { NgTemplateOutlet } from '@angular/common';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
@@ -11,19 +12,24 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { ButtonModule } from 'primeng/button';
+import { MenuItem } from 'primeng/api';
+import { OptionsMenu } from '../../shared/components/options-menu';
 import { ApiClient, apiError } from '../../core/http/api-client';
 
 @Component({
   selector: 'app-entry-share',
-  imports: [ConfirmationDialog, ButtonModule, NgTemplateOutlet],
+  imports: [ConfirmationDialog, OptionsMenu, NgTemplateOutlet],
   template: `
     @if (inline()) {
       <section class="host-panel" aria-label="Entrada pelo celular">
-        <h2>Entrada pelo celular</h2>
+        <div class="host-actions">
+          <h2>Entrada pelo celular</h2>
+          <ng-container [ngTemplateOutlet]="shareOptions" />
+        </div>
         <ng-container [ngTemplateOutlet]="shareContent" />
+        <ng-container [ngTemplateOutlet]="copyAction" />
       </section>
-    } @else {
+    } @else if (!triggerHidden()) {
       <button
         type="button"
         class="sf-icon-button"
@@ -40,8 +46,14 @@ import { ApiClient, apiError } from '../../core/http/api-client';
       <app-confirmation-dialog
         [title]="confirming() ? 'Trocar link e QR Code?' : 'Compartilhar link e QR Code'"
         [busy]="confirming() && busy()"
+        [returnFocus]="returnFocus()"
         (dismissed)="dismiss()"
       >
+        <div dialog-actions>
+          @if (!confirming()) {
+            <ng-container [ngTemplateOutlet]="shareOptions" />
+          }
+        </div>
         @if (confirming()) {
           @if (error()) {
             <p role="alert" class="sf-dialog-error">{{ error() }}</p>
@@ -50,7 +62,7 @@ import { ApiClient, apiError } from '../../core/http/api-client';
             O QR Code e o link anteriores deixarão de aceitar novas entradas. Quem já está inscrito
             continuará conectado.
           </p>
-          <div class="host-actions">
+          <div class="sf-dialog-actions">
             <button
               type="button"
               class="sf-button sf-primary"
@@ -70,12 +82,37 @@ import { ApiClient, apiError } from '../../core/http/api-client';
           </div>
         } @else {
           <ng-container [ngTemplateOutlet]="shareContent" />
-          <button type="button" class="sf-button sf-outline sf-full" (click)="dismiss()">
-            Fechar
-          </button>
+          <div class="sf-dialog-actions">
+            <ng-container [ngTemplateOutlet]="copyAction" />
+            <button type="button" class="sf-button sf-outline sf-full" (click)="dismiss()">
+              Fechar
+            </button>
+          </div>
         }
       </app-confirmation-dialog>
     }
+
+    <ng-template #shareOptions>
+      <app-options-menu
+        [buttonId]="'entry-options-' + session() + (showing() ? '-dialog' : '-inline')"
+        label="Opções do link e QR Code"
+        [items]="shareMenu"
+        [disabled]="busy() || !url()"
+      />
+    </ng-template>
+
+    <ng-template #copyAction>
+      @if (url()) {
+        <button
+          type="button"
+          class="sf-button sf-primary sf-full"
+          [disabled]="busy()"
+          (click)="copy()"
+        >
+          <i class="pi pi-copy" aria-hidden="true"></i>Copiar link
+        </button>
+      }
+    </ng-template>
 
     <ng-template #shareContent>
       <p>Escaneie o QR Code para entrar na sessão pelo celular.</p>
@@ -112,23 +149,6 @@ import { ApiClient, apiError } from '../../core/http/api-client';
             >Abrir entrada do participante</a
           >
         </p>
-        <div class="stage-actions">
-          <p-button
-            label="Copiar link"
-            icon="pi pi-copy"
-            [disabled]="busy()"
-            (onClick)="copy()"
-          /><p-button
-            label="Trocar link"
-            [outlined]="true"
-            [disabled]="busy()"
-            (onClick)="askRotation()"
-          />
-        </div>
-        <p>
-          Em localhost ou 127.0.0.1, o link funciona apenas neste computador. O teste em aparelho
-          físico depende de configurar a rede ou a hospedagem.
-        </p>
       }
     </ng-template>
   `,
@@ -136,6 +156,8 @@ import { ApiClient, apiError } from '../../core/http/api-client';
 export class EntryShare implements OnInit {
   readonly session = input.required<string>();
   readonly inline = input(false);
+  readonly triggerHidden = input(false);
+  readonly returnFocus = input<string>();
   readonly showing = signal(false);
   private readonly api = inject(ApiClient);
   private readonly injector = inject(Injector);
@@ -146,7 +168,10 @@ export class EntryShare implements OnInit {
   readonly error = signal('');
   private readonly notifications = inject(Notifications);
   readonly confirming = signal(false);
-  private rotation = crypto.randomUUID();
+  readonly shareMenu: MenuItem[] = [
+    { label: 'Trocar link', icon: 'pi pi-refresh', command: () => this.askRotation() },
+  ];
+  private rotation = createOperationId();
   ngOnInit() {
     if (this.inline()) void this.load();
   }
@@ -193,7 +218,7 @@ export class EntryShare implements OnInit {
       this.confirming.set(false);
       if (rotate) {
         this.focusDialog();
-        this.rotation = crypto.randomUUID();
+        this.rotation = createOperationId();
         this.notifications.success('Link e QR Code atualizados.');
       }
     } catch (error) {

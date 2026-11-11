@@ -9,6 +9,12 @@ Padrão aprovado pelo responsável em 10/11/2026 para todo o sistema: “...” 
 - Erros aparecem dentro da confirmação em andamento. Escape cancela antes do envio; clique fora não confirma nem fecha. Durante envio, ações de confirmação/cancelamento e Escape ficam bloqueados para evitar resultado ambíguo ou envio duplicado.
 - Quando a ação remove o botão de origem, a funcionalidade pode direcionar o foco ao próximo estado relevante. Menus usam um identificador explícito para devolver foco ao botão “...”.
 
+## Layout das modais
+
+Padrão revisado em 11/11/2026. O cabeçalho apresenta o título e usa o espaço `dialog-actions` para o menu “...” à direita quando existem funcionalidades extras. A ação principal e o botão cancelar ou fechar ficam no rodapé, usando `sf-dialog-actions`, com 24 px acima do grupo e 10 px entre botões. No celular os botões ocupam a largura total, com a ação principal primeiro. A validade do QR e outras informações ficam acima das ações.
+
+A troca de link da sessão e a troca de celular usam o menu do cabeçalho. Copiar link fica como ação principal no rodapé dos QR Codes. A revisão abrange confirmações de sessão, palco e participação, formulário de música, esquecimento do acesso e compartilhamento de QR Code.
+
 ## Aplicado
 
 - Opções da sessão e outras ações da convocação como menus flutuantes.

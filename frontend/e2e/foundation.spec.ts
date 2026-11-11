@@ -46,6 +46,7 @@ test('handles unknown routes and provides keyboard skip link', async ({ page }) 
   await page.getByRole('link', { name: 'Voltar ao início' }).click();
   await expect(page).toHaveURL('/');
   await page.reload();
+  await expect(page.getByRole('heading', { name: /Sua voz no palco/ })).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Pular para o conteúdo' })).toBeFocused();
 });

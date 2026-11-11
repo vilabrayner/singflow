@@ -12,6 +12,8 @@ import java.time.Instant;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -36,7 +38,8 @@ public class AudienceService {
       List<StageService.CallView> history,
       boolean suggested,
       Instant expiresAt,
-      boolean canReturn) {}
+      boolean canReturn,
+      Integer queuePosition) {}
 
   private final JdbcClient jdbc;
   private final SessionAccess sessions;
@@ -54,7 +57,8 @@ public class AudienceService {
       AssistedRequests requests,
       StageService stage,
       AuditTrail audit,
-      @Value("${SINGFLOW_PUBLIC_APP_URL:http://127.0.0.1:4200}") String appUrl) {
+      @Value("${SINGFLOW_PUBLIC_APP_URL:http://127.0.0.1:4200}") String appUrl,
+      Environment environment) {
     this.jdbc = jdbc;
     this.sessions = sessions;
     this.participants = participants;
@@ -70,9 +74,12 @@ public class AudienceService {
         || uri.getRawQuery() != null
         || uri.getRawFragment() != null
         || !Set.of("", "/").contains(uri.getPath())
-        || !("https".equals(uri.getScheme()) || "http".equals(uri.getScheme()) && loopback))
+        || !("https".equals(uri.getScheme())
+            || "http".equals(uri.getScheme())
+                && (loopback || environment.acceptsProfiles(Profiles.of("local")))))
       throw new IllegalArgumentException(
-          "SINGFLOW_PUBLIC_APP_URL deve ser uma origem HTTPS (ou HTTP em loopback).");
+          "SINGFLOW_PUBLIC_APP_URL deve ser uma origem HTTPS (HTTP permitido no perfil local ou em"
+              + " loopback).");
     this.appUrl = appUrl.replaceAll("/+$", "");
   }
 
@@ -126,6 +133,169 @@ public class AudienceService {
     return new EntryLink(appUrl + "/participante/" + session + "/" + code);
   }
 
+  public record MobileAccess(boolean linked, boolean pending) {}
+
+  public record AccessInvite(String url, Instant expiresAt) {}
+
+  public record ClaimInfo(String name, String sessionName, UUID currentId, String currentName) {}
+
+  private record BrowserGrant(UUID id, UUID participantId) {}
+
+  @Transactional
+  public MobileAccess mobileAccess(UUID session, String actor, UUID participant) {
+    sessions.lockOwned(session, actor, true);
+    assisted(session, actor, participant);
+    return jdbc.sql(
+            """
+SELECT EXISTS(SELECT 1 FROM singflow.participant_grants
+              WHERE session_id=? AND participant_id=? AND NOT revoked AND (expires_at IS NULL OR expires_at>now())),
+       EXISTS(SELECT 1 FROM singflow.participant_access_invites
+              WHERE session_id=? AND participant_id=? AND expires_at>now())
+""")
+        .params(session, participant, session, participant)
+        .query((rs, n) -> new MobileAccess(rs.getBoolean(1), rs.getBoolean(2)))
+        .single();
+  }
+
+  @Transactional
+  public AccessInvite issueAccess(UUID session, String actor, UUID participant) {
+    sessions.lockOwned(session, actor, true);
+    assisted(session, actor, participant);
+    String code = token();
+    Instant expiry = Instant.now().plusSeconds(300);
+    jdbc.sql(
+            """
+INSERT INTO singflow.participant_access_invites(session_id,participant_id,token_hash,expires_at)
+VALUES (?,?,?,?)
+ON CONFLICT (session_id,participant_id) DO UPDATE
+SET token_hash=excluded.token_hash, expires_at=excluded.expires_at
+""")
+        .params(session, participant, AudienceLimits.hash(code), Timestamp.from(expiry))
+        .update();
+    audit.record(actor, session, "MOBILE_ACCESS_ISSUED", participant);
+    return new AccessInvite(appUrl + "/participante/" + session + "/vincular#" + code, expiry);
+  }
+
+  private Participation.ParticipantView assisted(UUID session, String owner, UUID participant) {
+    return participants.list(session, owner).stream()
+        .filter(
+            p ->
+                p.id().equals(participant)
+                    && p.origin().equals("ASSISTED")
+                    && !p.status().equals("LEFT"))
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Participação indisponível para vincular."));
+  }
+
+  private UUID invited(UUID session, String code) {
+    return jdbc.sql(
+            """
+            SELECT participant_id FROM singflow.participant_access_invites
+            WHERE session_id=? AND token_hash=? AND expires_at>now()
+            """)
+        .params(session, AudienceLimits.hash(code))
+        .query(UUID.class)
+        .optional()
+        .orElseThrow(
+            () ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "QR Code expirado ou já utilizado. Peça outro ao anfitrião."));
+  }
+
+  private Optional<BrowserGrant> browserGrant(UUID session, String raw, String browser) {
+    String tokenHash = AudienceLimits.hash(raw == null ? "" : raw);
+    return jdbc.sql(
+            """
+SELECT id, CASE WHEN NOT revoked AND (expires_at IS NULL OR expires_at>now()) THEN participant_id END
+FROM singflow.participant_grants
+WHERE session_id=? AND (browser_hash=? OR
+  (token_hash=? AND NOT revoked AND (expires_at IS NULL OR expires_at>now())))
+ORDER BY (token_hash=?) DESC
+LIMIT 1
+""")
+        .params(session, AudienceLimits.hash(browser), tokenHash, tokenHash)
+        .query(
+            (rs, n) -> new BrowserGrant(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)))
+        .optional();
+  }
+
+  @Transactional
+  public ClaimInfo claimInfo(UUID session, String code, String raw, String browser) {
+    String owner = owner(session, true);
+    var target = assisted(session, owner, invited(session, code));
+    UUID current =
+        browserGrant(session, raw, browser)
+            .map(BrowserGrant::participantId)
+            .filter(id -> !id.equals(target.id()))
+            .orElse(null);
+    String currentName =
+        participants.list(session, owner).stream()
+            .filter(p -> p.id().equals(current))
+            .map(Participation.ParticipantView::name)
+            .findFirst()
+            .orElse(null);
+    return new ClaimInfo(
+        target.name(), sessions.requireOwned(session, owner).name(), current, currentName);
+  }
+
+  @Transactional
+  public Prepared claimAccess(UUID session, String code, String raw, String browser, UUID replace) {
+    String owner = owner(session, true);
+    UUID target = assisted(session, owner, invited(session, code)).id();
+    var previous = browserGrant(session, raw, browser);
+    UUID current =
+        previous.map(BrowserGrant::participantId).filter(id -> !id.equals(target)).orElse(null);
+    if (!Objects.equals(current, replace))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "O vínculo deste celular mudou. Revise e confirme novamente.");
+    jdbc.sql(
+            """
+            UPDATE singflow.participant_grants SET revoked=true
+            WHERE session_id=? AND participant_id=? AND NOT revoked
+            """)
+        .params(session, target)
+        .update();
+    String next = token();
+    if (previous.isPresent()) {
+      jdbc.sql(
+              """
+              UPDATE singflow.participant_grants
+              SET participant_id=?,token_hash=?,expires_at=NULL,revoked=false,departure=NULL
+              WHERE id=?
+              """)
+          .params(target, AudienceLimits.hash(next), previous.get().id())
+          .update();
+    } else {
+      jdbc.sql(
+              """
+INSERT INTO singflow.participant_grants
+(id,session_id,participant_id,token_hash,browser_hash,expires_at) VALUES (?,?,?,?,?,NULL)
+""")
+          .params(
+              UUID.randomUUID(),
+              session,
+              target,
+              AudienceLimits.hash(next),
+              AudienceLimits.hash(browser))
+          .update();
+    }
+    deleteInvite(session, target);
+    audit.record("participant:" + target, session, "MOBILE_ACCESS_LINKED", target);
+    return new Prepared(next, null);
+  }
+
+  private void deleteInvite(UUID session, UUID participant) {
+    jdbc.sql(
+            "DELETE FROM singflow.participant_access_invites WHERE session_id=? AND"
+                + " participant_id=?")
+        .params(session, participant)
+        .update();
+  }
+
   private void checkCode(UUID session, String code) {
     if (code == null
         || !jdbc.sql(
@@ -149,16 +319,17 @@ public class AudienceService {
     var found =
         jdbc.sql(
                 """
-                SELECT id,participant_id,expires_at,departure FROM singflow.participant_grants
-                WHERE session_id=? AND token_hash=? AND NOT revoked AND expires_at>now()
-                """)
+SELECT id,participant_id,expires_at,departure FROM singflow.participant_grants
+WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR expires_at>now())
+  AND session_id IN (SELECT id FROM singflow.sessions WHERE status='OPEN')
+""")
             .params(session, AudienceLimits.hash(raw))
             .query(
                 (rs, n) ->
                     new Grant(
                         rs.getObject(1, UUID.class),
                         rs.getObject(2, UUID.class),
-                        rs.getTimestamp(3).toInstant(),
+                        rs.getTimestamp(3) == null ? null : rs.getTimestamp(3).toInstant(),
                         rs.getString(4)))
             .optional();
     var g = found.orElseThrow(this::unavailable);
@@ -167,9 +338,17 @@ public class AudienceService {
   }
 
   @Transactional(readOnly = true)
-  public UUID credentialKey(UUID session, String raw) {
-    return grant(session, raw, false).id();
+  public UUID credentialKey(UUID session, String raw, String expectedParticipant) {
+    var g = grant(session, raw, false);
+    if (expectedParticipant != null
+        && !expectedParticipant.equals(Objects.toString(g.participantId(), "")))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "A participação vinculada mudou. Atualize a tela antes de continuar.");
+    return g.id();
   }
+
+  private record BrowserAccess(Instant expiresAt, boolean revoked) {}
 
   @Transactional
   public Prepared prepare(UUID session, String code, String raw, String browser) {
@@ -189,35 +368,34 @@ public class AudienceService {
                 "SELECT expires_at,revoked FROM singflow.participant_grants WHERE session_id=? AND"
                     + " browser_hash=?")
             .params(session, browserHash)
-            .query((rs, n) -> Map.entry(rs.getTimestamp(1).toInstant(), rs.getBoolean(2)))
+            .query(
+                (rs, n) ->
+                    new BrowserAccess(
+                        rs.getTimestamp(1) == null ? null : rs.getTimestamp(1).toInstant(),
+                        rs.getBoolean(2)))
             .optional();
     if (previous.isPresent()
-        && (previous.get().getValue() || !previous.get().getKey().isAfter(Instant.now())))
+        && (previous.get().revoked()
+            || (previous.get().expiresAt() != null
+                && !previous.get().expiresAt().isAfter(Instant.now()))))
       throw new ResponseStatusException(
           HttpStatus.GONE,
           "Seu acesso terminou. Procure o anfitrião para retornar sem duplicar o cadastro.");
     String next = token();
-    Instant expiry =
-        previous.map(Map.Entry::getKey).orElseGet(() -> Instant.now().plusSeconds(86400));
     if (previous.isEmpty())
       jdbc.sql(
               "INSERT INTO"
                   + " singflow.participant_grants(id,session_id,token_hash,browser_hash,expires_at)"
-                  + " VALUES (?,?,?,?,?)")
-          .params(
-              UUID.randomUUID(),
-              session,
-              AudienceLimits.hash(next),
-              browserHash,
-              Timestamp.from(expiry))
+                  + " VALUES (?,?,?,?,NULL)")
+          .params(UUID.randomUUID(), session, AudienceLimits.hash(next), browserHash)
           .update();
     else
       jdbc.sql(
-              "UPDATE singflow.participant_grants SET token_hash=? WHERE session_id=? AND"
-                  + " browser_hash=?")
+              "UPDATE singflow.participant_grants SET token_hash=?,expires_at=NULL WHERE"
+                  + " session_id=? AND browser_hash=?")
           .params(AudienceLimits.hash(next), session, browserHash)
           .update();
-    return new Prepared(next, expiry);
+    return new Prepared(next, null);
   }
 
   @Transactional
@@ -250,6 +428,11 @@ public class AudienceService {
             .findFirst()
             .orElseThrow(this::unavailable);
     var s = stage.snapshot(session, owner);
+    int index =
+        s.suggestions().stream()
+            .map(StageService.Suggestion::participantId)
+            .toList()
+            .indexOf(p.id());
     return new OwnView(
         sessions.requireOwned(session, owner),
         p,
@@ -265,7 +448,8 @@ public class AudienceService {
         g.expiresAt(),
         "SELF".equals(g.departure())
             && p.status().equals("LEFT")
-            && sessions.requireOwned(session, owner).status().equals("OPEN"));
+            && sessions.requireOwned(session, owner).status().equals("OPEN"),
+        index < 0 ? null : index + 1);
   }
 
   @Transactional
@@ -379,6 +563,7 @@ public class AudienceService {
   @EventListener
   @Transactional(propagation = Propagation.MANDATORY)
   public void onLeaving(ParticipantLeaving event) {
+    deleteInvite(event.sessionId(), event.participantId());
     if (event.voluntary()) {
       jdbc.sql(
               "UPDATE singflow.participant_grants SET departure=? WHERE session_id=? AND"

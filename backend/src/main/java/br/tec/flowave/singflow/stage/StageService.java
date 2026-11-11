@@ -137,7 +137,20 @@ public class StageService {
               request == null ? null : request.title(),
               request == null ? null : request.artist()));
     }
-    return StageRanking.rank(eligible, last);
+    var ranked = new ArrayList<>(StageRanking.rank(eligible, last));
+    store
+        .nextAfterSkip(session)
+        .ifPresent(
+            next -> {
+              var promoted =
+                  ranked.stream().filter(c -> c.participantId().equals(next)).findFirst();
+              promoted.ifPresent(
+                  candidate -> {
+                    ranked.remove(candidate);
+                    ranked.addFirst(candidate);
+                  });
+            });
+    return ranked;
   }
 
   @Transactional
@@ -188,6 +201,34 @@ public class StageService {
   }
 
   @Transactional
+  public StageView skipNext(
+      UUID session, String actor, UUID operation, UUID participant, UUID expectedRequest) {
+    sessions.lockOwned(session, actor, true);
+    var previous = store.skipOperation(operation);
+    if (previous.isPresent()) {
+      var saved = previous.get();
+      if (!saved.sessionId().equals(session)
+          || !saved.participantId().equals(participant)
+          || !Objects.equals(saved.requestId(), expectedRequest))
+        throw conflict("Identificador já utilizado.");
+      return snapshot(session, actor);
+    }
+    if (active(session).isPresent())
+      throw conflict("Resolva a convocação atual antes de pular uma oportunidade.");
+    var suggestions = ranked(session, actor);
+    if (suggestions.size() < 2)
+      throw conflict("É necessário outro participante elegível para pular esta oportunidade.");
+    var first = suggestions.getFirst();
+    if (!first.participantId().equals(participant)
+        || !Objects.equals(first.requestId(), expectedRequest))
+      throw conflict("A sugestão mudou. Atualize a fila antes de pular.");
+    store.skip(
+        session, operation, participant, expectedRequest, suggestions.get(1).participantId());
+    audit.record(actor, session, "QUEUE_OPPORTUNITY_SKIPPED", operation);
+    return snapshot(session, actor);
+  }
+
+  @Transactional
   public StageView confirm(
       UUID session,
       String actor,
@@ -233,6 +274,7 @@ public class StageService {
       artist = next.artist();
     }
     store.insert(operation, session, participant, expectedRequest, title, artist);
+    store.consumeSkip(session);
     audit.record(actor, session, "CALL_CONFIRMED", operation);
     return snapshot(session, actor);
   }

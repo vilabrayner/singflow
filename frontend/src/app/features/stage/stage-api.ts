@@ -53,6 +53,17 @@ export class StageApi {
       ...song,
     });
   }
+  skip(
+    session: string,
+    operationId: string,
+    suggestion: Pick<Suggestion, 'participantId' | 'requestId'>,
+  ) {
+    return this.api.post<StageView>(`/sessions/${session}/stage/skip`, {
+      operationId,
+      participantId: suggestion.participantId,
+      expectedRequestId: suggestion.requestId,
+    });
+  }
   resolve(session: string, call: string, outcome: string) {
     return this.api.post<StageView>(`/sessions/${session}/stage/calls/${call}/resolve`, {
       outcome,

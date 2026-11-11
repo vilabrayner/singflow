@@ -135,13 +135,13 @@ test('queue search never promotes a filtered participant and a stale call stays 
   await page.getByLabel('Buscar na fila').fill('Legião');
   await expect(page.locator('.sf-queue-person')).toHaveCount(1);
   await expect(page.locator('.sf-queue-person')).toContainText('Bruno');
-  await expect(page.getByRole('button', { name: 'Aprovar e convocar' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Chamar' })).toHaveCount(0);
   await page.getByLabel('Buscar na fila').fill('Ana');
-  await page.getByRole('button', { name: 'Aprovar e convocar' }).click();
+  await page.getByRole('button', { name: 'Chamar' }).click();
   await expect(page.getByRole('heading', { name: 'Convocar Ana?' })).toBeFocused();
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
   expect(api.calls).toHaveLength(0);
-  await page.getByRole('button', { name: 'Aprovar e convocar' }).click();
+  await page.getByRole('button', { name: 'Chamar' }).click();
   await page.getByRole('button', { name: 'Confirmar convocação' }).click();
   await expect(page.getByRole('alert')).toContainText('A fila mudou');
   await expect(page.locator('.current-call')).toHaveCount(0);
@@ -177,35 +177,60 @@ test('participant details confirm pauses and returns without losing history', as
   page,
 }, testInfo) => {
   const api = await setup(page);
-  await page
-    .locator('.sf-queue-person')
-    .filter({ has: page.getByText('Ana', { exact: true }) })
-    .click();
+  await page.getByRole('button', { name: 'Opções da fila', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Participantes', exact: true }).click();
+  const directory = page.getByRole('dialog', { name: 'Participantes (4)', exact: true });
+  await directory.evaluate((element) => element.setAttribute('data-flow-instance', 'retained'));
+  await directory.locator('.sf-person-row').filter({ hasText: 'Ana' }).click();
+  await expect(page.getByRole('dialog', { name: 'Ana', exact: true })).toHaveAttribute(
+    'data-flow-instance',
+    'retained',
+  );
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toBeFocused();
+  await expect(page.getByText('Inscrição assistida', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Origem da inscrição' }).click();
+  await expect(
+    page.getByText('Participante criado pelo anfitrião.', { exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Ana', exact: true })).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath('participante.png'),
     fullPage: true,
     scale: 'css',
   });
-  await page.getByRole('button', { name: 'Pausar participação' }).click();
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await page.getByRole('menuitem', { name: 'Pausar participação' }).click();
   await page.getByRole('button', { name: 'Cancelar alteração' }).click();
   expect(api.availability).toHaveLength(0);
-  await page.getByRole('button', { name: 'Pausar participação' }).click();
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await page.getByRole('menuitem', { name: 'Pausar participação' }).click();
   await page.getByRole('button', { name: 'Confirmar participação' }).click();
-  await expect(page.getByRole('button', { name: 'Retomar participação' })).toBeVisible();
-  await page.getByRole('button', { name: 'Retomar participação' }).click();
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Retomar participação' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await page.getByRole('menuitem', { name: 'Retomar participação' }).click();
   await page.getByRole('button', { name: 'Confirmar participação' }).click();
-  await expect(page.getByRole('button', { name: 'Pausar participação' })).toBeVisible();
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Pausar participação' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Voltar à lista' }).click();
+  await expect(
+    page.getByRole('dialog', { name: 'Participantes (4)', exact: true }),
+  ).toHaveAttribute('data-flow-instance', 'retained');
   await page.getByRole('button', { name: 'Fora da fila', exact: true }).click();
   await expect(
     page.locator('.sf-person-row').filter({ has: page.getByText('Ana', { exact: true }) }),
   ).toHaveCount(0);
   await page.getByRole('button', { name: /Diego.*apresentações/ }).click();
-  await page.getByRole('button', { name: 'Reativar participante' }).click();
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await page.getByRole('menuitem', { name: 'Reativar participante' }).click();
   await expect(page.getByText(/chegada será registrada novamente/)).toBeVisible();
   await page.getByRole('button', { name: 'Confirmar participação' }).click();
-  await expect(page.getByRole('button', { name: 'Pausar participação' })).toBeVisible();
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Pausar participação' })).toBeVisible();
+  await page.keyboard.press('Escape');
   expect(api.availability).toEqual(['pause', 'resume', 'reactivate']);
   expect(api.people.find((p) => p.id === 'ana')!.completedPerformances).toBe(2);
   expect(api.songs).toHaveLength(2);
@@ -213,4 +238,64 @@ test('participant details confirm pauses and returns without losing history', as
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+});
+
+test('skipping gives the next participant one opportunity and safely retries a lost response', async ({
+  page,
+}) => {
+  const api = await setup(page);
+  const operations: string[] = [];
+  await page.route('**/stage/skip', (route) => {
+    const input = route.request().postDataJSON();
+    expect(input.participantId).toBe('ana');
+    expect(input.expectedRequestId).toBe('song-ana');
+    operations.push(input.operationId);
+    if (operations.length === 1) {
+      const bruno = api.people.splice(
+        api.people.findIndex((p) => p.id === 'bruno'),
+        1,
+      )[0];
+      api.people.unshift(bruno);
+      return route.abort();
+    }
+    return route.fulfill({
+      json: {
+        active: null,
+        history: [],
+        waits: [],
+        suggestions: api.people
+          .filter((p) => p.status === 'ACTIVE')
+          .map((p) => ({
+            participantId: p.id,
+            name: p.name,
+            tableLabel: p.tableLabel,
+            completed: p.completedPerformances,
+            requestId: api.songs.find((s) => s.participantId === p.id)?.id ?? null,
+            title: api.songs.find((s) => s.participantId === p.id)?.title ?? null,
+            artist: null,
+            reason: 'Próxima oportunidade',
+          })),
+      },
+    });
+  });
+  const call = page.getByRole('button', { name: 'Chamar', exact: true });
+  const skip = page.getByRole('button', { name: 'Pular', exact: true });
+  await expect(skip).toBeEnabled();
+  const callBounds = await call.boundingBox();
+  const skipBounds = await skip.boundingBox();
+  expect(skipBounds!.y).toBe(callBounds!.y);
+  expect(skipBounds!.x).toBeGreaterThan(callBounds!.x);
+  await skip.click();
+  await expect(page.getByRole('alert')).toContainText('Não foi possível confirmar');
+  await skip.click();
+  await expect(page.locator('.sf-queue-person').first()).toContainText('Bruno');
+  expect(operations).toHaveLength(2);
+  expect(operations[0]).toBe(operations[1]);
+  expect(api.calls).toHaveLength(0);
+  expect(
+    api.people.filter((p) => ['ana', 'bruno'].includes(p.id)).every((p) => p.status === 'ACTIVE'),
+  ).toBe(true);
+  expect(api.songs.every((s) => s.status === 'PENDING')).toBe(true);
+  await page.reload();
+  await expect(page.locator('.sf-queue-person').first()).toContainText('Bruno');
 });

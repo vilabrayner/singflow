@@ -116,7 +116,8 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(page.getByText('Outra canção', { exact: false })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toHaveCount(1);
-  await page.getByRole('button', { name: 'Registrar saída', exact: true }).click();
+  await page.getByRole('button', { name: 'Opções do participante' }).click();
+  await page.getByRole('menuitem', { name: 'Registrar saída', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar saída', exact: true }).click();
   await expect(page.getByText('Saiu', { exact: true })).toBeVisible();
   expect(participants).toHaveLength(1);

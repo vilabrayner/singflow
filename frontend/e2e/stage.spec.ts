@@ -128,7 +128,8 @@ async function setup(page: Page) {
   return () => requestsCreated;
 }
 async function callNext(page: Page) {
-  await page.getByRole('button', { name: 'Aprovar e convocar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pular', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Chamar', exact: true }).click();
   const confirm = page.getByRole('button', { name: 'Confirmar convocação', exact: true });
   await expect(confirm).toBeDisabled();
   await page.getByLabel('Música escolhida', { exact: true }).fill('Canção escolhida');
@@ -151,10 +152,15 @@ test('concludes opportunity without request only after song is chosen', async ({
   await expect(page.getByRole('dialog').getByRole('textbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Confirmar resultado', exact: true }).click();
   await expect(page.locator('.current-call')).toHaveCount(0);
-  await page.locator('.stage-history summary').click();
+  await page.getByRole('button', { name: 'Opções da fila', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Histórico do palco', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: /Histórico do palco/ })).toBeVisible();
   await expect(page.locator('.stage-history')).toContainText('Concluída');
   await expect(page.locator('.stage-history')).toContainText('Canção escolhida');
-  await expect(page.getByRole('button', { name: 'Aprovar e convocar', exact: true })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Fechar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Opções da fila', exact: true })).toBeFocused();
+  await expect(page.locator('.stage-history')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Chamar', exact: true })).toBeVisible();
   expect(requestsCreated()).toBe(0);
 });
 
@@ -167,10 +173,8 @@ test('first absence with no other participant requires host release', async ({ p
   await expect(
     page.getByRole('button', { name: 'Liberar segunda tentativa', exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Aprovar e convocar', exact: true })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole('button', { name: 'Chamar', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Liberar segunda tentativa', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Aprovar e convocar', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Chamar', exact: true })).toBeVisible();
   await expect(page.locator('.current-call')).toHaveCount(0);
 });
