@@ -1,3 +1,4 @@
+import { SongSearch } from '../../shared/components/song-search';
 import { ParticipationMemory } from './participation-memory';
 import { createOperationId } from '../../shared/operation-id';
 import { MenuItem } from 'primeng/api';
@@ -44,6 +45,7 @@ interface OwnView {
 }
 @Component({
   imports: [
+    SongSearch,
     ConfirmationDialog,
     OptionsMenu,
     PanelHeader,

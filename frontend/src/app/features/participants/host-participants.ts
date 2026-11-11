@@ -1,3 +1,4 @@
+import { SongSearch } from '../../shared/components/song-search';
 import { MenuItem } from 'primeng/api';
 import { OptionsMenu } from '../../shared/components/options-menu';
 import { MenuPopover } from '../../shared/components/menu-popover';
@@ -30,6 +31,7 @@ import { StageApi } from '../stage/stage-api';
 @Component({
   selector: 'app-host-participants',
   imports: [
+    SongSearch,
     ConfirmationDialog,
     DatePipe,
     ReactiveFormsModule,

@@ -150,3 +150,7 @@ Aceite:
 - Implantação, migrações, backup e recuperação possuem instruções verificadas.
 
 A escolha do provedor e qualquer publicação serão revisadas separadamente. Commits e push não estão incluídos automaticamente nestas etapas.
+
+## Busca de músicas Last.fm — 11/11/2026
+
+Implementação autorizada: componente compartilhado nos formulários de anfitrião e participante, a partir de 3 caracteres, até 10 sugestões e texto livre permitido. Consulta via backend com `LASTFM_API_KEY`, sem chave no frontend. Este incremento não implementa aprovação de catálogo nem WebSocket. Configuração e ensaio em [Aceite 009](acceptance/009-song-search.md).

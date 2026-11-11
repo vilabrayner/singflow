@@ -138,3 +138,7 @@ Os workflows em `.github/workflows/` verificam backend e frontend no GitHub Acti
 - [ADR 004 — Participação, ausências e sugestões de repetição](docs/decisions/004-participation-and-repeat-suggestions.md)
 
 A implementação será feita em etapas, com autorização do responsável antes de cada nova etapa. Esta entrega não altera código, dependências ou infraestrutura, nem cria commits.
+
+### Busca de músicas (Last.fm)
+
+Configure `LASTFM_API_KEY` somente no backend: no `.env` da raiz para o inicializador local/Compose, ou nas variáveis do serviço em produção. Reinicie o backend após configurar. Sem chave, o preenchimento livre continua disponível. O frontend usa `/api/public/songs/search` sem receber a chave. Consulte [configuração e roteiro da busca](docs/acceptance/009-song-search.md).
