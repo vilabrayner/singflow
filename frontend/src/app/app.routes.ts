@@ -3,6 +3,37 @@ import { resumeParticipation } from './features/participation/participation-memo
 
 export const routes: Routes = [
   {
+    path: 'cadastro/anfitriao',
+    title: 'Cadastro de anfitrião · SingFlow',
+    data: { role: 'HOST' },
+    loadComponent: () =>
+      import('./features/identity/registration.page').then((m) => m.RegistrationPage),
+  },
+  {
+    path: 'cadastro/musico',
+    title: 'Cadastro de músico · SingFlow',
+    data: { role: 'MUSICIAN' },
+    loadComponent: () =>
+      import('./features/identity/registration.page').then((m) => m.RegistrationPage),
+  },
+  {
+    path: 'confirmar-email',
+    title: 'Confirmar e-mail · SingFlow',
+    loadComponent: () =>
+      import('./features/identity/email-confirmation.page').then((m) => m.EmailConfirmationPage),
+  },
+  {
+    path: 'conta',
+    title: 'Situação da conta · SingFlow',
+    loadComponent: () =>
+      import('./features/identity/account-status.page').then((m) => m.AccountStatusPage),
+  },
+  {
+    path: 'admin',
+    title: 'Administração · SingFlow',
+    loadComponent: () => import('./features/administration/admin.page').then((m) => m.AdminPage),
+  },
+  {
     path: '',
     canActivate: [resumeParticipation],
     title: 'SingFlow — Sua voz no palco',

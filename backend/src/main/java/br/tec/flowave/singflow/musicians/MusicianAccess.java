@@ -13,7 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class MusicianAccess {
-  public record Member(String email) {}
+  public record Member(UUID id, String name, boolean enabled) {}
 
   public record PerformanceView(SessionAccess.SessionView session, StageService.StageView stage) {}
 
@@ -40,11 +40,33 @@ public class MusicianAccess {
   public List<Member> members(UUID session, String actor) {
     sessions.lockOwned(session, actor, false);
     return jdbc.sql(
-            "SELECT email FROM singflow.musician_session_grants WHERE session_id=? AND active ORDER"
-                + " BY email")
+            "SELECT a.account_id,CASE WHEN trim(a.display_name)='' THEN 'Músico ' ||"
+                + " left(a.account_id::text,8) ELSE a.display_name END AS name,a.email_verified AND"
+                + " a.status='APPROVED' AS enabled FROM singflow.musician_session_grants g JOIN"
+                + " singflow.host_accounts a ON a.email=g.email WHERE g.session_id=? AND g.active"
+                + " ORDER BY lower(a.display_name),a.account_id")
         .param(session)
-        .query((rs, n) -> new Member(rs.getString(1)))
+        .query(
+            (rs, n) -> new Member(rs.getObject(1, UUID.class), rs.getString(2), rs.getBoolean(3)))
         .list();
+  }
+
+  @Transactional
+  public List<AccountAccess.Musician> available(UUID session, String actor) {
+    sessions.lockOwned(session, actor, true);
+    return accounts.approvedMusicians();
+  }
+
+  @Transactional
+  public List<Member> grantById(UUID session, String actor, UUID operation, UUID musician) {
+    sessions.lockOwned(session, actor, true);
+    return grant(session, actor, operation, accounts.musicianEmail(musician, true));
+  }
+
+  @Transactional
+  public List<Member> revokeById(UUID session, String actor, UUID musician) {
+    sessions.lockOwned(session, actor, true);
+    return revoke(session, actor, accounts.musicianEmail(musician, false));
   }
 
   @Transactional

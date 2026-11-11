@@ -101,7 +101,7 @@
       <app-surface-card labelledBy="host-login-title">
         <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-microphone"></i></span>
         <h1 id="host-login-title">Entrar como anfitrião</h1>
-        <p>Use o acesso disponibilizado para o evento.</p>
+        <p>Entre na sua conta para organizar o karaokê.</p>
         <form [formGroup]="loginForm" (ngSubmit)="login()" class="host-form">
           <label for="login-email">E-mail</label>
           <input
@@ -158,7 +158,9 @@
             Entrar
           </button>
         </form>
-        <p class="sf-centered-copy">Precisa de acesso? Fale com o responsável pelo evento.</p>
+        <a class="sf-button sf-text sf-full" routerLink="/cadastro/anfitriao"
+          >Criar conta de anfitrião</a
+        >
       </app-surface-card>
     </div>
   } @else if (creatingSession()) {

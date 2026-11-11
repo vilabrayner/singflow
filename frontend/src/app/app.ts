@@ -1,4 +1,5 @@
 import { afterRenderEffect, Component, computed, ElementRef, inject } from '@angular/core';
+import { BrandLogo } from './shared/components/brand-logo';
 import { ToastModule } from 'primeng/toast';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
@@ -7,7 +8,7 @@ import { filter, map } from 'rxjs';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastModule, BrandLogo],
   templateUrl: './app.html',
 })
 export class App {
@@ -25,8 +26,12 @@ export class App {
     /^\/participante\/[^/]+\/[^/]+$/.test(this.routePath()),
   );
   readonly musicianPanel = computed(() => this.routePath() === '/musico');
+  readonly accountPanel = computed(() =>
+    /^\/(admin|conta|confirmar-email|cadastro\/(anfitriao|musico))$/.test(this.routePath()),
+  );
   readonly compactPanel = computed(
-    () => this.hostPanel() || this.participantPanel() || this.musicianPanel(),
+    () =>
+      this.hostPanel() || this.participantPanel() || this.musicianPanel() || this.accountPanel(),
   );
 
   constructor() {

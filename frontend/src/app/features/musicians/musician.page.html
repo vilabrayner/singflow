@@ -22,16 +22,8 @@
   } @else if (!email()) {
     <div class="sf-centered-state">
       <app-surface-card labelledBy="musician-login-title">
-        <h1 id="musician-login-title">
-          {{ signingUp() ? 'Criar conta de músico' : 'Entrar como músico' }}
-        </h1>
-        <p>
-          {{
-            signingUp()
-              ? 'Crie sua conta e peça ao anfitrião para liberar a sessão pelo seu e-mail.'
-              : 'Use sua conta para acompanhar o palco e preparar as próximas músicas.'
-          }}
-        </p>
+        <h1 id="musician-login-title">Entrar como músico</h1>
+        <p>Use sua conta para acompanhar o palco e preparar as próximas músicas.</p>
         <form class="host-form" [formGroup]="form" (ngSubmit)="login()">
           <label
             >E-mail<input
@@ -49,7 +41,7 @@
               pInputText
               [type]="showPassword() ? 'text' : 'password'"
               formControlName="password"
-              [autocomplete]="signingUp() ? 'new-password' : 'current-password'"
+              autocomplete="current-password"
               required
               [readOnly]="busy()"
               aria-label="Senha"
@@ -65,15 +57,12 @@
               <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
             </button>
           </div>
-          @if (signingUp()) {
-            <p>Use uma senha com pelo menos 12 caracteres.</p>
-          }
           <button
             type="submit"
             class="sf-button sf-primary sf-full"
             [disabled]="form.invalid || locked()"
           >
-            {{ signingUp() ? 'Criar minha conta' : 'Entrar' }}
+            Entrar
           </button>
           <button
             type="button"
@@ -81,7 +70,7 @@
             [disabled]="busy()"
             (click)="toggleRegistration()"
           >
-            {{ signingUp() ? 'Já tenho conta' : 'Criar conta de músico' }}
+            Criar conta de músico
           </button>
         </form>
       </app-surface-card>
@@ -164,48 +153,169 @@
         </ol>
       </app-surface-card>
     } @else if (!loading()) {
-      <app-surface-card labelledBy="musician-empty-title">
-        <h1 id="musician-empty-title">Aguardando uma sessão</h1>
-        <p>Peça ao anfitrião para liberar o acesso usando {{ email() }}.</p>
-        <button type="button" class="sf-button sf-outline sf-full" (click)="load()">
-          Atualizar sessões
-        </button>
-      </app-surface-card>
+      <div class="sf-centered-state">
+        <app-surface-card labelledBy="musician-empty-title">
+          <h1 id="musician-empty-title">
+            {{ pastSessions().length ? 'Aguardando novas sessões' : 'Aguardando uma sessão' }}
+          </h1>
+          <p>
+            Peça ao anfitrião para selecionar seu nome nos músicos da sessão. Quando houver uma
+            sessão aberta liberada para você, ela aparecerá aqui.
+          </p>
+          <div class="sf-dialog-actions">
+            @if (pastSessions().length) {
+              <button
+                id="musician-past-sessions"
+                type="button"
+                class="sf-button sf-primary sf-full"
+                (click)="openChooser('musician-past-sessions')"
+              >
+                Ver sessões anteriores
+              </button>
+            }
+            <button type="button" class="sf-button sf-outline sf-full" (click)="load()">
+              Atualizar sessões
+            </button>
+          </div>
+        </app-surface-card>
+      </div>
     }
   }
 </section>
 @if (choosingSession()) {
   <app-confirmation-dialog
-    title="Escolher sessão"
-    returnFocus="musician-options"
-    (dismissed)="choosingSession.set(false)"
+    #sessionDialog
+    [title]="archiveSession()?.name ?? 'Escolher sessão'"
+    [returnFocus]="chooserReturnFocus()"
+    [error]="archiveError()"
+    (dismissed)="dismissChooser()"
   >
-    <ul class="sf-people-list sf-dialog-list">
-      @for (session of sessions(); track session.id) {
-        <li>
-          <button
-            type="button"
-            class="sf-person-row"
-            [disabled]="locked()"
-            (click)="select(session)"
-          >
-            <span
-              ><strong>{{ session.name }}</strong
-              ><span>{{ session.status === 'OPEN' ? 'Aberta' : 'Encerrada' }}</span></span
-            >
-            <i class="pi pi-chevron-right" aria-hidden="true"></i>
-          </button>
-        </li>
-      } @empty {
-        <li>Nenhuma sessão liberada.</li>
+    <div dialog-leading [hidden]="!archiveSession()">
+      @if (archiveSession()) {
+        <button
+          type="button"
+          class="sf-icon-button"
+          aria-label="Voltar às sessões"
+          title="Voltar às sessões"
+          (click)="backToSessions()"
+        >
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        </button>
       }
-    </ul>
+    </div>
+    <div dialog-actions>
+      @if (archiveSession()) {
+        <app-options-menu
+          buttonId="musician-archive-options"
+          label="Opções da sessão anterior"
+          [items]="archiveMenu"
+          [disabled]="archiveLoading()"
+        />
+      }
+    </div>
+    @if (archiveSession(); as session) {
+      <app-status-badge>Sessão encerrada</app-status-badge>
+      <p>
+        Criada em {{ session.createdAt | date: 'dd/MM/yyyy HH:mm' }}. Consulta da sessão anterior.
+      </p>
+      @if (archiveLoading()) {
+        <p role="status">Carregando dados da sessão…</p>
+      }
+      @if (archivePerformance(); as view) {
+        <section class="sf-musician-archive-section" aria-label="Apresentações da sessão">
+          <h3>Histórico do palco</h3>
+          <div
+            class="stage-history"
+            role="region"
+            aria-label="Registros da sessão anterior"
+            tabindex="0"
+          >
+            @for (call of view.stage.history; track call.id) {
+              <article>
+                <strong>{{ call.participantName }}</strong>
+                <p>
+                  {{ call.title || 'Música não definida' }}
+                  @if (call.artist) {
+                    · {{ call.artist }}
+                  }
+                </p>
+                <app-status-badge [tone]="call.status === 'COMPLETED' ? 'positive' : 'neutral'">{{
+                  labels(call.status)
+                }}</app-status-badge>
+                <p>{{ call.resolvedAt | date: 'HH:mm' }}</p>
+              </article>
+            } @empty {
+              <p>Nenhuma apresentação registrada nesta sessão.</p>
+            }
+          </div>
+        </section>
+        <section class="sf-musician-archive-section" aria-label="Fila ao encerrar">
+          <h3>Fila ao encerrar</h3>
+          <ul class="sf-people-list sf-dialog-list">
+            @for (person of view.stage.suggestions; track person.participantId) {
+              <li>
+                <strong>{{ person.name }}</strong>
+                <p>
+                  {{ person.title || 'Música a escolher' }}
+                  @if (person.artist) {
+                    · {{ person.artist }}
+                  }
+                </p>
+              </li>
+            } @empty {
+              <li>Nenhuma próxima música ficou na fila.</li>
+            }
+          </ul>
+        </section>
+      }
+    } @else {
+      @if (openSessions().length) {
+        <h3>Sessões abertas</h3>
+        <ul class="sf-people-list sf-dialog-list">
+          @for (session of openSessions(); track session.id) {
+            <li>
+              <button
+                type="button"
+                class="sf-person-row"
+                [disabled]="locked()"
+                (click)="select(session)"
+              >
+                <span
+                  ><strong>{{ session.name }}</strong
+                  ><span>Aberta</span></span
+                ><i class="pi pi-chevron-right" aria-hidden="true"></i>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+      @if (pastSessions().length) {
+        <h3>Sessões anteriores</h3>
+        <p>Selecione uma sessão para consultar os dados aqui, nesta janela.</p>
+        <ul class="sf-people-list sf-dialog-list">
+          @for (session of pastSessions(); track session.id) {
+            <li>
+              <button
+                type="button"
+                class="sf-person-row"
+                [disabled]="locked()"
+                (click)="select(session)"
+              >
+                <span
+                  ><strong>{{ session.name }}</strong
+                  ><span>Encerrada · {{ session.createdAt | date: 'dd/MM/yyyy' }}</span></span
+                ><i class="pi pi-chevron-right" aria-hidden="true"></i>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+      @if (!openSessions().length && !pastSessions().length) {
+        <p>Nenhuma sessão liberada para sua conta.</p>
+      }
+    }
     <div class="sf-dialog-actions">
-      <button
-        type="button"
-        class="sf-button sf-outline sf-full"
-        (click)="choosingSession.set(false)"
-      >
+      <button type="button" class="sf-button sf-outline sf-full" (click)="closeChooser()">
         Fechar
       </button>
     </div>

@@ -33,6 +33,9 @@ export class ApiClient {
 export function apiError(error: unknown): string {
   if (error instanceof HttpErrorResponse) {
     if (error.status === 401) return 'Entre novamente para continuar.';
+    if (error.status === 403 && error.error?.code === 'ACCOUNT_NOT_ACTIVE')
+      return 'Seu acesso está pendente ou suspenso. Consulte a situação em /conta.';
+    if (error.status === 429) return 'Muitas tentativas. Aguarde um minuto e tente novamente.';
     if (error.status === 403)
       return 'Acesso não autorizado. Recarregue a página e tente novamente.';
     if (error.status === 404) return 'Registro não encontrado ou indisponível para este anfitrião.';

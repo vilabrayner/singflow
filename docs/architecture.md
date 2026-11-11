@@ -139,3 +139,13 @@ Manifesto e service worker permitirão instalação e cache da interface. Mutaç
 Cores: azul-marinho `#0B1E3F`, roxo `#7C3AED`, amarelo `#FBBF24`, fundo `#F4F6FA`. Fonte Manrope. Slogan: “Sua voz no palco, na ordem certa.” O logotipo oficial ainda não está disponível no repositório; não será recriado como se fosse o original.
 
 Testes previstos: regras de fila, integração com PostgreSQL real via Testcontainers, segurança, concorrência, contratos e fluxos completos com Playwright. Acessibilidade deve incluir teclado, foco, rótulos e comunicação que não dependa só de cores.
+
+## Validação de contas e administração (V12)
+
+O módulo `identity` concentra cadastro, confirmação de e-mail, situação da conta, autorização administrativa e sua auditoria. Mantemos o nome legado `host_accounts` para preservar referências, com um perfil principal HOST/MUSICIAN e uma permissão administrativa independente. O SMTP não é obrigatório para operar as contas existentes; é obrigatório para concluir novo cadastro e reenvio. O filtro de segurança consulta o estado atual de cada conta nas requisições protegidas, para não confiar em permissões antigas guardadas na sessão HTTP. A interface administrativa é carregada em `/admin`, sem item em menus públicos. A gestão do catálogo não faz parte deste incremento.
+
+Configuração e aceite em [006-account-validation-and-admin.md](acceptance/006-account-validation-and-admin.md).
+
+## Seleção de músicos e consulta administrativa (V13)
+
+As contas recebem um identificador público UUID para o vínculo de músicos por nome, sem expor o e-mail ao anfitrião. O módulo `administration` agrega uma visão de consulta das sessões abertas, usando as APIs públicas de `identity`, `sessions`, `musicians` e `stage`. ADMIN é uma permissão de consulta transversal; a operação das filas continua sujeita à propriedade da sessão. Aceite em [007-musician-selection-and-admin-sessions.md](acceptance/007-musician-selection-and-admin-sessions.md).

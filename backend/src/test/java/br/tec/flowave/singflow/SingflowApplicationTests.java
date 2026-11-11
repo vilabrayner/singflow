@@ -29,12 +29,16 @@ class SingflowApplicationTests {
   @Container @ServiceConnection
   static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17.6");
 
+  @org.springframework.test.context.bean.override.mockito.MockitoBean
+  br.tec.flowave.singflow.identity.VerificationMail verificationMail;
+
+  @Autowired br.tec.flowave.singflow.identity.AccountLifecycle lifecycle;
   @Autowired MockMvc mvc;
   @Autowired Flyway flyway;
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(11);
+    assertThat(flyway.info().applied()).hasSize(13);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -125,6 +129,7 @@ class SingflowApplicationTests {
                 .query(String.class)
                 .single())
         .isEqualTo("MUSICIAN");
+    approveFixture(email);
     var login =
         mvc.perform(
                 post("/api/auth/login")
@@ -155,6 +160,7 @@ class SingflowApplicationTests {
     String owner = host(), other = host();
     String email = UUID.randomUUID() + "@example.test";
     accounts.registerMusician(email, "musician-password-2026");
+    approveFixture(email);
     UUID session = UUID.randomUUID(), otherSession = UUID.randomUUID();
     createOpen(session, owner);
     createOpen(otherSession, other);
@@ -162,7 +168,8 @@ class SingflowApplicationTests {
     enroll(session, owner, "Bruno");
     UUID operation = UUID.randomUUID();
     String path = "/api/sessions/" + session + "/musicians";
-    String body = "{\"operationId\":\"" + operation + "\",\"email\":\"" + email + "\"}";
+    String body =
+        "{\"operationId\":\"" + operation + "\",\"musicianId\":\"" + musicianId(email) + "\"}";
     mvc.perform(
             post(path)
                 .with(user(email).roles("MUSICIAN"))
@@ -220,7 +227,7 @@ class SingflowApplicationTests {
                 .with(user(owner).roles("HOST"))
                 .with(csrf())
                 .contentType("application/json")
-                .content("{\"email\":\"" + email + "\"}"))
+                .content("{\"musicianId\":\"" + musicianId(email) + "\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.length()").value(0));
     musicianAccess.grant(session, owner, operation, email);
@@ -1071,6 +1078,8 @@ class SingflowApplicationTests {
     var selfCall = callNext(session, owner);
     assertThat(selfCall.participantId()).isEqualTo(initial.participant().id());
     assertThat(audience.me(session, cookie.getValue()).queuePosition()).isNull();
+    // Closing is only allowed after the active performance is resolved.
+    stage.resolve(session, owner, selfCall.id(), "COMPLETED");
     mvc.perform(
             post("/api/sessions/" + session + "/close")
                 .with(user(owner).roles("HOST"))
@@ -1410,5 +1419,327 @@ class SingflowApplicationTests {
       assertThat(person.status()).isEqualTo("LEFT");
       assertThat(person.checkInOrder()).isEqualTo(arrival);
     }
+  }
+
+  private void approveFixture(String email) {
+    jdbc.sql(
+            "UPDATE singflow.host_accounts SET email_verified=true,status='APPROVED' WHERE email=?")
+        .param(email)
+        .update();
+  }
+
+  private String administrator() {
+    String email = host();
+    jdbc.sql("UPDATE singflow.host_accounts SET administrator=true WHERE email=?")
+        .param(email)
+        .update();
+    return email;
+  }
+
+  private String verificationToken(String email) {
+    var token = org.mockito.ArgumentCaptor.forClass(String.class);
+    org.mockito.Mockito.verify(verificationMail)
+        .send(org.mockito.ArgumentMatchers.eq(email), token.capture());
+    return token.getValue();
+  }
+
+  private MockHttpSession loginAccount(String email, String password) throws Exception {
+    var response =
+        mvc.perform(
+                post("/api/auth/login")
+                    .with(csrf())
+                    .param("email", email)
+                    .param("password", password))
+            .andExpect(status().isNoContent())
+            .andReturn();
+    return (MockHttpSession) response.getRequest().getSession(false);
+  }
+
+  @Test
+  void accountRequiresEmailThenApprovalAndSuspensionBlocksAnExistingSession() throws Exception {
+    String email = UUID.randomUUID() + "@example.test", admin = administrator();
+    mvc.perform(
+            post("/api/public/accounts/register")
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    "{\"name\":\"Novo anfitrião\",\"email\":\""
+                        + email
+                        + "\",\"password\":\"host-password-2026\",\"role\":\"HOST\"}"))
+        .andExpect(status().isNoContent());
+    var browser = loginAccount(email, "host-password-2026");
+    mvc.perform(get("/api/auth/me").session(browser))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("PENDING"))
+        .andExpect(jsonPath("$.emailVerified").value(false));
+    mvc.perform(get("/api/sessions").session(browser)).andExpect(status().isForbidden());
+    mvc.perform(get("/api/admin/accounts").session(browser)).andExpect(status().isForbidden());
+    assertThatThrownBy(() -> lifecycle.decide(admin, email, "APPROVED", "", 0))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    String token = verificationToken(email);
+    assertThat(
+            jdbc.sql("SELECT token_hash FROM singflow.account_verifications WHERE email=?")
+                .param(email)
+                .query(String.class)
+                .single())
+        .isEqualTo(br.tec.flowave.singflow.identity.AccountLifecycle.hash(token))
+        .isNotEqualTo(token);
+    mvc.perform(
+            post("/api/public/accounts/verify")
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"token\":\"" + token + "\"}"))
+        .andExpect(status().isNoContent());
+    mvc.perform(
+            post("/api/public/accounts/verify")
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"token\":\"" + token + "\"}"))
+        .andExpect(status().isBadRequest());
+    mvc.perform(get("/api/sessions").session(browser)).andExpect(status().isForbidden());
+    long version = lifecycle.get(email).version();
+    mvc.perform(
+            post("/api/admin/accounts/decision")
+                .with(user(admin).roles("HOST", "ADMIN"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    "{\"email\":\""
+                        + email
+                        + "\",\"status\":\"APPROVED\",\"reason\":\"Cadastro revisado\",\"version\":"
+                        + version
+                        + "}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("APPROVED"));
+    mvc.perform(get("/api/sessions").session(browser)).andExpect(status().isOk());
+    assertThatThrownBy(() -> lifecycle.decide(admin, email, "SUSPENDED", "Motivo", version))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    lifecycle.decide(admin, email, "SUSPENDED", "Acesso revisado", version + 1);
+    mvc.perform(get("/api/sessions").session(browser)).andExpect(status().isForbidden());
+    mvc.perform(get("/api/auth/me").session(browser))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("SUSPENDED"));
+    assertThat(lifecycle.history(email))
+        .extracting(e -> e.action())
+        .contains("REGISTERED", "EMAIL_VERIFIED", "APPROVED", "SUSPENDED");
+  }
+
+  @Test
+  void adminCannotBeSpoofedOrBlockItselfAndRoleFiltersAreEnforced() throws Exception {
+    String owner = host(), admin = administrator();
+    mvc.perform(get("/api/admin/accounts")).andExpect(status().isUnauthorized());
+    mvc.perform(get("/api/admin/accounts").with(user(owner).roles("HOST", "ADMIN")))
+        .andExpect(status().isForbidden());
+    var browser = loginAccount(admin, "test-password-2026");
+    mvc.perform(get("/api/admin/accounts").param("role", "MUSICIAN").session(browser))
+        .andExpect(status().isOk());
+    mvc.perform(
+            post("/api/admin/accounts/decision")
+                .session(browser)
+                .contentType("application/json")
+                .content("{}"))
+        .andExpect(status().isForbidden());
+    assertThatThrownBy(
+            () ->
+                lifecycle.decide(
+                    admin, admin, "SUSPENDED", "Teste", lifecycle.get(admin).version()))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    jdbc.sql("UPDATE singflow.host_accounts SET administrator=false WHERE email=?")
+        .param(admin)
+        .update();
+    mvc.perform(get("/api/admin/accounts").session(browser)).andExpect(status().isForbidden());
+    mvc.perform(get("/api/sessions").session(browser)).andExpect(status().isOk());
+  }
+
+  @Test
+  void expiredVerificationAndUnverifiedMusicianCannotBypassApproval() throws Exception {
+    String email = UUID.randomUUID() + "@example.test";
+    accounts.registerMusician(email, "musician-password-2026");
+    String token = verificationToken(email);
+    jdbc.sql(
+            "UPDATE singflow.account_verifications SET expires_at=now()-interval '1 second' WHERE"
+                + " email=?")
+        .param(email)
+        .update();
+    mvc.perform(
+            post("/api/public/accounts/verify")
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"token\":\"" + token + "\"}"))
+        .andExpect(status().isBadRequest());
+    assertThatThrownBy(() -> accounts.requireMusician(email))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    var browser = loginAccount(email, "musician-password-2026");
+    mvc.perform(get("/api/musicians/sessions").session(browser)).andExpect(status().isForbidden());
+    assertThat(lifecycle.get(email).emailVerified()).isFalse();
+  }
+
+  @Test
+  void competingAdminDecisionsUseAccountVersion() throws Exception {
+    String email = host(), admin = administrator();
+    jdbc.sql("UPDATE singflow.host_accounts SET status='PENDING' WHERE email=?")
+        .param(email)
+        .update();
+    long version = lifecycle.get(email).version();
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      Callable<Boolean> decision =
+          () -> {
+            try {
+              lifecycle.decide(admin, email, "APPROVED", "", version);
+              return true;
+            } catch (org.springframework.web.server.ResponseStatusException e) {
+              assertThat(e.getStatusCode().value()).isEqualTo(409);
+              return false;
+            }
+          };
+      var a = pool.submit(decision);
+      var b = pool.submit(decision);
+      assertThat(java.util.List.of(a.get(10, TimeUnit.SECONDS), b.get(10, TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder(true, false);
+    }
+    assertThat(lifecycle.history(email)).filteredOn(e -> e.action().equals("APPROVED")).hasSize(1);
+  }
+
+  private UUID musicianId(String email) {
+    return jdbc.sql("SELECT account_id FROM singflow.host_accounts WHERE email=?")
+        .param(email)
+        .query(UUID.class)
+        .single();
+  }
+
+  @Test
+  void hostChoosesApprovedMusiciansByNameWithoutReceivingTheirEmails() throws Exception {
+    String owner = host(), other = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    String musician = UUID.randomUUID() + "@example.test",
+        pending = UUID.randomUUID() + "@example.test";
+    accounts.registerMusician(musician, "musician-password-2026");
+    approveFixture(musician);
+    jdbc.sql("UPDATE singflow.host_accounts SET display_name='Músico Aprovado' WHERE email=?")
+        .param(musician)
+        .update();
+    accounts.registerMusician(pending, "musician-password-2026");
+    String path = "/api/sessions/" + session + "/musicians";
+    var response =
+        mvc.perform(get(path + "/available").with(user(owner).roles("HOST")))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(response)
+        .contains("Músico Aprovado", musicianId(musician).toString())
+        .doesNotContain(musician, pending, musicianId(pending).toString());
+    mvc.perform(get(path + "/available").with(user(other).roles("HOST")))
+        .andExpect(status().isNotFound());
+    mvc.perform(get(path + "/available").with(user(musician).roles("MUSICIAN")))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post(path)
+                .with(user(owner).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    "{\"operationId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"musicianId\":\""
+                        + musicianId(pending)
+                        + "\"}"))
+        .andExpect(status().isNotFound());
+    var granted =
+        mvc.perform(
+                post(path)
+                    .with(user(owner).roles("HOST"))
+                    .with(csrf())
+                    .contentType("application/json")
+                    .content(
+                        "{\"operationId\":\""
+                            + UUID.randomUUID()
+                            + "\",\"musicianId\":\""
+                            + musicianId(musician)
+                            + "\"}"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(granted).contains("Músico Aprovado").doesNotContain(musician, "email");
+    jdbc.sql("UPDATE singflow.host_accounts SET status='SUSPENDED' WHERE email=?")
+        .param(musician)
+        .update();
+    mvc.perform(
+            post(path)
+                .with(user(owner).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    "{\"operationId\":\""
+                        + UUID.randomUUID()
+                        + "\",\"musicianId\":\""
+                        + musicianId(musician)
+                        + "\"}"))
+        .andExpect(status().isNotFound());
+    mvc.perform(
+            post(path + "/revoke")
+                .with(user(owner).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"musicianId\":\"" + musicianId(musician) + "\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
+  }
+
+  @Test
+  void administratorCanReadOtherHostsOpenSessionButCannotOperateIt() throws Exception {
+    String owner = host(), admin = administrator();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    UUID draft = UUID.randomUUID();
+    mvc.perform(
+            post("/api/sessions")
+                .with(user(owner).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    "{\"operationId\":\"" + draft + "\",\"name\":\"Rascunho administrativo\"}"))
+        .andExpect(status().isOk());
+    String musician = UUID.randomUUID() + "@example.test";
+    accounts.registerMusician(musician, "musician-password-2026");
+    approveFixture(musician);
+    musicianAccess.grantById(session, owner, UUID.randomUUID(), musicianId(musician));
+    enroll(session, owner, "Ana");
+    enroll(session, owner, "Bruno");
+    var call = callNext(session, owner);
+    String path = "/api/admin/sessions/" + session;
+    mvc.perform(get(path)).andExpect(status().isUnauthorized());
+    mvc.perform(get(path).with(user(owner).roles("HOST"))).andExpect(status().isForbidden());
+    mvc.perform(get(path).with(user(musician).roles("MUSICIAN"))).andExpect(status().isForbidden());
+    mvc.perform(get(path).with(user(admin).roles("HOST", "ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.host.email").value(owner))
+        .andExpect(jsonPath("$.musicians[0].id").value(musicianId(musician).toString()))
+        .andExpect(jsonPath("$.stage.active.participantName").value("Ana"))
+        .andExpect(jsonPath("$.stage.suggestions[0].name").value("Bruno"));
+    String list =
+        mvc.perform(get("/api/admin/sessions").with(user(admin).roles("HOST", "ADMIN")))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertThat(list).contains(session.toString()).doesNotContain(draft.toString());
+    mvc.perform(
+            post("/api/sessions/" + session + "/stage/calls/" + call.id() + "/resolve")
+                .with(user(admin).roles("HOST", "ADMIN"))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"outcome\":\"COMPLETED\"}"))
+        .andExpect(status().isNotFound());
+    stage.resolve(session, owner, call.id(), "COMPLETED");
+    mvc.perform(
+            post("/api/sessions/" + session + "/close")
+                .with(user(owner).roles("HOST"))
+                .with(csrf()))
+        .andExpect(status().isOk());
+    mvc.perform(get(path).with(user(admin).roles("HOST", "ADMIN")))
+        .andExpect(status().isConflict());
   }
 }

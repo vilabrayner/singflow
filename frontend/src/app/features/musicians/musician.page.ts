@@ -1,4 +1,15 @@
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  inject,
+  Injector,
+  OnDestroy,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -21,7 +32,8 @@ interface Performance {
 }
 @Component({
   selector: 'app-musician-page',
-  styles: ':host { display: block; }',
+  styles:
+    ':host { display: block; } .sf-musician-archive-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--sf-border); }',
   imports: [
     PanelHeader,
     OptionsMenu,
@@ -36,6 +48,8 @@ interface Performance {
 })
 export class MusicianPage implements OnInit, OnDestroy {
   private readonly api = inject(ApiClient);
+  private readonly injector = inject(Injector);
+  private readonly sessionDialog = viewChild<ConfirmationDialog>('sessionDialog');
   private readonly auth = inject(HostAuth);
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly document = inject(DOCUMENT);
@@ -44,7 +58,7 @@ export class MusicianPage implements OnInit, OnDestroy {
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
     password: ['', Validators.required],
   });
-  readonly signingUp = signal(false);
+  private readonly router = inject(Router);
   readonly showPassword = signal(false);
   readonly email = signal('');
   readonly ready = signal(false);
@@ -56,6 +70,17 @@ export class MusicianPage implements OnInit, OnDestroy {
   readonly selected = signal<KaraokeSession | null>(null);
   readonly performance = signal<Performance | null>(null);
   readonly choosingSession = signal(false);
+  readonly openSessions = computed(() => this.sessions().filter((s) => s.status === 'OPEN'));
+  readonly pastSessions = computed(() => this.sessions().filter((s) => s.status === 'CLOSED'));
+  readonly archiveSession = signal<KaraokeSession | null>(null);
+  readonly archivePerformance = signal<Performance | null>(null);
+  readonly archiveLoading = signal(false);
+  readonly archiveError = signal('');
+  readonly chooserReturnFocus = signal('musician-options');
+  readonly archiveMenu: MenuItem[] = [
+    { label: 'Atualizar consulta', icon: 'pi pi-refresh', command: () => void this.loadArchive() },
+  ];
+  private archiveGeneration = 0;
   readonly showingHistory = signal(false);
   readonly search = signal('');
   readonly updatedAt = signal<Date | null>(null);
@@ -69,7 +94,7 @@ export class MusicianPage implements OnInit, OnDestroy {
   });
   readonly menu = computed<MenuItem[]>(() => [
     { label: 'Atualizar', icon: 'pi pi-refresh', command: () => void this.load() },
-    { label: 'Trocar sessão', icon: 'pi pi-list', command: () => this.choosingSession.set(true) },
+    { label: 'Trocar sessão', icon: 'pi pi-list', command: () => this.openChooser() },
     {
       label: 'Histórico do palco',
       icon: 'pi pi-history',
@@ -84,7 +109,7 @@ export class MusicianPage implements OnInit, OnDestroy {
 
   async ngOnInit() {
     try {
-      const account = await this.api.get<{ email: string }>('/auth/me');
+      const account = await this.auth.account();
       this.email.set(account.email);
       await this.load();
     } catch (error) {
@@ -101,29 +126,20 @@ export class MusicianPage implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.destroyed = true;
     this.generation++;
+    this.archiveGeneration++;
     clearInterval(this.timer);
   }
   toggleRegistration() {
-    this.signingUp.update((value) => !value);
-    this.error.set('');
+    void this.router.navigateByUrl('/cadastro/musico');
   }
   async login() {
     if (this.form.invalid || this.locked()) return;
     const { email, password } = this.form.getRawValue();
-    if (this.signingUp() && password.length < 12) {
-      this.error.set('Use uma senha com pelo menos 12 caracteres.');
-      return;
-    }
     this.busy.set(true);
     this.error.set('');
     try {
-      if (this.signingUp()) {
-        await this.api.post('/public/musicians/register', { email, password });
-        this.signingUp.set(false);
-        this.notifications.success('Conta criada. Peça ao anfitrião para liberar sua sessão.');
-      }
       await this.auth.login(email, password);
-      const account = await this.api.get<{ email: string }>('/auth/me');
+      const account = await this.auth.account();
       this.email.set(account.email);
       this.form.controls.password.reset();
       this.showPassword.set(false);
@@ -148,10 +164,16 @@ export class MusicianPage implements OnInit, OnDestroy {
       const sessions = await this.api.get<KaraokeSession[]>('/musicians/sessions');
       if (generation !== this.generation || this.destroyed) return;
       this.sessions.set(sessions);
+      if (
+        this.archiveSession() &&
+        !sessions.some((s) => s.id === this.archiveSession()!.id && s.status === 'CLOSED')
+      ) {
+        this.backToSessions();
+        this.archiveError.set('Esta sessão não está mais disponível para sua conta.');
+      }
       const selected =
-        sessions.find((s) => s.id === preferred) ??
+        sessions.find((s) => s.id === preferred && s.status === 'OPEN') ??
         sessions.find((s) => s.status === 'OPEN') ??
-        sessions[0] ??
         null;
       if (selected?.id !== this.selected()?.id) {
         this.performance.set(null);
@@ -162,8 +184,18 @@ export class MusicianPage implements OnInit, OnDestroy {
       if (selected) {
         const performance = await this.api.get<Performance>(`/musicians/sessions/${selected.id}`);
         if (generation !== this.generation || this.destroyed) return;
-        this.performance.set(performance);
-        this.selected.set(performance.session);
+        if (performance.session.status === 'OPEN') {
+          this.performance.set(performance);
+          this.selected.set(performance.session);
+        } else {
+          // The host may close the session between the list request and the snapshot.
+          this.selected.set(null);
+          this.performance.set(null);
+          this.showingHistory.set(false);
+          this.sessions.update((list) =>
+            list.map((s) => (s.id === performance.session.id ? performance.session : s)),
+          );
+        }
       } else {
         this.performance.set(null);
       }
@@ -177,6 +209,13 @@ export class MusicianPage implements OnInit, OnDestroy {
         this.performance.set(null);
         this.selected.set(null);
         this.showingHistory.set(false);
+        if ([401, 403].includes(error.status)) {
+          this.backToSessions();
+          this.archiveError.set(
+            'Acesso indisponível. Entre novamente para consultar suas sessões.',
+          );
+          this.sessions.set([]);
+        }
         if (error.status === 401) {
           this.email.set('');
           this.sessions.set([]);
@@ -187,10 +226,72 @@ export class MusicianPage implements OnInit, OnDestroy {
       this.loading.set(false);
     }
   }
+  openChooser(returnFocus = 'musician-options') {
+    this.chooserReturnFocus.set(returnFocus);
+    this.backToSessions();
+    this.choosingSession.set(true);
+  }
+  private focusSessionTitle() {
+    if (this.choosingSession())
+      afterNextRender(() => this.sessionDialog()?.focusTitle(), { injector: this.injector });
+  }
+  backToSessions() {
+    this.archiveGeneration++;
+    this.archiveSession.set(null);
+    this.archivePerformance.set(null);
+    this.archiveLoading.set(false);
+    this.archiveError.set('');
+    this.focusSessionTitle();
+  }
+  closeChooser() {
+    this.choosingSession.set(false);
+    this.backToSessions();
+  }
+  dismissChooser() {
+    if (this.archiveSession()) this.backToSessions();
+    else this.closeChooser();
+  }
   async select(session: KaraokeSession) {
     if (this.locked()) return;
-    this.choosingSession.set(false);
+    if (session.status === 'CLOSED') {
+      this.archiveGeneration++;
+      this.archiveSession.set(session);
+      this.archivePerformance.set(null);
+      this.archiveLoading.set(false);
+      this.archiveError.set('');
+      this.focusSessionTitle();
+      await this.loadArchive();
+      return;
+    }
+    if (session.status !== 'OPEN') return;
+    this.closeChooser();
     await this.load(session.id);
+  }
+  async loadArchive() {
+    const session = this.archiveSession();
+    if (!session || this.archiveLoading() || this.destroyed) return;
+    const generation = this.archiveGeneration;
+    this.archiveLoading.set(true);
+    this.archiveError.set('');
+    try {
+      const performance = await this.api.get<Performance>(`/musicians/sessions/${session.id}`);
+      if (this.destroyed || generation !== this.archiveGeneration || !this.choosingSession())
+        return;
+      if (performance.session.status !== 'CLOSED') {
+        this.backToSessions();
+        this.archiveError.set('A situação desta sessão mudou. Escolha novamente na lista.');
+        return;
+      }
+      this.archiveSession.set(performance.session);
+      this.archivePerformance.set(performance);
+    } catch (error) {
+      if (this.destroyed || generation !== this.archiveGeneration || !this.choosingSession())
+        return;
+      this.archivePerformance.set(null);
+      this.archiveError.set(apiError(error));
+    } finally {
+      if (!this.destroyed && generation === this.archiveGeneration) this.archiveLoading.set(false);
+    }
   }
   async logout() {
     if (this.locked()) return;
@@ -203,7 +304,7 @@ export class MusicianPage implements OnInit, OnDestroy {
       this.selected.set(null);
       this.performance.set(null);
       this.showingHistory.set(false);
-      this.choosingSession.set(false);
+      this.closeChooser();
       this.error.set('');
     } catch (error) {
       this.error.set(apiError(error));

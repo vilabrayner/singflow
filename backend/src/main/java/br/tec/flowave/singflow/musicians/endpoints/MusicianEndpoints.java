@@ -11,9 +11,9 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 class MusicianEndpoints {
-  record Grant(@NotNull UUID operationId, @NotBlank @Email @Size(max = 254) String email) {}
+  record Grant(@NotNull UUID operationId, @NotNull UUID musicianId) {}
 
-  record Member(@NotBlank @Email @Size(max = 254) String email) {}
+  record Member(@NotNull UUID musicianId) {}
 
   private final MusicianAccess access;
 
@@ -26,16 +26,22 @@ class MusicianEndpoints {
     return access.members(session, actor.getName());
   }
 
+  @GetMapping("/api/sessions/{session}/musicians/available")
+  List<br.tec.flowave.singflow.identity.AccountAccess.Musician> available(
+      @PathVariable UUID session, Principal actor) {
+    return access.available(session, actor.getName());
+  }
+
   @PostMapping("/api/sessions/{session}/musicians")
   List<MusicianAccess.Member> grant(
       @PathVariable UUID session, Principal actor, @Valid @RequestBody Grant input) {
-    return access.grant(session, actor.getName(), input.operationId(), input.email());
+    return access.grantById(session, actor.getName(), input.operationId(), input.musicianId());
   }
 
   @PostMapping("/api/sessions/{session}/musicians/revoke")
   List<MusicianAccess.Member> revoke(
       @PathVariable UUID session, Principal actor, @Valid @RequestBody Member input) {
-    return access.revoke(session, actor.getName(), input.email());
+    return access.revokeById(session, actor.getName(), input.musicianId());
   }
 
   private boolean host(Authentication actor) {

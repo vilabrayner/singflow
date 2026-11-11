@@ -7,9 +7,13 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 class AuthEndpoints {
-  record CsrfView(String token, String headerName) {}
+  private final br.tec.flowave.singflow.identity.AccountLifecycle accounts;
 
-  record HostView(String email, String role) {}
+  AuthEndpoints(br.tec.flowave.singflow.identity.AccountLifecycle accounts) {
+    this.accounts = accounts;
+  }
+
+  record CsrfView(String token, String headerName) {}
 
   @GetMapping("/csrf")
   CsrfView csrf(CsrfToken token) {
@@ -17,11 +21,7 @@ class AuthEndpoints {
   }
 
   @GetMapping("/me")
-  HostView me(Authentication principal) {
-    String role =
-        principal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_HOST"))
-            ? "HOST"
-            : "MUSICIAN";
-    return new HostView(principal.getName(), role);
+  br.tec.flowave.singflow.identity.AccountLifecycle.Account me(Authentication principal) {
+    return accounts.get(principal.getName());
   }
 }

@@ -8,6 +8,18 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/singflow}
     username: ${DB_USERNAME:singflow}
     password: ${DB_PASSWORD:singflow}
+  mail:
+    host: ${SINGFLOW_SMTP_HOST:}
+    port: ${SINGFLOW_SMTP_PORT:587}
+    username: ${SINGFLOW_SMTP_USERNAME:}
+    password: ${SINGFLOW_SMTP_PASSWORD:}
+    properties:
+      "[mail.smtp.auth]": ${SINGFLOW_SMTP_AUTH:true}
+      "[mail.smtp.starttls.enable]": ${SINGFLOW_SMTP_STARTTLS:true}
+      "[mail.smtp.starttls.required]": ${SINGFLOW_SMTP_STARTTLS:true}
+      "[mail.smtp.connectiontimeout]": 5000
+      "[mail.smtp.timeout]": 5000
+      "[mail.smtp.writetimeout]": 5000
   jpa:
     open-in-view: false
     hibernate:
@@ -16,6 +28,9 @@ spring:
     enabled: true
     default-schema: public
 management:
+  health:
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:

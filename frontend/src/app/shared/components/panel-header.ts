@@ -1,9 +1,10 @@
 import { Component } from '@angular/core';
+import { BrandLogo } from './brand-logo';
 import { RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-panel-header',
-  imports: [RouterLink],
+  imports: [RouterLink, BrandLogo],
   styles: `
     :host {
       display: block;
@@ -19,7 +20,7 @@ import { RouterLink } from '@angular/router';
     <header class="sf-panel-header">
       <div class="sf-header-inner">
         <a class="sf-brand" routerLink="/" aria-label="SingFlow, início">
-          <i class="pi pi-microphone" aria-hidden="true"></i><span>SingFlow</span>
+          <app-brand-logo />
         </a>
         <div class="sf-header-actions"><ng-content /></div>
       </div>

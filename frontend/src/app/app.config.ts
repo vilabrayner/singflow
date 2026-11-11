@@ -1,5 +1,5 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { MessageService } from 'primeng/api';
 import { providePrimeNG } from 'primeng/config';
@@ -14,7 +14,11 @@ export function createAppConfig(runtimeConfig: RuntimeConfig): ApplicationConfig
       MessageService,
       { provide: RUNTIME_CONFIG, useValue: runtimeConfig },
       provideBrowserGlobalErrorListeners(),
-      provideRouter(routes, withComponentInputBinding()),
+      provideRouter(
+        routes,
+        withComponentInputBinding(),
+        withInMemoryScrolling({ scrollPositionRestoration: 'enabled' }),
+      ),
       provideHttpClient(),
       providePrimeNG({
         license: runtimeConfig.primeUiLicense,

@@ -22,22 +22,25 @@ class SecurityConfiguration {
   UserDetailsService userDetailsService(JdbcClient jdbc) {
     return email ->
         jdbc.sql(
-                "SELECT email, password_hash, role FROM singflow.host_accounts WHERE email ="
-                    + " :email")
+                "SELECT email, password_hash, role, administrator FROM singflow.host_accounts WHERE"
+                    + " email = :email")
             .param("email", email.trim().toLowerCase(java.util.Locale.ROOT))
             .query(
                 (rs, row) ->
                     User.withUsername(rs.getString("email"))
                         .password(rs.getString("password_hash"))
-                        .roles(rs.getString("role"))
+                        .roles(
+                            rs.getBoolean("administrator")
+                                ? new String[] {rs.getString("role"), "ADMIN"}
+                                : new String[] {rs.getString("role")})
                         .build())
             .optional()
             .orElseThrow(() -> new UsernameNotFoundException("Credenciais inválidas"));
   }
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http, Environment environment)
-      throws Exception {
+  SecurityFilterChain securityFilterChain(
+      HttpSecurity http, Environment environment, AccountLifecycle accounts) throws Exception {
     http.authorizeHttpRequests(
         access -> {
           access
@@ -49,12 +52,16 @@ class SecurityConfiguration {
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                 .permitAll();
           }
+          access.requestMatchers("/api/admin/**").hasRole("ADMIN");
           access
               .requestMatchers("/api/auth/me", "/api/musicians/**")
               .hasAnyRole("HOST", "MUSICIAN");
           access.requestMatchers("/api/sessions", "/api/sessions/**").hasRole("HOST");
           access.anyRequest().denyAll();
         });
+    http.addFilterBefore(
+        new AccountSessionFilter(accounts),
+        org.springframework.security.web.access.intercept.AuthorizationFilter.class);
     http.formLogin(
         form ->
             form.loginPage("/anfitriao")

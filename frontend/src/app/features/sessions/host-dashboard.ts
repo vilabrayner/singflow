@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { MenuItem } from 'primeng/api';
@@ -32,6 +33,7 @@ import { apiError } from '../../core/http/api-client';
 @Component({
   selector: 'app-host-dashboard',
   imports: [
+    RouterLink,
     ConfirmationDialog,
     OptionsMenu,
     MenuPopover,

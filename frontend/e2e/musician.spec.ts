@@ -7,7 +7,7 @@ const session = {
   createdAt: '2026-11-11T12:00:00Z',
 };
 
-test('musician signs up, receives a session, reads the full queue and tracks the stage', async ({
+test('musician signs in, receives a session, reads the full queue and tracks the stage', async ({
   page,
 }, testInfo) => {
   let loggedIn = false;
@@ -89,10 +89,9 @@ test('musician signs up, receives a session, reads the full queue and tracks the
     return route.fulfill({ status: 403 });
   });
   await page.goto('/musico');
-  await page.getByRole('button', { name: 'Criar conta de músico', exact: true }).click();
   await page.getByLabel('E-mail', { exact: true }).fill('music@example.test');
   await page.getByLabel('Senha', { exact: true }).fill('musician-password-2026');
-  await page.getByRole('button', { name: 'Criar minha conta' }).click();
+  await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Aguardando uma sessão' })).toBeVisible();
   granted = true;
   await page.getByRole('button', { name: 'Atualizar sessões', exact: true }).click();
@@ -131,7 +130,7 @@ test('musician signs up, receives a session, reads the full queue and tracks the
   await page.getByRole('button', { name: 'Opções do músico' }).click();
   await page.getByRole('menuitem', { name: 'Sair da conta', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Entrar como músico' })).toBeVisible();
-  expect(writes).toEqual(['/api/public/musicians/register', '/api/auth/login', '/api/auth/logout']);
+  expect(writes).toEqual(['/api/auth/login', '/api/auth/logout']);
 });
 
 test('host grants musician access and confirms revocation without repeating a grant after failure', async ({
@@ -150,9 +149,14 @@ test('host grants musician access and confirms revocation without repeating a gr
     if (path === '/api/sessions') return route.fulfill({ json: [session] });
     if (path.endsWith('/entry-link'))
       return route.fulfill({ json: { url: 'https://singflow.example/participante/entry' } });
+    if (path.endsWith('/musicians/available'))
+      return route.fulfill({
+        json: [{ id: '33333333-3333-4333-8333-333333333333', name: 'João Silva' }],
+      });
     if (path.endsWith('/musicians') && request.method() === 'POST') {
       const body = request.postDataJSON();
-      expect(body.email).toBe('music@example.test');
+      expect(body.musicianId).toBe('33333333-3333-4333-8333-333333333333');
+      expect(body).not.toHaveProperty('email');
       operations.push(body.operationId);
       granted = true;
       if (operations.length === 1) return route.fulfill({ status: 503 });
@@ -163,28 +167,35 @@ test('host grants musician access and confirms revocation without repeating a gr
       return route.fulfill({ json: [] });
     }
     if (path.endsWith('/musicians'))
-      return route.fulfill({ json: granted ? [{ email: 'music@example.test' }] : [] });
+      return route.fulfill({
+        json: granted
+          ? [{ id: '33333333-3333-4333-8333-333333333333', name: 'João Silva', enabled: true }]
+          : [],
+      });
     return route.fulfill({ json: [] });
   });
   await page.goto('/anfitriao');
   await page.getByRole('button', { name: 'Opções da sessão', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Músicos', exact: true }).click();
   const access = page.getByRole('dialog', { name: 'Músicos da sessão', exact: true });
-  await access.getByLabel('E-mail do músico', { exact: true }).fill('music@example.test');
+  await access.getByRole('combobox', { name: 'Músico', exact: true }).click();
+  await page.getByPlaceholder('Buscar pelo nome').fill('João');
+  await page.getByRole('option', { name: 'João Silva', exact: true }).click();
+  await expect(access).not.toContainText('music@example.test');
   await access.getByRole('button', { name: 'Liberar acesso', exact: true }).click();
   await expect(access.getByRole('alert')).toContainText('Não foi possível confirmar');
   await access.getByRole('button', { name: 'Liberar acesso', exact: true }).click();
-  await expect(access.getByText('music@example.test', { exact: true })).toBeVisible();
-  expect(operations).toHaveLength(2);
+  await expect.poll(() => operations.length).toBe(2);
+  await expect(access.locator('.sf-musician-member')).toContainText('João Silva');
   expect(operations[0]).toBe(operations[1]);
-  await access.getByRole('button', { name: 'Opções de music@example.test' }).click();
+  await access.getByRole('button', { name: 'Opções de João Silva' }).click();
   await page.getByRole('menuitem', { name: 'Revogar acesso', exact: true }).click();
   await page.getByRole('button', { name: 'Manter acesso', exact: true }).click();
   expect(revocations).toBe(0);
-  await access.getByRole('button', { name: 'Opções de music@example.test' }).click();
+  await access.getByRole('button', { name: 'Opções de João Silva' }).click();
   await page.getByRole('menuitem', { name: 'Revogar acesso', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar revogação', exact: true }).click();
-  await expect(access.getByText('music@example.test', { exact: true })).toHaveCount(0);
+  await expect(access.locator('.sf-musician-member')).toHaveCount(0);
   expect(revocations).toBe(1);
   await access.getByRole('button', { name: 'Fechar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Opções da sessão', exact: true })).toBeFocused();
