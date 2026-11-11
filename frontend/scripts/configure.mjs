@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { loadBuildEnvironment } from './environment.mjs';
 import { parseRuntimeConfig } from '../src/app/core/config/runtime-config.ts';
 
 export function prepareConfig(directory, environment = process.env) {
@@ -26,7 +27,10 @@ export function prepareConfig(directory, environment = process.env) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const state = prepareConfig(fileURLToPath(new URL('../public/', import.meta.url)));
+    const state = prepareConfig(
+      fileURLToPath(new URL('../public/', import.meta.url)),
+      loadBuildEnvironment(fileURLToPath(new URL('../', import.meta.url))),
+    );
     console.log(
       `SingFlow: config.json ${state === 'created' ? 'criado a partir do modelo' : 'preservado'}.`,
     );

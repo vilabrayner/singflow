@@ -1,6 +1,6 @@
 # Preserve API paths and cookies behind the frontend origin.
-/api/*  https://singflow-backend.vercel.app/api/:splat  200
-/actuator/health  https://singflow-backend.vercel.app/actuator/health  200
+/api/*  {{BACKEND_URL}}/api/:splat  200
+/actuator/health  {{BACKEND_URL}}/actuator/health  200
 
 # Angular client-side routing. Keep this rule last.
 /*  /index.html  200

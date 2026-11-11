@@ -13,7 +13,8 @@
     "test:e2e": "playwright test",
     "format:check": "prettier --check src scripts *.json *.ts",
     "format": "prettier --write src scripts *.json *.ts",
-    "test:config": "node --experimental-strip-types --test scripts/configure.test.mjs"
+    "test:config": "node --experimental-strip-types --test scripts/configure.test.mjs scripts/redirects.test.mjs",
+    "postbuild": "node scripts/redirects.mjs"
   },
   "private": true,
   "packageManager": "npm@11.6.2",
