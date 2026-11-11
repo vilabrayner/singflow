@@ -1,3 +1,4 @@
+import { SongSearch } from '../../shared/components/song-search';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { MenuItem } from 'primeng/api';
@@ -28,6 +29,7 @@ type CallSelection = Pick<Suggestion, 'participantId' | 'name' | 'requestId' | '
 @Component({
   selector: 'app-stage-panel',
   imports: [
+    SongSearch,
     ConfirmationDialog,
     OptionsMenu,
     DatePipe,

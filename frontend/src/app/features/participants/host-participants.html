@@ -18,14 +18,12 @@
           required
           [readOnly]="locked()"
       /></label>
-      <label
-        >Primeira música<input
-          pInputText
-          formControlName="title"
-          maxlength="160"
-          required
-          [readOnly]="locked()"
-      /></label>
+      <app-song-search
+        label="Primeira música"
+        [titleControl]="registrationForm.controls.title"
+        [artistControl]="registrationForm.controls.artist"
+        [locked]="locked()"
+      />
       <details class="sf-disclosure">
         <summary>Informações opcionais</summary>
         <div class="host-form">
@@ -34,13 +32,6 @@
               pInputText
               formControlName="tableLabel"
               maxlength="40"
-              [readOnly]="locked()"
-          /></label>
-          <label
-            >Artista (opcional)<input
-              pInputText
-              formControlName="artist"
-              maxlength="160"
               [readOnly]="locked()"
           /></label>
         </div>
@@ -201,22 +192,13 @@
           }
           @if (addingSong()) {
             <form class="host-form" [formGroup]="songForm" (ngSubmit)="addSong()">
-              <label
-                >Nova música<input
-                  id="new-song-title"
-                  pInputText
-                  formControlName="title"
-                  maxlength="160"
-                  required
-                  [readOnly]="locked()"
-              /></label>
-              <label
-                >Artista (opcional)<input
-                  pInputText
-                  formControlName="artist"
-                  maxlength="160"
-                  [readOnly]="locked()"
-              /></label>
+              <app-song-search
+                label="Nova música"
+                [titleControl]="songForm.controls.title"
+                [artistControl]="songForm.controls.artist"
+                [locked]="locked()"
+              />
+
               <div class="sf-dialog-actions">
                 <button
                   type="submit"

@@ -201,21 +201,12 @@
             <p>{{ next.title }}</p>
           } @else {
             <form [formGroup]="songForm" class="host-form">
-              <label
-                >Música escolhida<input
-                  pInputText
-                  formControlName="title"
-                  maxlength="160"
-                  required
-                  [readOnly]="locked()"
-              /></label>
-              <label
-                >Artista da apresentação (opcional)<input
-                  pInputText
-                  formControlName="artist"
-                  maxlength="160"
-                  [readOnly]="locked()"
-              /></label>
+              <app-song-search
+                label="Música escolhida"
+                [titleControl]="songForm.controls.title"
+                [artistControl]="songForm.controls.artist"
+                [locked]="locked()"
+              />
             </form>
           }
           <div class="sf-dialog-actions">

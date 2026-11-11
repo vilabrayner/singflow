@@ -41,24 +41,15 @@
               required
               [readOnly]="busy()"
           /></label>
-          <label
-            >Primeira música<input
-              pInputText
-              formControlName="title"
-              maxlength="160"
-              required
-              [readOnly]="busy()"
-          /></label>
+          <app-song-search
+            label="Primeira música"
+            [titleControl]="joinForm.controls.title"
+            [artistControl]="joinForm.controls.artist"
+            [locked]="busy()"
+          />
           <details class="sf-disclosure">
             <summary>Informações opcionais</summary>
             <div class="host-form">
-              <label
-                >Artista (opcional)<input
-                  pInputText
-                  formControlName="artist"
-                  maxlength="160"
-                  [readOnly]="busy()"
-              /></label>
               <label
                 >Mesa (opcional)<input
                   pInputText
@@ -202,15 +193,13 @@
             uma nova chegada. Pedidos cancelados continuam cancelados.
           </p>
           <form [formGroup]="returnForm" (ngSubmit)="returnToQueue()" class="host-form">
-            <label
-              >Música para voltar<input pInputText formControlName="title" maxlength="160" required
-            /></label>
-            <label
-              >Artista do retorno (opcional)<input
-                pInputText
-                formControlName="artist"
-                maxlength="160"
-            /></label>
+            <app-song-search
+              label="Música para voltar"
+              [titleControl]="returnForm.controls.title"
+              [artistControl]="returnForm.controls.artist"
+              [locked]="busy()"
+            />
+
             <p-button
               label="Voltar com esta música"
               type="submit"
@@ -305,21 +294,13 @@
         (dismissed)="closeSongForm()"
       >
         <form [formGroup]="songForm" (ngSubmit)="add()" class="host-form">
-          <label
-            >Música<input
-              pInputText
-              formControlName="title"
-              maxlength="160"
-              required
-              [readOnly]="busy()"
-          /></label>
-          <label
-            >Artista (opcional)<input
-              pInputText
-              formControlName="artist"
-              maxlength="160"
-              [readOnly]="busy()"
-          /></label>
+          <app-song-search
+            label="Música"
+            [titleControl]="songForm.controls.title"
+            [artistControl]="songForm.controls.artist"
+            [locked]="busy()"
+          />
+
           <div class="sf-dialog-actions">
             <button
               type="submit"
