@@ -21,13 +21,15 @@ class SecurityConfiguration {
   @Bean
   UserDetailsService userDetailsService(JdbcClient jdbc) {
     return email ->
-        jdbc.sql("SELECT email, password_hash FROM singflow.host_accounts WHERE email = :email")
+        jdbc.sql(
+                "SELECT email, password_hash, role FROM singflow.host_accounts WHERE email ="
+                    + " :email")
             .param("email", email.trim().toLowerCase(java.util.Locale.ROOT))
             .query(
                 (rs, row) ->
                     User.withUsername(rs.getString("email"))
                         .password(rs.getString("password_hash"))
-                        .roles("HOST")
+                        .roles(rs.getString("role"))
                         .build())
             .optional()
             .orElseThrow(() -> new UsernameNotFoundException("Credenciais inválidas"));
@@ -48,8 +50,9 @@ class SecurityConfiguration {
                 .permitAll();
           }
           access
-              .requestMatchers("/api/auth/me", "/api/sessions", "/api/sessions/**")
-              .hasRole("HOST");
+              .requestMatchers("/api/auth/me", "/api/musicians/**")
+              .hasAnyRole("HOST", "MUSICIAN");
+          access.requestMatchers("/api/sessions", "/api/sessions/**").hasRole("HOST");
           access.anyRequest().denyAll();
         });
     http.formLogin(

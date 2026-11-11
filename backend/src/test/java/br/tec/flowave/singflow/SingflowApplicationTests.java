@@ -34,7 +34,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(10);
+    assertThat(flyway.info().applied()).hasSize(11);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -95,6 +95,156 @@ class SingflowApplicationTests {
     mvc.perform(post("/api/auth/logout").session(session).with(csrf()))
         .andExpect(status().isNoContent());
     mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+  }
+
+  @Autowired br.tec.flowave.singflow.identity.AccountAccess accounts;
+  @Autowired br.tec.flowave.singflow.musicians.MusicianAccess musicianAccess;
+
+  @Test
+  void musicianRegistersAndLogsInWithoutReceivingHostPermissions() throws Exception {
+    String email = UUID.randomUUID() + "@example.test";
+    String body = "{\"email\":\"" + email + "\",\"password\":\"musician-password-2026\"}";
+    mvc.perform(
+            post("/api/public/musicians/register").contentType("application/json").content(body))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post("/api/public/musicians/register")
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isNoContent());
+    mvc.perform(
+            post("/api/public/musicians/register")
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isConflict());
+    assertThat(
+            jdbc.sql("SELECT role FROM singflow.host_accounts WHERE email=?")
+                .param(email)
+                .query(String.class)
+                .single())
+        .isEqualTo("MUSICIAN");
+    var login =
+        mvc.perform(
+                post("/api/auth/login")
+                    .with(csrf())
+                    .param("email", email)
+                    .param("password", "musician-password-2026"))
+            .andExpect(status().isNoContent())
+            .andReturn();
+    var browser = (MockHttpSession) login.getRequest().getSession(false);
+    mvc.perform(get("/api/auth/me").session(browser))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.role").value("MUSICIAN"));
+    mvc.perform(get("/api/musicians/sessions").session(browser))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
+    mvc.perform(get("/api/sessions").session(browser)).andExpect(status().isForbidden());
+    mvc.perform(
+            post("/api/sessions")
+                .session(browser)
+                .with(csrf())
+                .contentType("application/json")
+                .content("{}"))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void musicianAccessIsSessionScopedReadOnlyAndRevocationSurvivesGrantRetries() throws Exception {
+    String owner = host(), other = host();
+    String email = UUID.randomUUID() + "@example.test";
+    accounts.registerMusician(email, "musician-password-2026");
+    UUID session = UUID.randomUUID(), otherSession = UUID.randomUUID();
+    createOpen(session, owner);
+    createOpen(otherSession, other);
+    enroll(session, owner, "Ana");
+    enroll(session, owner, "Bruno");
+    UUID operation = UUID.randomUUID();
+    String path = "/api/sessions/" + session + "/musicians";
+    String body = "{\"operationId\":\"" + operation + "\",\"email\":\"" + email + "\"}";
+    mvc.perform(
+            post(path)
+                .with(user(email).roles("MUSICIAN"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post(path)
+                .with(user(other).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isNotFound());
+    mvc.perform(
+            post(path)
+                .with(user(owner).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(body))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1));
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      var first = executor.submit(() -> musicianAccess.grant(session, owner, operation, email));
+      var second = executor.submit(() -> musicianAccess.grant(session, owner, operation, email));
+      assertThat(first.get(10, TimeUnit.SECONDS)).hasSize(1);
+      assertThat(second.get(10, TimeUnit.SECONDS)).hasSize(1);
+    }
+    mvc.perform(get("/api/musicians/sessions").with(user(email).roles("MUSICIAN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1));
+    String view = "/api/musicians/sessions/" + session;
+    mvc.perform(get(view).with(user(email).roles("MUSICIAN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.stage.suggestions.length()").value(2));
+    var called = callNext(session, owner);
+    mvc.perform(get(view).with(user(email).roles("MUSICIAN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.stage.active.participantName").value("Ana"));
+    mvc.perform(get("/api/musicians/sessions/" + otherSession).with(user(email).roles("MUSICIAN")))
+        .andExpect(status().isNotFound());
+    mvc.perform(
+            post("/api/sessions/" + session + "/stage/calls/" + called.id() + "/resolve")
+                .with(user(email).roles("MUSICIAN"))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"outcome\":\"COMPLETED\"}"))
+        .andExpect(status().isForbidden());
+    stage.resolve(session, owner, called.id(), "COMPLETED");
+    mvc.perform(get(view).with(user(email).roles("MUSICIAN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.stage.history[0].status").value("COMPLETED"));
+    mvc.perform(
+            post(path + "/revoke")
+                .with(user(owner).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"email\":\"" + email + "\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
+    musicianAccess.grant(session, owner, operation, email);
+    mvc.perform(get(view).with(user(email).roles("MUSICIAN"))).andExpect(status().isNotFound());
+    mvc.perform(get("/api/musicians/sessions").with(user(email).roles("MUSICIAN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='MUSICIAN_ACCESS_GRANTED'")
+                .param(session)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='MUSICIAN_ACCESS_REVOKED'")
+                .param(session)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+    assertThat(musicianAccess.grant(session, owner, UUID.randomUUID(), email)).hasSize(1);
   }
 
   @Test

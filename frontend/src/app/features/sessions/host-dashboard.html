@@ -258,6 +258,9 @@
             </div>
           </app-confirmation-dialog>
         }
+        @if (showingMusicians() && session.status === 'OPEN') {
+          <app-session-musicians [session]="session.id" (dismissed)="showingMusicians.set(false)" />
+        }
       </app-surface-card>
     </div>
     @if (session.status !== 'DRAFT') {

@@ -1,6 +1,6 @@
 package br.tec.flowave.singflow.identity.endpoints;
 
-import java.security.Principal;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 
@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 class AuthEndpoints {
   record CsrfView(String token, String headerName) {}
 
-  record HostView(String email) {}
+  record HostView(String email, String role) {}
 
   @GetMapping("/csrf")
   CsrfView csrf(CsrfToken token) {
@@ -17,7 +17,11 @@ class AuthEndpoints {
   }
 
   @GetMapping("/me")
-  HostView me(Principal principal) {
-    return new HostView(principal.getName());
+  HostView me(Authentication principal) {
+    String role =
+        principal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_HOST"))
+            ? "HOST"
+            : "MUSICIAN";
+    return new HostView(principal.getName(), role);
   }
 }

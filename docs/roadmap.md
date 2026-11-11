@@ -116,11 +116,13 @@ Aceite: tarefas principais claras em desktop e celular, operação por teclado, 
 
 Padrão transversal autorizado em 10/11/2026: [menus flutuantes e diálogos de confirmação](interaction-patterns.md) compartilhados entre os painéis.
 
-## Etapa 3C — Experiência do músico (proposta a revisar)
+## Etapa 3C — Experiência do músico (primeiro incremento implementado)
 
-Definir acesso e permissões do músico e a informação necessária durante o evento. Proposta inicial: sessão e convocação confirmada em destaque, música/artista e estado atualizado, sem expor ações administrativas do anfitrião. Definir com o responsável quais ações, se houver, pertencem a esse perfil antes de implementar.
+O músico faz cadastro e login próprios. O anfitrião libera ou revoga o acesso à sessão pelo e-mail da conta. O painel de consulta apresenta convocação atual, música/artista, confirmação de ida, fila sugerida completa, busca e histórico, seguindo os componentes e a identidade visual dos demais painéis.
 
-Aceite a detalhar: informação consistente com a convocação oficial, privacidade e autorização por perfil, estados de conexão compreensíveis e interface acessível. Pode começar com consultas REST e receber WebSocket na etapa 4; não depende de aprovar todo o catálogo para revisar esse painel.
+Atualização por consultas REST a cada quatro segundos enquanto a página está visível. A migration V11 acrescenta papéis às credenciais existentes e liberações auditadas por sessão. O cadastro público cria somente o papel MUSICIAN. O [roteiro do músico](acceptance/005-musician-flow.md) descreve o ensaio e as verificações de permissão.
+
+Os painéis do anfitrião e do participante receberam aceite manual na conversa antes deste incremento. A conclusão pelo anfitrião continua contabilizando a apresentação e liberando a fila mesmo quando o participante não confirma a ida.
 
 ## Etapa 4 — Catálogo híbrido e tempo real
 

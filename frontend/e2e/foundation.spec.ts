@@ -9,7 +9,7 @@ test('navigates all experiences and supports direct URLs without overflow', asyn
   for (const [label, path, heading] of [
     ['Participante', '/participante', 'Sua próxima música começa aqui.'],
     ['Anfitrião', '/anfitriao', 'Entrar como anfitrião'],
-    ['Músico', '/musico', 'Em sintonia com cada voz.'],
+    ['Músico', '/musico', 'Entrar como músico'],
   ]) {
     await page.goto('/');
     await page

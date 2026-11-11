@@ -4,7 +4,17 @@ import { RouterLink } from '@angular/router';
 @Component({
   selector: 'app-panel-header',
   imports: [RouterLink],
-  styles: ':host { display: block; position: sticky; top: 0; z-index: 20; }',
+  styles: `
+    :host {
+      display: block;
+      height: var(--sf-header-height, 73px);
+    }
+    .sf-panel-header {
+      position: fixed;
+      inset: 0 0 auto;
+      z-index: 20;
+    }
+  `,
   template: `
     <header class="sf-panel-header">
       <div class="sf-header-inner">

@@ -1,27 +1,35 @@
 <a
   class="skip-link"
   [attr.href]="
-    hostPanel() ? '#host-content' : participantPanel() ? '#participant-content' : '#main'
+    hostPanel()
+      ? '#host-content'
+      : participantPanel()
+        ? '#participant-content'
+        : musicianPanel()
+          ? '#musician-content'
+          : '#main'
   "
   >Pular para o conteúdo</a
 >
 @if (!compactPanel()) {
-  <header class="site-header">
-    <a class="brand" routerLink="/" aria-label="SingFlow, início"
-      ><span class="brand-symbol" aria-hidden="true"><i class="pi pi-microphone"></i></span
-      ><span>Sing<span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></a
-    >
-    <nav aria-label="Experiências" class="main-nav">
-      <a routerLink="/participante" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Participante</a
+  <div class="sf-site-header-space">
+    <header class="site-header">
+      <a class="brand" routerLink="/" aria-label="SingFlow, início"
+        ><span class="brand-symbol" aria-hidden="true"><i class="pi pi-microphone"></i></span
+        ><span>Sing<span class="brand-flow">Flow</span><span class="brand-dot">.</span></span></a
       >
-      <a routerLink="/anfitriao" routerLinkActive="active" ariaCurrentWhenActive="page"
-        >Anfitrião</a
-      >
-      <a routerLink="/musico" routerLinkActive="active" ariaCurrentWhenActive="page">Músico</a>
-    </nav>
-    <span class="foundation-label"><span aria-hidden="true"></span>Em construção</span>
-  </header>
+      <nav aria-label="Experiências" class="main-nav">
+        <a routerLink="/participante" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Participante</a
+        >
+        <a routerLink="/anfitriao" routerLinkActive="active" ariaCurrentWhenActive="page"
+          >Anfitrião</a
+        >
+        <a routerLink="/musico" routerLinkActive="active" ariaCurrentWhenActive="page">Músico</a>
+      </nav>
+      <span class="foundation-label"><span aria-hidden="true"></span>Em construção</span>
+    </header>
+  </div>
 }
 <main id="main" tabindex="-1"><router-outlet /></main>
 @if (!compactPanel()) {

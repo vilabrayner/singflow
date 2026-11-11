@@ -1,0 +1,244 @@
+<app-panel-header>
+  @if (email()) {
+    <app-options-menu
+      buttonId="musician-options"
+      label="Opções do músico"
+      [items]="menu()"
+      [disabled]="locked()"
+    />
+  }
+</app-panel-header>
+<section
+  id="musician-content"
+  tabindex="-1"
+  class="sf-host-shell sf-musician-panel"
+  aria-label="Painel do músico"
+>
+  @if (error()) {
+    <p class="sf-dialog-error" role="alert">{{ error() }}</p>
+  }
+  @if (!ready()) {
+    <p role="status">Carregando seu painel…</p>
+  } @else if (!email()) {
+    <div class="sf-centered-state">
+      <app-surface-card labelledBy="musician-login-title">
+        <h1 id="musician-login-title">
+          {{ signingUp() ? 'Criar conta de músico' : 'Entrar como músico' }}
+        </h1>
+        <p>
+          {{
+            signingUp()
+              ? 'Crie sua conta e peça ao anfitrião para liberar a sessão pelo seu e-mail.'
+              : 'Use sua conta para acompanhar o palco e preparar as próximas músicas.'
+          }}
+        </p>
+        <form class="host-form" [formGroup]="form" (ngSubmit)="login()">
+          <label
+            >E-mail<input
+              pInputText
+              type="email"
+              formControlName="email"
+              autocomplete="username"
+              maxlength="254"
+              required
+              [readOnly]="busy()"
+          /></label>
+          <label>Senha</label>
+          <div class="sf-password-field">
+            <input
+              pInputText
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="password"
+              [autocomplete]="signingUp() ? 'new-password' : 'current-password'"
+              required
+              [readOnly]="busy()"
+              aria-label="Senha"
+            />
+            <button
+              type="button"
+              class="sf-icon-button"
+              [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'"
+              [attr.aria-pressed]="showPassword()"
+              [disabled]="busy()"
+              (click)="showPassword.set(!showPassword())"
+            >
+              <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
+            </button>
+          </div>
+          @if (signingUp()) {
+            <p>Use uma senha com pelo menos 12 caracteres.</p>
+          }
+          <button
+            type="submit"
+            class="sf-button sf-primary sf-full"
+            [disabled]="form.invalid || locked()"
+          >
+            {{ signingUp() ? 'Criar minha conta' : 'Entrar' }}
+          </button>
+          <button
+            type="button"
+            class="sf-button sf-text sf-full"
+            [disabled]="busy()"
+            (click)="toggleRegistration()"
+          >
+            {{ signingUp() ? 'Já tenho conta' : 'Criar conta de músico' }}
+          </button>
+        </form>
+      </app-surface-card>
+    </div>
+  } @else {
+    @if (disconnected()) {
+      <p role="status">
+        Sem confirmação de atualização. Confira a conexão antes de seguir o palco.
+      </p>
+    }
+    @if (selected(); as session) {
+      <app-surface-card labelledBy="musician-session-title">
+        <h1 id="musician-session-title">{{ session.name }}</h1>
+        <app-status-badge [tone]="session.status === 'OPEN' ? 'positive' : 'neutral'">{{
+          session.status === 'OPEN' ? 'Sessão aberta' : 'Sessão encerrada'
+        }}</app-status-badge>
+        @if (updatedAt(); as updated) {
+          <p>Atualizado às {{ updated | date: 'HH:mm:ss' }}</p>
+        }
+      </app-surface-card>
+    }
+    @if (performance(); as view) {
+      <app-surface-card labelledBy="musician-stage-title">
+        <h2 id="musician-stage-title">No palco</h2>
+        @if (view.stage.active; as call) {
+          <div class="sf-musician-current" role="status" aria-live="polite">
+            <app-status-badge [tone]="call.acceptedAt ? 'positive' : 'attention'">{{
+              call.acceptedAt ? 'Ida confirmada' : 'Convocado pelo anfitrião'
+            }}</app-status-badge>
+            <h3>{{ call.participantName }}</h3>
+            <p class="sf-call-song">{{ call.title || 'Música a definir com o anfitrião' }}</p>
+            @if (call.artist) {
+              <p>{{ call.artist }}</p>
+            }
+          </div>
+        } @else {
+          <p>
+            {{
+              view.session.status === 'OPEN'
+                ? 'Aguardando a próxima convocação do anfitrião.'
+                : 'Esta sessão foi encerrada.'
+            }}
+          </p>
+        }
+      </app-surface-card>
+      <app-surface-card labelledBy="musician-queue-title">
+        <h2 id="musician-queue-title">Próximas músicas</h2>
+        <p>Fila sugerida completa. A ordem pode mudar até o anfitrião confirmar a convocação.</p>
+        <label class="host-search"
+          >Buscar na fila<input
+            pInputText
+            type="search"
+            placeholder="Nome, música ou artista"
+            [value]="search()"
+            (input)="search.set($any($event.target).value)"
+        /></label>
+        <ol class="sf-queue-list">
+          @for (suggestion of queue(); track suggestion.participantId; let index = $index) {
+            <li>
+              <div class="sf-queue-line">
+                <span class="sf-queue-number" aria-hidden="true">{{
+                  search() ? '·' : index + 1
+                }}</span>
+                <div class="sf-queue-person">
+                  <strong>{{ suggestion.name }}</strong>
+                  <span>{{ suggestion.title || 'Música a escolher' }}</span>
+                  @if (suggestion.artist) {
+                    <small>{{ suggestion.artist }}</small>
+                  }
+                </div>
+              </div>
+            </li>
+          } @empty {
+            <li>
+              {{
+                search() ? 'Nenhum resultado na fila.' : 'Ainda não há próximas músicas sugeridas.'
+              }}
+            </li>
+          }
+        </ol>
+      </app-surface-card>
+    } @else if (!loading()) {
+      <app-surface-card labelledBy="musician-empty-title">
+        <h1 id="musician-empty-title">Aguardando uma sessão</h1>
+        <p>Peça ao anfitrião para liberar o acesso usando {{ email() }}.</p>
+        <button type="button" class="sf-button sf-outline sf-full" (click)="load()">
+          Atualizar sessões
+        </button>
+      </app-surface-card>
+    }
+  }
+</section>
+@if (choosingSession()) {
+  <app-confirmation-dialog
+    title="Escolher sessão"
+    returnFocus="musician-options"
+    (dismissed)="choosingSession.set(false)"
+  >
+    <ul class="sf-people-list sf-dialog-list">
+      @for (session of sessions(); track session.id) {
+        <li>
+          <button
+            type="button"
+            class="sf-person-row"
+            [disabled]="locked()"
+            (click)="select(session)"
+          >
+            <span
+              ><strong>{{ session.name }}</strong
+              ><span>{{ session.status === 'OPEN' ? 'Aberta' : 'Encerrada' }}</span></span
+            >
+            <i class="pi pi-chevron-right" aria-hidden="true"></i>
+          </button>
+        </li>
+      } @empty {
+        <li>Nenhuma sessão liberada.</li>
+      }
+    </ul>
+    <div class="sf-dialog-actions">
+      <button
+        type="button"
+        class="sf-button sf-outline sf-full"
+        (click)="choosingSession.set(false)"
+      >
+        Fechar
+      </button>
+    </div>
+  </app-confirmation-dialog>
+}
+@if (showingHistory()) {
+  <app-confirmation-dialog
+    title="Histórico do palco"
+    returnFocus="musician-options"
+    (dismissed)="showingHistory.set(false)"
+  >
+    <div class="stage-history" role="region" aria-label="Registros do palco" tabindex="0">
+      @for (call of performance()?.stage?.history ?? []; track call.id) {
+        <article>
+          <strong>{{ call.participantName }}</strong>
+          <p>{{ call.title || 'Música não definida' }}</p>
+          <app-status-badge [tone]="call.status === 'COMPLETED' ? 'positive' : 'neutral'">{{
+            labels(call.status)
+          }}</app-status-badge>
+          <p>{{ call.resolvedAt | date: 'HH:mm' }}</p>
+        </article>
+      } @empty {
+        <p>Nenhuma convocação resolvida.</p>
+      }
+    </div>
+    <div class="sf-dialog-actions">
+      <button
+        type="button"
+        class="sf-button sf-outline sf-full"
+        (click)="showingHistory.set(false)"
+      >
+        Fechar
+      </button>
+    </div>
+  </app-confirmation-dialog>
+}

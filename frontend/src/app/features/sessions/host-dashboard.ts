@@ -1,6 +1,7 @@
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { MenuItem } from 'primeng/api';
+import { SessionMusicians } from '../musicians/session-musicians';
 import { MenuPopover } from '../../shared/components/menu-popover';
 import { OptionsMenu } from '../../shared/components/options-menu';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
@@ -34,6 +35,7 @@ import { apiError } from '../../core/http/api-client';
     ConfirmationDialog,
     OptionsMenu,
     MenuPopover,
+    SessionMusicians,
     ReactiveFormsModule,
     InputTextModule,
     StagePanel,
@@ -87,6 +89,7 @@ export class HostDashboard implements OnInit {
   readonly participants = signal<Participant[]>([]);
   readonly requests = signal<import('./session-api').SongRequest[]>([]);
   readonly confirmingClose = signal(false);
+  readonly showingMusicians = signal(false);
   readonly sessionMenuItems = computed<MenuItem[]>(() => [
     {
       label: 'Atualizar',
@@ -94,6 +97,16 @@ export class HostDashboard implements OnInit {
       disabled: this.locked(),
       command: () => void this.refresh(),
     },
+    ...(this.selected()?.status === 'OPEN'
+      ? [
+          {
+            label: 'Músicos',
+            icon: 'pi pi-headphones',
+            disabled: this.locked(),
+            command: () => this.showingMusicians.set(true),
+          },
+        ]
+      : []),
     ...(this.selected()?.status !== 'CLOSED'
       ? [
           {
@@ -171,6 +184,7 @@ export class HostDashboard implements OnInit {
     }
   }
   private clearSession() {
+    this.showingMusicians.set(false);
     this.participantBusy.set(false);
     this.stageBusy.set(false);
     this.selected.set(null);
@@ -219,6 +233,7 @@ export class HostDashboard implements OnInit {
     this.focus('session-options-button');
   }
   beginCreate() {
+    this.showingMusicians.set(false);
     this.previousSession = this.selected();
     this.creatingSession.set(true);
     this.accountOptions.set(false);
@@ -269,6 +284,7 @@ export class HostDashboard implements OnInit {
     });
   }
   private async loadSession(session: KaraokeSession) {
+    if (session.id !== this.selected()?.id) this.showingMusicians.set(false);
     const [participants, requests] = await Promise.all([
       this.api.participants(session.id),
       this.api.requests(session.id),

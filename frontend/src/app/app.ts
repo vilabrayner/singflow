@@ -24,7 +24,10 @@ export class App {
   readonly participantPanel = computed(() =>
     /^\/participante\/[^/]+\/[^/]+$/.test(this.routePath()),
   );
-  readonly compactPanel = computed(() => this.hostPanel() || this.participantPanel());
+  readonly musicianPanel = computed(() => this.routePath() === '/musico');
+  readonly compactPanel = computed(
+    () => this.hostPanel() || this.participantPanel() || this.musicianPanel(),
+  );
 
   constructor() {
     afterRenderEffect((onCleanup) => {

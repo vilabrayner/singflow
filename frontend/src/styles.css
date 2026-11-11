@@ -50,9 +50,12 @@ button:focus-visible {
 .skip-link:focus {
   top: 10px;
 }
+.sf-site-header-space {
+  height: var(--sf-header-height, 94px);
+}
 .site-header {
-  position: sticky;
-  top: 0;
+  position: fixed;
+  inset: 0 0 auto;
   z-index: 20;
   min-height: 94px;
   padding: 20px 5vw;

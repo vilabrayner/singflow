@@ -741,3 +741,42 @@
   border-bottom: 0;
   padding-bottom: 0;
 }
+
+.sf-musician-panel {
+  display: grid;
+  gap: 20px;
+}
+.sf-musician-current h3 {
+  font-size: clamp(26px, 7vw, 36px);
+  margin: 20px 0 12px;
+  overflow-wrap: anywhere;
+}
+.sf-musician-current .sf-call-song {
+  font-size: 22px;
+  color: var(--sf-navy);
+  font-weight: 750;
+}
+.sf-musician-member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sf-musician-member > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sf-musician-panel label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 750;
+}
+.sf-musician-panel input {
+  width: 100%;
+  min-width: 0;
+}
+.sf-musician-panel .sf-queue-person {
+  cursor: default;
+}
