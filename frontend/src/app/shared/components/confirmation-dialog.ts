@@ -24,7 +24,7 @@ import { DialogModule } from 'primeng/dialog';
       [focusTrap]="false"
       [focusOnShow]="false"
       appendTo="body"
-      styleClass="sf-confirm-dialog"
+      [styleClass]="fullscreen() ? 'sf-confirm-dialog sf-song-fullscreen' : 'sf-confirm-dialog'"
       (onShow)="focusTitle()"
     >
       <ng-template #headless>
@@ -42,6 +42,7 @@ import { DialogModule } from 'primeng/dialog';
             }
             <ng-content />
           </div>
+          <ng-content select="[dialog-footer]" />
         </div>
       </ng-template>
     </p-dialog>
@@ -49,6 +50,7 @@ import { DialogModule } from 'primeng/dialog';
 })
 export class ConfirmationDialog implements OnDestroy {
   readonly title = input.required<string>();
+  readonly fullscreen = input(false);
   readonly busy = input(false);
   readonly error = input('');
   readonly returnFocus = input<string>();

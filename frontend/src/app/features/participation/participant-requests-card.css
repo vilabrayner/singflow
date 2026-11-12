@@ -1,0 +1,138 @@
+h2 {
+  margin: 0 0 16px;
+}
+.choices-help {
+  color: var(--sf-muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 16px 0;
+}
+.choices-list {
+  display: grid;
+  gap: 12px;
+}
+.choice-panel {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+}
+.choice-grip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  cursor: grab;
+  touch-action: none;
+  color: var(--sf-muted);
+}
+.choice-grip:active {
+  cursor: grabbing;
+}
+.choice-grip-disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.choice-number {
+  font-size: 14px;
+  font-weight: 800;
+  position: absolute;
+  top: 9px;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  line-height: 24px;
+  color: var(--sf-muted);
+}
+.choice-actions {
+  display: flex;
+  gap: 8px;
+}
+.choice-actions .sf-icon-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--sf-navy);
+}
+.choice-actions .sf-icon-button:hover:not(:disabled) {
+  background: #f4f6fa;
+  border-color: #aeb7c6;
+}
+.choice-actions .choice-cancel {
+  color: #b42318;
+  border-color: #efcfcc;
+  background: #fff7f6;
+}
+.choice-actions .choice-cancel:hover:not(:disabled) {
+  background: #ffebe9;
+  border-color: #dba6a1;
+}
+.choice-fixed {
+  grid-template-columns: 24px minmax(0, 1fr);
+  margin-bottom: 12px;
+}
+.choice-fixed > i {
+  margin-top: 12px;
+  color: var(--sf-muted);
+}
+.cdk-drag-preview {
+  box-shadow: 0 8px 24px #0b1e3f26;
+}
+.cdk-drag-placeholder {
+  opacity: 0.25;
+}
+.cdk-drag-animating {
+  transition: transform 180ms ease;
+}
+@media (max-width: 480px) {
+  .choice-panel {
+    grid-template-columns: 20px minmax(0, 1fr) 44px;
+    gap: 6px;
+    padding: 12px 10px;
+  }
+  .choice-actions {
+    flex-direction: column;
+  }
+  .choice-fixed {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cdk-drag-animating {
+    transition: none;
+  }
+}
+
+/* Full-height drag rail on pending choices that can be reordered. */
+.choice-panel.choice-reorderable {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+}
+.choice-reorderable .choice-grip {
+  align-self: stretch;
+  margin: -16px 0 -16px -12px;
+  background: #e7ebf2;
+  color: var(--sf-muted);
+  border-radius: 11px 0 0 11px;
+}
+.choice-reorderable .choice-grip:focus-visible {
+  outline: 2px solid var(--sf-purple);
+  outline-offset: -5px;
+}
+@media (max-width: 480px) {
+  .choice-panel.choice-reorderable {
+    grid-template-columns: 34px minmax(0, 1fr) 44px;
+  }
+  .choice-reorderable .choice-grip {
+    margin: -12px 0 -12px -10px;
+  }
+}
+
+.choice-reorderable .choice-number {
+  top: 25px;
+}
+@media (max-width: 480px) {
+  .choice-reorderable .choice-number {
+    top: 21px;
+  }
+}

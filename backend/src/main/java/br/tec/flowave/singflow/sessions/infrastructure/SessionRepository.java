@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.*;
 public interface SessionRepository extends JpaRepository<KaraokeSession, UUID> {
   List<KaraokeSession> findByOwnerOrderByCreatedAtDesc(String owner);
 
+  List<KaraokeSession> findAllByOrderByCreatedAtDesc();
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select s from KaraokeSession s where s.id = :id and s.owner = :owner")
   Optional<KaraokeSession> lockOwned(UUID id, String owner);

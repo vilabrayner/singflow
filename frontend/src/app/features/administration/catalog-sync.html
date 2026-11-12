@@ -1,0 +1,449 @@
+<app-surface-card labelledBy="catalog-sync-title">
+  <div class="admin-card-heading">
+    <div class="sync-heading">
+      <button
+        type="button"
+        class="sf-icon-button"
+        aria-label="Voltar ao catálogo"
+        [disabled]="busy()"
+        (click)="closed.emit()"
+      >
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+      </button>
+      <h1 id="catalog-sync-title" tabindex="-1">Sincronizar provisórias</h1>
+    </div>
+    <button
+      type="button"
+      class="sf-icon-button"
+      aria-label="Atualizar sincronização"
+      [disabled]="loading() || busy()"
+      (click)="loadRuns()"
+    >
+      <i class="pi pi-refresh" aria-hidden="true"></i>
+    </button>
+  </div>
+  <p class="admin-intro">
+    Acompanhe as aprovações automáticas e revise as músicas que precisarem de você.
+  </p>
+  @if (error() && !starting()) {
+    <p role="alert" class="sf-dialog-error">{{ error() }}</p>
+  }
+  @if (runs().length > 1) {
+    <label class="host-form" for="sync-run"
+      >Lote de sincronização<select
+        id="sync-run"
+        class="admin-select"
+        [value]="runId()"
+        (change)="selectRun($any($event.target).value)"
+        [disabled]="busy()"
+      >
+        @for (run of runs(); track run.id) {
+          <option [value]="run.id">
+            {{ run.createdAt | date: 'dd/MM HH:mm' }} · {{ status(run.status) }}
+          </option>
+        }
+      </select></label
+    >
+    <p class="sync-help">Últimos 20 lotes.</p>
+  }
+  <div class="sync-controls">
+    <button
+      type="button"
+      class="sf-button sf-primary sf-full"
+      [disabled]="active() || busy() || loading()"
+      (click)="askStart()"
+    >
+      <i class="pi pi-sync" aria-hidden="true"></i>Iniciar sincronização
+    </button>
+    @if (progress()?.run?.status === 'RUNNING') {
+      <button
+        type="button"
+        class="sf-button sf-outline sf-full"
+        [disabled]="busy()"
+        (click)="control('pause')"
+      >
+        <i class="pi pi-pause" aria-hidden="true"></i>Pausar
+      </button>
+    }
+    @if (progress()?.run?.status === 'PAUSED') {
+      <button
+        type="button"
+        class="sf-button sf-outline sf-full"
+        [disabled]="busy()"
+        (click)="control('resume')"
+      >
+        <i class="pi pi-play" aria-hidden="true"></i>Retomar
+      </button>
+    }
+  </div>
+  @if (progress(); as progress) {
+    <div class="sync-state">
+      <app-status-badge [tone]="progress.run.status === 'RUNNING' ? 'attention' : 'neutral'">{{
+        status(progress.run.status)
+      }}</app-status-badge
+      ><span>Iniciado em {{ progress.run.createdAt | date: 'dd/MM HH:mm' }}</span>
+    </div>
+    @if (progress.run.message) {
+      <p role="status">{{ progress.run.message }}</p>
+    }
+    <p class="sync-progress-text" role="status" aria-live="polite">
+      {{ progress.counts.processed }} de {{ progress.counts.total }} processadas · {{ percent() }}%
+    </p>
+    <div
+      class="sync-progress"
+      role="progressbar"
+      aria-label="Progresso da sincronização"
+      [attr.aria-valuenow]="progress.counts.processed"
+      [attr.aria-valuemin]="0"
+      [attr.aria-valuemax]="progress.counts.total || 1"
+    >
+      <span [style.width.%]="percent()"></span>
+    </div>
+    <dl class="sync-counts">
+      <div>
+        <dt>Automáticas</dt>
+        <dd>{{ progress.counts.automatic }}</dd>
+      </div>
+      <div>
+        <dt>Revisadas pelo admin</dt>
+        <dd>{{ progress.counts.approved }}</dd>
+      </div>
+      <div>
+        <dt>Precisam de revisão</dt>
+        <dd>{{ progress.counts.review }}</dd>
+      </div>
+      <div>
+        <dt>Falhas</dt>
+        <dd>{{ progress.counts.failed }}</dd>
+      </div>
+    </dl>
+    @if (progress.currentTitle) {
+      <p role="status">
+        Consultando: <strong>{{ progress.currentTitle }}</strong>
+      </p>
+    }
+    @if (progress.counts.skipped) {
+      <p class="sync-help">
+        {{ progress.counts.skipped }} cadastro(s) alterado(s) fora deste lote foram preservados.
+      </p>
+    }
+    @if (progress.run.status === 'COMPLETED') {
+      <p>As consultas terminaram. As músicas abaixo podem continuar aguardando sua revisão.</p>
+    }
+    <div class="sync-tabs" aria-label="Resultados da sincronização">
+      <button
+        type="button"
+        class="sf-button"
+        [class.sf-primary]="view() === 'activity'"
+        [class.sf-outline]="view() !== 'activity'"
+        [attr.aria-pressed]="view() === 'activity'"
+        [disabled]="busy()"
+        (click)="setView('activity')"
+      >
+        Atividade</button
+      ><button
+        type="button"
+        class="sf-button"
+        [class.sf-primary]="view() === 'review'"
+        [class.sf-outline]="view() !== 'review'"
+        [attr.aria-pressed]="view() === 'review'"
+        [disabled]="busy()"
+        (click)="setView('review')"
+      >
+        Precisam de revisão
+      </button>
+    </div>
+    <ul
+      class="sf-people-list"
+      [attr.aria-label]="
+        view() === 'activity' ? 'Atividade da sincronização' : 'Músicas para revisão'
+      "
+      [attr.aria-busy]="loading()"
+    >
+      @for (item of rows(); track item.id) {
+        <li>
+          <button
+            type="button"
+            class="sf-person-row admin-collection-row"
+            [disabled]="busy()"
+            (click)="open(item)"
+          >
+            <i
+              class="pi admin-avatar"
+              [class.pi-check]="item.state === 'AUTO_APPROVED'"
+              [class.pi-headphones]="item.state !== 'AUTO_APPROVED'"
+              aria-hidden="true"
+            ></i
+            ><span class="admin-person-copy"
+              ><strong>{{ item.title }}</strong
+              ><span>{{ item.artist || 'Artista não informado' }}</span
+              ><span class="admin-item-meta"
+                ><app-status-badge [tone]="tone(item.state)">{{
+                  status(item.state)
+                }}</app-status-badge></span
+              ><span class="sync-item-message">{{ item.message }}</span></span
+            ><i class="pi pi-chevron-right admin-row-arrow" aria-hidden="true"></i>
+          </button>
+        </li>
+      } @empty {
+        <li class="admin-empty-state">
+          <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-sync"></i></span>
+          <h2>
+            {{
+              view() === 'review' ? 'Nenhuma música aguardando revisão.' : 'Aguardando resultados.'
+            }}
+          </h2>
+          <p>
+            {{
+              view() === 'review'
+                ? 'Novas correspondências aparecerão aqui.'
+                : 'Os resultados serão exibidos conforme as consultas terminarem.'
+            }}
+          </p>
+        </li>
+      }
+    </ul>
+    @if (total() > 20) {
+      <div class="admin-pagination">
+        <button
+          type="button"
+          class="sf-button sf-outline"
+          [disabled]="page() === 0 || loading() || busy()"
+          (click)="paginate(page() - 1)"
+        >
+          Anterior</button
+        ><span>Página {{ page() + 1 }}</span
+        ><button
+          type="button"
+          class="sf-button sf-outline"
+          [disabled]="(page() + 1) * 20 >= total() || loading() || busy()"
+          (click)="paginate(page() + 1)"
+        >
+          Próxima
+        </button>
+      </div>
+    }
+  } @else if (loading()) {
+    <p role="status">Carregando sincronização…</p>
+  } @else {
+    <div class="admin-empty-state">
+      <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-sync"></i></span>
+      <h2>Vamos organizar o catálogo?</h2>
+      <p>
+        Inicie um lote para consultar apenas as músicas provisórias. Nenhuma pesquisa altera a
+        prioridade da fila.
+      </p>
+    </div>
+  }
+  <p class="sync-help">
+    Atualização a cada 2 segundos enquanto esta tela estiver visível. Você pode fechar e voltar; o
+    progresso fica salvo.
+  </p>
+</app-surface-card>
+@if (starting()) {
+  <app-confirmation-dialog
+    title="Iniciar sincronização?"
+    [busy]="busy()"
+    [error]="error()"
+    (dismissed)="starting.set(false)"
+    ><p>
+      Vamos consultar as músicas provisórias presentes no início do lote. Título e artista exatos,
+      sem ambiguidade, serão aprovados automaticamente. Os demais casos aguardam sua revisão.
+    </p>
+    <p>
+      Cadastros já aprovados não entram no lote. Os pedidos e apresentações antigos são preservados.
+    </p>
+    <div class="sf-dialog-actions">
+      <button type="button" class="sf-button sf-primary" [disabled]="busy()" (click)="start()">
+        Confirmar início</button
+      ><button
+        type="button"
+        class="sf-button sf-outline"
+        [disabled]="busy()"
+        (click)="starting.set(false)"
+      >
+        Cancelar
+      </button>
+    </div></app-confirmation-dialog
+  >
+}
+@if (detail(); as detail) {
+  <app-confirmation-dialog
+    #reviewDialog
+    [title]="preview() ? 'Confirmar aprovação?' : 'Revisar música'"
+    [busy]="busy()"
+    [error]="reviewError()"
+    (dismissed)="closeReview()"
+  >
+    @if (preview()) {
+      <button
+        dialog-leading
+        type="button"
+        class="sf-icon-button"
+        aria-label="Voltar às correspondências"
+        [disabled]="busy()"
+        (click)="backToReview()"
+      >
+        <i class="pi pi-arrow-left" aria-hidden="true"></i>
+      </button>
+    } @else {
+      <div dialog-actions>
+        <app-options-menu
+          buttonId="sync-review-options"
+          label="Opções da revisão"
+          [items]="reviewMenu()"
+          [disabled]="busy()"
+        />
+      </div>
+    }
+    @if (preview(); as preview) {
+      <div class="sync-compare">
+        <section aria-label="Dados atuais">
+          <h3>Cadastro atual</h3>
+          <strong>{{ detail.item.title }}</strong>
+          <p>{{ detail.item.artist || 'Artista não informado' }}</p>
+        </section>
+        <section aria-label="Dados propostos">
+          <h3>Dados propostos</h3>
+          <strong>{{ preview.title }}</strong>
+          <p>{{ preview.artist }}</p>
+        </section>
+      </div>
+      @if (preview.existing; as existing) {
+        <div class="sync-notice">
+          <strong>Já existe um cadastro no SingFlow</strong>
+          <p>{{ existing.title }} — {{ existing.artist }}</p>
+          <p>
+            A confirmação vincula esta entrada ao cadastro existente e o aprova. Os textos do
+            histórico continuam preservados.
+          </p>
+        </div>
+      }
+      <div class="sf-dialog-actions">
+        <button type="button" class="sf-button sf-primary" [disabled]="busy()" (click)="approve()">
+          {{ preview.existing ? 'Vincular e aprovar' : 'Confirmar aprovação' }}</button
+        ><button
+          type="button"
+          class="sf-button sf-outline"
+          [disabled]="busy()"
+          (click)="backToReview()"
+        >
+          Voltar à revisão
+        </button>
+      </div>
+    } @else {
+      <div class="sync-original">
+        <strong>{{ detail.item.title }}</strong>
+        <p>{{ detail.item.artist || 'Artista não informado' }}</p>
+        <app-status-badge [tone]="tone(detail.item.state)">{{
+          status(detail.item.state)
+        }}</app-status-badge>
+        <p>{{ detail.item.message }}</p>
+      </div>
+      @if (reviewable()) {
+        @if (detail.candidates.length) {
+          <fieldset class="sync-candidates">
+            <legend>Correspondências do Last.fm</legend>
+            @for (candidate of detail.candidates; track candidate.position) {
+              <label class="sync-candidate"
+                ><input
+                  type="radio"
+                  name="sync-candidate"
+                  [checked]="!manual() && position() === candidate.position"
+                  [disabled]="busy()"
+                  (change)="choose(candidate)"
+                /><span
+                  ><strong>{{ candidate.title }}</strong
+                  ><span>{{ candidate.artist }}</span>
+                  @if (candidate.existing) {
+                    <small>Já possui cadastro no SingFlow</small>
+                  }
+                </span></label
+              >
+            }
+          </fieldset>
+        } @else {
+          <p>Nenhuma correspondência disponível. Você pode editar os dados manualmente.</p>
+        }
+        @if (!manual()) {
+          <button
+            type="button"
+            class="sf-button sf-outline sf-full"
+            [disabled]="busy()"
+            (click)="editManual()"
+          >
+            Refinar busca
+          </button>
+        }
+        <form [formGroup]="reviewForm" class="host-form sync-review-form" (ngSubmit)="propose()">
+          @if (manual()) {
+            <label
+              >Título da música<input
+                pInputText
+                formControlName="title"
+                maxlength="160"
+                required
+                [readOnly]="busy()" /></label
+            ><label
+              >Artista<input
+                pInputText
+                formControlName="artist"
+                maxlength="160"
+                required
+                [readOnly]="busy()"
+            /></label>
+          }
+          @if (manual()) {
+            <button
+              type="button"
+              class="sf-button sf-outline sf-full"
+              [disabled]="
+                busy() ||
+                !reviewForm.controls.title.value.trim() ||
+                reviewForm.controls.title.invalid ||
+                reviewForm.controls.artist.hasError('maxlength')
+              "
+              (click)="refine()"
+            >
+              <i class="pi pi-search" aria-hidden="true"></i>Buscar novamente no Last.fm
+            </button>
+            <p class="sync-help">
+              A busca usa o título e o artista acima. Os dados do catálogo só mudam após sua
+              confirmação.
+            </p>
+          }
+          @if (refineMessage()) {
+            <p role="status" aria-live="polite">{{ refineMessage() }}</p>
+          }
+          <div class="sf-dialog-actions">
+            <button
+              type="submit"
+              class="sf-button sf-primary"
+              [disabled]="busy() || (manual() ? reviewForm.invalid : position() === null)"
+            >
+              {{ manual() ? 'Usar dados manuais' : 'Revisar alteração' }}</button
+            ><button
+              type="button"
+              class="sf-button sf-outline"
+              [disabled]="busy()"
+              (click)="closeReview()"
+            >
+              Deixar para depois
+            </button>
+          </div>
+        </form>
+      } @else {
+        <div class="sf-dialog-actions">
+          <button
+            type="button"
+            class="sf-button sf-outline"
+            [disabled]="busy()"
+            (click)="closeReview()"
+          >
+            Fechar
+          </button>
+        </div>
+      }
+    }
+  </app-confirmation-dialog>
+}

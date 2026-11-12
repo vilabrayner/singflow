@@ -17,7 +17,8 @@ export class HostAuth {
   }
   async me() {
     const account = await this.account();
-    if (account.role && account.role !== 'HOST') throw new HttpErrorResponse({ status: 401 });
+    if (account.role && account.role !== 'HOST' && !account.administrator)
+      throw new HttpErrorResponse({ status: 401 });
     return account;
   }
   login(email: string, password: string) {

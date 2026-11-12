@@ -1,10 +1,10 @@
+import { SongChoiceTabs } from '../../shared/components/song-choice-tabs';
+import { PickedSong } from '../../shared/components/catalog-song-picker';
 import { SongSearch } from '../../shared/components/song-search';
 import { ParticipationMemory } from './participation-memory';
 import { createOperationId } from '../../shared/operation-id';
 import { MenuItem } from 'primeng/api';
-import { OptionsMenu } from '../../shared/components/options-menu';
 import { PanelHeader } from '../../shared/components/panel-header';
-import { StatusBadge } from '../../shared/components/status-badge';
 import { SurfaceCard } from '../../shared/components/surface-card';
 import { Notifications } from '../../shared/notifications';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
@@ -19,43 +19,31 @@ import {
   OnDestroy,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { DatePipe, DOCUMENT, NgTemplateOutlet } from '@angular/common';
+import { DOCUMENT } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { ApiClient, apiError } from '../../core/http/api-client';
-import { KaraokeSession, Participant, SongRequest } from '../sessions/session-api';
+import { SongRequest } from '../sessions/session-api';
 
-interface OwnView {
-  session: KaraokeSession;
-  participant: Participant;
-  requests: SongRequest[];
-  active: {
-    id: string;
-    title: string | null;
-    artist: string | null;
-    acceptedAt: string | null;
-  } | null;
-  history: { id: string; title: string | null; artist: string | null; status: string }[];
-  suggested: boolean;
-  expiresAt: string | null;
-  queuePosition: number | null;
-  canReturn: boolean;
-}
+import { OwnView } from './participant-view';
+import { ParticipantStatusCard } from './participant-status-card';
+import { ParticipantRequestsCard } from './participant-requests-card';
+import { ParticipantHistoryCard } from './participant-history-card';
 @Component({
   imports: [
+    ParticipantStatusCard,
+    ParticipantRequestsCard,
+    ParticipantHistoryCard,
+    SongChoiceTabs,
     SongSearch,
     ConfirmationDialog,
-    OptionsMenu,
     PanelHeader,
-    StatusBadge,
     SurfaceCard,
     ReactiveFormsModule,
     ButtonModule,
     InputTextModule,
-    DatePipe,
-    NgTemplateOutlet,
   ],
   templateUrl: './participant.page.html',
 })
@@ -71,7 +59,18 @@ export class ParticipantPage implements OnInit, OnDestroy {
   private readonly base = `/participation/${this.session}`;
   readonly own = signal<OwnView | null>(null);
   readonly currentRequests = computed(
-    () => this.own()?.requests.filter((song) => song.status !== 'COMPLETED') ?? [],
+    () =>
+      this.own()?.requests.filter((song) =>
+        ['PENDING', 'RESERVED', 'SUSPENDED'].includes(song.status),
+      ) ?? [],
+  );
+  readonly cancelledRequests = computed(
+    () =>
+      this.own()?.requests.filter(
+        (song) =>
+          song.status === 'CANCELLED' &&
+          !this.own()?.history.some((call) => call.requestId === song.id),
+      ) ?? [],
   );
   readonly entry = signal<{ name: string; status: string } | null>(null);
   readonly ready = signal(false);
@@ -81,6 +80,47 @@ export class ParticipantPage implements OnInit, OnDestroy {
   readonly departed = signal(false);
   readonly cancellingSong = signal<SongRequest | null>(null);
   readonly addingSong = signal(false);
+  readonly editingSong = signal<SongRequest | null>(null);
+  readonly chosenSongs = computed(
+    () =>
+      this.own()?.requests.filter((song) => ['PENDING', 'RESERVED'].includes(song.status)) ?? [],
+  );
+  readonly pendingRequests = computed(
+    () => this.own()?.requests.filter((song) => song.status === 'PENDING') ?? [],
+  );
+  private reorderOperation: { body: string; operationId: string } | null = null;
+  private viewGeneration = 0;
+  async pickSong(song: PickedSong) {
+    this.songForm.setValue({
+      title: song.title,
+      artist: song.artist,
+      selectionToken: song.selectionToken ?? '',
+    });
+    await this.add(!this.editingSong());
+  }
+  async reorderSongs({ expectedOrder, order }: { expectedOrder: string[]; order: string[] }) {
+    if (this.busy()) return;
+    const body = JSON.stringify({ expectedOrder, order });
+    if (this.reorderOperation?.body !== body)
+      this.reorderOperation = { body, operationId: createOperationId() };
+    await this.run(async () => {
+      this.accept(
+        await this.update('/requests/reorder', {
+          operationId: this.reorderOperation!.operationId,
+          expectedOrder,
+          order,
+        }),
+      );
+      this.reorderOperation = null;
+      this.notifications.success('Ordem das músicas atualizada');
+    });
+    if (this.error()) {
+      const error = this.error();
+      await this.refresh();
+      this.error.set(error);
+    }
+  }
+
   readonly skippingCall = signal<string | null>(null);
   readonly confirmingExit = signal(false);
   readonly participationOptions: MenuItem[] = [
@@ -94,16 +134,19 @@ export class ParticipantPage implements OnInit, OnDestroy {
   readonly lastUpdated = signal<Date | null>(null);
   readonly disconnected = signal(false);
   readonly joinForm = this.fb.group({
+    selectionToken: [''],
     name: ['', [Validators.required, Validators.maxLength(120)]],
     tableLabel: ['', Validators.maxLength(40)],
     title: ['', [Validators.required, Validators.maxLength(160)]],
     artist: ['', Validators.maxLength(160)],
   });
   readonly songForm = this.fb.group({
+    selectionToken: [''],
     title: ['', [Validators.required, Validators.maxLength(160)]],
     artist: ['', Validators.maxLength(160)],
   });
   readonly returnForm = this.fb.group({
+    selectionToken: [''],
     title: ['', [Validators.required, Validators.maxLength(160)]],
     artist: ['', Validators.maxLength(160)],
   });
@@ -195,7 +238,9 @@ export class ParticipantPage implements OnInit, OnDestroy {
     this.disconnected.set(false);
   }
   private async load() {
-    this.accept(await this.api.get<OwnView>(`${this.base}/me`));
+    const generation = this.viewGeneration;
+    const view = await this.api.get<OwnView>(`${this.base}/me`);
+    if (generation === this.viewGeneration) this.accept(view);
   }
   async refresh() {
     if (!this.own() || this.busy() || this.loading || this.departed()) return;
@@ -215,7 +260,8 @@ export class ParticipantPage implements OnInit, OnDestroy {
     }
   }
   private async run(action: () => Promise<void>) {
-    if (this.busy() || this.loading) return;
+    if (this.busy()) return;
+    this.viewGeneration++;
     this.busy.set(true);
     this.error.set('');
     try {
@@ -252,11 +298,17 @@ export class ParticipantPage implements OnInit, OnDestroy {
       });
     });
   }
+  openSongEdit(song: SongRequest) {
+    this.openSongForm();
+    this.editingSong.set({ ...song });
+  }
   openSongForm() {
+    this.editingSong.set(null);
     this.error.set('');
     this.addingSong.set(true);
   }
   closeSongForm() {
+    this.editingSong.set(null);
     this.addingSong.set(false);
     this.error.set('');
   }
@@ -269,7 +321,11 @@ export class ParticipantPage implements OnInit, OnDestroy {
     );
   }
 
-  async add() {
+  async add(keepChoosing = false) {
+    if (this.editingSong()) {
+      await this.saveSongEdit();
+      return;
+    }
     if (this.songForm.invalid || !this.own()) return;
     await this.run(async () => {
       const values = this.songForm.getRawValue();
@@ -284,8 +340,24 @@ export class ParticipantPage implements OnInit, OnDestroy {
       );
       this.songOperation = null;
       this.songForm.reset();
-      this.addingSong.set(false);
+      if (!keepChoosing) this.addingSong.set(false);
       this.notifications.success('Música adicionada aos seus pedidos.');
+    });
+  }
+  async saveSongEdit() {
+    const song = this.editingSong();
+    if (!song || this.songForm.invalid) return;
+    await this.run(async () => {
+      this.accept(
+        await this.update(`/requests/${song.id}/edit`, {
+          ...this.songForm.getRawValue(),
+          expectedTitle: song.title,
+          expectedArtist: song.artist,
+        }),
+      );
+      this.closeSongForm();
+      this.songForm.reset();
+      this.notifications.success('Música do pedido alterada.');
     });
   }
   async cancel(id: string) {
@@ -354,24 +426,5 @@ export class ParticipantPage implements OnInit, OnDestroy {
       this.songOperation = null;
       this.returnOperation = null;
     });
-  }
-  status(value: string) {
-    return (
-      (
-        {
-          ACTIVE: 'Participando',
-          PAUSED: 'Pausado — fale com o anfitrião para retomar.',
-          SUSPENDED: 'Aguardando a rodada dos demais participantes.',
-          INACTIVE: 'Inativo por ausência — fale com o anfitrião para retornar.',
-          LEFT: 'Fora da fila',
-          PENDING: 'Pendente',
-          RESERVED: 'Convocada — fale com o anfitrião para alterar.',
-          COMPLETED: 'Concluída',
-          CANCELLED: 'Cancelada',
-          ABSENT: 'Não compareceu',
-          DECLINED: 'Desistência temporária',
-        } as Record<string, string>
-      )[value] ?? value
-    );
   }
 }

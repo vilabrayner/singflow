@@ -8,6 +8,16 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.route('**/api/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path.endsWith('/songs/catalog'))
+      return route.fulfill({
+        json: {
+          items: [
+            { title: 'Evidências', artist: '' },
+            { title: 'Equalize', artist: 'Pitty' },
+          ],
+          total: 2,
+        },
+      });
     if (path.endsWith('/entry-link'))
       return route.fulfill({ json: { url: 'https://singflow.example/participante/test/entry' } });
     if (path.endsWith('/stage'))
@@ -112,6 +122,18 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.getByRole('button', { name: /Ana.*apresentações/ }).click();
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
+  const chooser = page.getByRole('dialog', { name: 'Adicionar música', exact: true });
+  await expect(
+    chooser.getByRole('img', {
+      name: 'Já adicionada: Evidências — Artista não informado',
+      exact: true,
+    }),
+  ).toBeVisible();
+  await chooser.getByRole('button', { name: 'Adicionar Equalize — Pitty', exact: true }).click();
+  await expect(chooser).toHaveCount(0);
+  await expect(page.getByText('Equalize', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
+  await page.getByRole('button', { name: 'Não encontrei minha música', exact: true }).click();
   await page.getByLabel('Nova música', { exact: true }).fill('Outra canção');
   await page.getByRole('button', { name: 'Salvar música', exact: true }).click();
   await expect(page.getByText('Outra canção', { exact: false })).toBeVisible();
@@ -121,5 +143,5 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.getByRole('button', { name: 'Confirmar saída', exact: true }).click();
   await expect(page.getByText('Saiu', { exact: true })).toBeVisible();
   expect(participants).toHaveLength(1);
-  expect(songs).toHaveLength(2);
+  expect(songs).toHaveLength(3);
 });

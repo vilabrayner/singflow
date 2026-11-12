@@ -45,7 +45,7 @@ test('song search selects title and artist, supports free text and provider fail
   expect(joins[1]).toMatchObject({ title: 'Falha', artist: '' });
 });
 
-test('song search inside a modal discards stale results and supports keyboard selection', async ({
+test('entry song search discards stale results and supports keyboard selection', async ({
   page,
 }) => {
   let oldResponse: (() => Promise<void>) | undefined;
@@ -79,19 +79,18 @@ test('song search inside a modal discards stale results and supports keyboard se
     }
     if (url.pathname.endsWith('/csrf'))
       return route.fulfill({ json: { token: 'csrf', headerName: 'X-CSRF-TOKEN' } });
-    if (url.pathname.endsWith('/requests')) {
+    if (url.pathname.endsWith('/join')) {
       posted = route.request().postDataJSON();
       return route.fulfill({ json: own });
     }
-    if (url.pathname.endsWith('/me')) return route.fulfill({ json: own });
+    if (url.pathname.endsWith('/me')) return route.fulfill({ status: 401 });
     if (url.pathname.includes('/public/'))
       return route.fulfill({ json: { name: 'Café Tão', status: 'OPEN' } });
     return route.fulfill({ status: 204 });
   });
   await page.goto('/participante/11111111-1111-4111-8111-111111111111/entry-code');
-  await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
-  const modal = page.getByRole('dialog', { name: 'Adicionar música', exact: true });
-  const song = modal.getByRole('combobox', { name: 'Música', exact: true });
+  await page.getByLabel('Seu nome', { exact: true }).fill('Ana');
+  const song = page.getByRole('combobox', { name: 'Primeira música', exact: true });
   await song.fill('Antiga');
   await expect.poll(() => Boolean(oldResponse)).toBe(true);
   await song.fill('Nova');
@@ -99,13 +98,17 @@ test('song search inside a modal discards stale results and supports keyboard se
   await oldResponse!();
   await expect(page.getByRole('option', { name: 'Antiga — Antigo' })).toHaveCount(0);
   await song.press('Escape');
-  await expect(modal).toBeVisible();
+  await expect(song).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await expect(song).toBeVisible();
   await song.fill('Nova música');
   await expect(page.getByRole('option')).toHaveCount(10);
+  await expect(song).toHaveAttribute('aria-expanded', 'true');
   await song.press('ArrowDown');
+  await expect(song).toHaveAttribute('aria-activedescendant', /.+/);
   await song.press('Enter');
   await expect(song).toHaveValue('Nova 0 — Artista');
-  await modal.getByRole('button', { name: 'Pedir música', exact: true }).click();
+  await page.getByRole('button', { name: 'Entrar com minha música', exact: true }).click();
   await expect.poll(() => posted?.title).toBe('Nova 0');
   expect(posted?.artist).toBe('Artista');
 });

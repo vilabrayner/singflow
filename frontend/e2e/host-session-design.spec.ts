@@ -231,7 +231,7 @@ test('floating session menu preserves layout and modal cancellation restores foc
   await expect(page.getByRole('menuitem', { name: 'Atualizar', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Opções da sessão' })).toHaveCSS(
     'background-color',
-    'rgb(124, 58, 237)',
+    'rgb(244, 246, 250)',
   );
   await expect(page.locator('.sf-menu-backdrop')).toBeVisible();
   await page.mouse.click(2, 2);
@@ -308,4 +308,35 @@ test('closing a session selects the remaining open session instead of a draft', 
   await page.getByRole('button', { name: 'Confirmar encerramento' }).click();
   await expect(page.getByRole('heading', { name: 'Outro evento', exact: true })).toBeFocused();
   await expect(page.getByText('Aberta', { exact: true })).toBeVisible();
+});
+
+test('closing a floating menu preserves page scroll and restores its trigger', async ({ page }) => {
+  await setup(page, [{ id: 'open-session', name: 'Café Tão', status: 'OPEN', createdAt: date }]);
+  const trigger = page.getByRole('button', { name: 'Opções da sessão', exact: true });
+  await page.locator('.sf-session-card').evaluate((card) => {
+    const space = document.createElement('div');
+    space.style.height = '1000px';
+    card.before(space);
+    const tail = document.createElement('div');
+    tail.style.height = '1000px';
+    card.after(tail);
+  });
+  // Safari may keep focus on a previous control when a button is tapped.
+  await page.locator('.sf-panel-header a').first().focus();
+  await trigger.evaluate((button) =>
+    button.addEventListener('mousedown', (event) => event.preventDefault(), { once: true }),
+  );
+  await trigger.scrollIntoViewIfNeeded();
+  const before = await page.evaluate(() => window.scrollY);
+  expect(before).toBeGreaterThan(500);
+  await trigger.click();
+  await expect(page.getByRole('menuitem', { name: 'Atualizar', exact: true })).toBeVisible();
+  await page.mouse.click(2, 2);
+  await expect(page.locator('.sf-menu-backdrop')).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(before, 0);
+  await trigger.click();
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeCloseTo(before, 0);
 });

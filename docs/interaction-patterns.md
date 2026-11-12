@@ -45,3 +45,11 @@ Capturas da implementação:
 
 - [Menu no celular](design/interaction-patterns/menu-flutuante-mobile.png) e [desktop](design/interaction-patterns/menu-flutuante-desktop.png).
 - [Confirmação no celular](design/interaction-patterns/confirmacao-mobile.png) e [desktop](design/interaction-patterns/confirmacao-desktop.png).
+
+## Listas administrativas — 12/11/2026
+
+Cadastros, sessões e catálogo compartilham `frontend/src/app/shared/styles/admin-collections.css`: título e atualização direta, busca com botão de ícone, resumo e filtro abaixo da busca, linhas com ícone/identificação/situação e seta lateral, estados vazios e paginação. Filtros de cadastro e catálogo ficam em modal; ações de cada cadastro, sessão ou música permanecem nos menus de detalhe. Não há alteração de permissões ou regras de fila.
+
+## Painéis musicais compartilhados
+
+Os estilos em `shared/styles/song-panels.css` são usados por pedidos/histórico do participante e listas do anfitrião. Bordas visíveis, quinas de 12 px, título destacado e artista secundário. Tags do histórico e das listas do anfitrião ficam à direita. Faixa de arraste apenas em escolhas pessoais reordenáveis. Catálogo usa o seletor compartilhado com botão primário compacto e check para pedido já existente; ações extras continuam em menus. [Ensaio do anfitrião](acceptance/014-host-visual-standard.md).

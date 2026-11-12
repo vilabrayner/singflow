@@ -8,7 +8,7 @@
       [disabled]="locked()"
     />
   </div>
-  @if (error() && !pendingOutcome() && !choosingNext()) {
+  @if (error() && !pendingOutcome() && !choosingNext() && !availabilityChoice()) {
     <p class="host-error" role="alert">{{ error() }}</p>
   }
   @if (state(); as state) {
@@ -105,7 +105,6 @@
       </section>
     }
     @if (open()) {
-      <p>Uma oportunidade por pessoa. A ordem pode mudar até a confirmação.</p>
       <label class="host-search"
         >Buscar na fila<input
           pInputText
@@ -114,17 +113,46 @@
           (input)="search.set($any($event.target).value)"
           placeholder="Nome, mesa, música ou artista"
       /></label>
-      <ol class="sf-queue-list">
+      <ol
+        class="sf-queue-list"
+        cdkDropList
+        [cdkDropListData]="visibleSuggestions()"
+        [cdkDropListDisabled]="locked() || !!search().trim()"
+        cdkDropListLockAxis="y"
+        (cdkDropListDropped)="dropQueue($event)"
+      >
         @for (
           suggestion of visibleSuggestions();
           track suggestion.participantId;
           let position = $index
         ) {
-          <li>
-            <div class="sf-queue-line">
-              <span class="sf-queue-number" aria-hidden="true">{{
-                search() ? '·' : position + 1
-              }}</span>
+          <li
+            class="choice-panel sf-host-queue-item"
+            cdkDrag
+            [cdkDragData]="suggestion"
+            [cdkDragDisabled]="locked() || !!search().trim()"
+            [cdkDragStartDelay]="{ touch: 180, mouse: 0 }"
+            (cdkDragStarted)="captureQueue()"
+            (cdkDragEnded)="dragging.set(false)"
+          >
+            <span
+              class="sf-host-queue-grip"
+              cdkDragHandle
+              role="button"
+              [attr.tabindex]="locked() || search().trim() ? -1 : 0"
+              [attr.aria-label]="
+                'Ordenar ' + suggestion.name + '. Use as teclas de seta para subir ou descer.'
+              "
+              [attr.aria-disabled]="locked() || !!search().trim()"
+              (keydown.arrowup)="$event.preventDefault(); nudgeQueue(suggestion, -1)"
+              (keydown.arrowdown)="$event.preventDefault(); nudgeQueue(suggestion, 1)"
+            >
+              <span class="sf-host-queue-position">{{
+                queuePosition(suggestion.participantId)
+              }}</span
+              ><i class="pi pi-grip-vertical" aria-hidden="true"></i>
+            </span>
+            <div class="sf-host-queue-copy">
               <button
                 type="button"
                 class="sf-queue-person"
@@ -148,34 +176,33 @@
                 <app-status-badge tone="attention">Sugestão</app-status-badge>
               }
             </div>
-            @if (
-              state.suggestions[0]?.participantId === suggestion.participantId && !state.active
-            ) {
-              <div class="sf-queue-actions">
-                <button
-                  id="approve-next"
-                  type="button"
-                  class="sf-button sf-primary"
-                  [disabled]="locked()"
-                  (click)="choose(suggestion)"
-                >
-                  <i class="pi pi-microphone" aria-hidden="true"></i>Chamar
-                </button>
-                <button
-                  type="button"
-                  class="sf-button sf-outline"
-                  [disabled]="locked() || state.suggestions.length < 2"
-                  [title]="
-                    state.suggestions.length < 2
-                      ? 'Não há outro participante elegível'
-                      : 'Dar a próxima oportunidade a outra pessoa'
-                  "
-                  (click)="skip(suggestion)"
-                >
-                  <i class="pi pi-arrow-down" aria-hidden="true"></i>Pular
-                </button>
-              </div>
-            }
+            <div class="sf-host-queue-actions">
+              <button
+                type="button"
+                [id]="
+                  state.suggestions[0]?.participantId === suggestion.participantId
+                    ? 'approve-next'
+                    : 'call-' + suggestion.participantId
+                "
+                class="sf-icon-button sf-primary"
+                [attr.aria-label]="'Chamar ' + suggestion.name"
+                title="Chamar"
+                [disabled]="locked() || !!state.active"
+                (click)="choose(suggestion)"
+              >
+                <i class="pi pi-microphone" aria-hidden="true"></i>
+              </button>
+              <button
+                type="button"
+                class="sf-icon-button"
+                [attr.aria-label]="'Pausar ' + suggestion.name"
+                title="Pausar participação"
+                [disabled]="locked()"
+                (click)="availabilityChoice.set({ person: suggestion, action: 'pause' })"
+              >
+                <i class="pi pi-pause" aria-hidden="true"></i>
+              </button>
+            </div>
           </li>
         } @empty {
           <li>
@@ -187,16 +214,82 @@
           </li>
         }
       </ol>
+      @if (state.paused?.length) {
+        <h3 class="sf-subtitle">Participações pausadas</h3>
+        <div class="sf-host-paused-list">
+          @for (person of state.paused; track person.participantId) {
+            <div class="choice-panel sf-host-paused-item">
+              <div class="choice-copy">
+                <strong>{{ person.name }}</strong>
+                @if (person.title) {
+                  <p>{{ person.title }}</p>
+                }
+                @if (person.artist) {
+                  <p>{{ person.artist }}</p>
+                }
+                <app-status-badge tone="neutral">Pausado</app-status-badge>
+              </div>
+              <button
+                type="button"
+                class="sf-icon-button"
+                [attr.aria-label]="'Retomar ' + person.name"
+                title="Retomar participação"
+                [disabled]="locked()"
+                (click)="availabilityChoice.set({ person, action: 'resume' })"
+              >
+                <i class="pi pi-play" aria-hidden="true"></i>
+              </button>
+            </div>
+          }
+        </div>
+      }
+      @if (availabilityChoice(); as choice) {
+        <app-confirmation-dialog
+          [title]="(choice.action === 'pause' ? 'Pausar ' : 'Retomar ') + choice.person.name + '?'"
+          [busy]="locked()"
+          [error]="error()"
+          (dismissed)="availabilityChoice.set(null)"
+          ><p>
+            {{
+              choice.action === 'pause'
+                ? 'A pessoa sairá da fila ativa sem registrar falta. Os pedidos serão mantidos.'
+                : 'A pessoa voltará à fila pela regra automática, mantendo os pedidos e as apresentações.'
+            }}
+          </p>
+          <div class="sf-dialog-actions">
+            <button
+              type="button"
+              class="sf-button sf-primary"
+              [disabled]="locked()"
+              (click)="confirmAvailability()"
+            >
+              {{ choice.action === 'pause' ? 'Confirmar pausa' : 'Confirmar retomada' }}</button
+            ><button
+              type="button"
+              class="sf-button sf-outline"
+              [disabled]="locked()"
+              (click)="availabilityChoice.set(null)"
+            >
+              Cancelar
+            </button>
+          </div></app-confirmation-dialog
+        >
+      }
       @if (choosingNext(); as next) {
         <app-confirmation-dialog
           [title]="
-            definingActiveSong() ? 'Definir música de ' + next.name : 'Convocar ' + next.name + '?'
+            definingActiveSong() ? 'Definir música de ' + next.name : 'Chamar ' + next.name + '?'
           "
           [busy]="locked()"
           [error]="error()"
-          [returnFocus]="definingActiveSong() ? 'define-active-song' : 'approve-next'"
+          [returnFocus]="callFocusId()"
           (dismissed)="cancelCall()"
         >
+          @if (outOfOrder() && !definingActiveSong()) {
+            <p class="sf-dialog-notice">
+              Esta pessoa será chamada antes das demais, fora da ordem sugerida.
+            </p>
+          }
           @if (next.requestId) {
             <p>{{ next.title }}</p>
           } @else {
@@ -205,6 +298,7 @@
                 label="Música escolhida"
                 [titleControl]="songForm.controls.title"
                 [artistControl]="songForm.controls.artist"
+                [selectionControl]="songForm.controls.selectionToken"
                 [locked]="locked()"
               />
             </form>
@@ -219,7 +313,7 @@
               "
               (click)="confirm()"
             >
-              {{ definingActiveSong() ? 'Salvar música' : 'Confirmar convocação' }}
+              {{ definingActiveSong() ? 'Salvar música' : 'Confirmar' }}
             </button>
             <button
               type="button"
@@ -258,38 +352,27 @@
         </div>
       }
     }
-    @if (showingHistory()) {
-      <app-confirmation-dialog
-        [title]="'Histórico do palco (' + state.history.length + ')'"
-        returnFocus="queue-options-button"
-        (dismissed)="showingHistory.set(false)"
-      >
-        <div class="stage-history" role="region" aria-label="Registros do palco" tabindex="0">
-          @for (call of state.history; track call.id) {
-            <article>
-              <strong>{{ call.participantName }}</strong>
-              <p>{{ call.title || 'Música não definida' }}</p>
-              <app-status-badge [tone]="call.status === 'COMPLETED' ? 'positive' : 'neutral'">{{
-                labels(call.status)
-              }}</app-status-badge>
-              <p>{{ call.resolvedAt | date: 'HH:mm' }}</p>
-            </article>
-          } @empty {
-            <p>Nenhuma convocação resolvida.</p>
-          }
-        </div>
-        <div class="sf-dialog-actions">
-          <button
-            type="button"
-            class="sf-button sf-outline sf-full"
-            (click)="showingHistory.set(false)"
-          >
-            Fechar
-          </button>
-        </div>
-      </app-confirmation-dialog>
-    }
   } @else if (!error()) {
     <p role="status">Carregando palco…</p>
   }
 </app-surface-card>
+
+@if (state(); as view) {
+  <app-surface-card labelledBy="host-stage-history-title" class="sf-host-history-card">
+    <h2 id="host-stage-history-title">Histórico do palco</h2>
+    <div class="stage-history" role="region" aria-label="Registros do palco">
+      @for (call of view.history; track call.id) {
+        <app-history-item
+          [title]="call.participantName"
+          [subtitle]="
+            (call.title || 'Música não definida') + (call.artist ? ' · ' + call.artist : '')
+          "
+          [status]="labels(call.status)"
+          [completed]="call.status === 'COMPLETED'"
+        />
+      } @empty {
+        <p>Nenhuma convocação resolvida.</p>
+      }
+    </div>
+  </app-surface-card>
+}

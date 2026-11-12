@@ -149,3 +149,17 @@ Configuração e aceite em [006-account-validation-and-admin.md](acceptance/006-
 ## Seleção de músicos e consulta administrativa (V13)
 
 As contas recebem um identificador público UUID para o vínculo de músicos por nome, sem expor o e-mail ao anfitrião. O módulo `administration` agrega uma visão de consulta das sessões abertas, usando as APIs públicas de `identity`, `sessions`, `musicians` e `stage`. ADMIN é uma permissão de consulta transversal; a operação das filas continua sujeita à propriedade da sessão. Aceite em [007-musician-selection-and-admin-sessions.md](acceptance/007-musician-selection-and-admin-sessions.md).
+
+### Operação de sessão por administrador (11/11/2026)
+
+Administrador ativo também pode usar o painel do anfitrião para operar qualquer sessão, independente do perfil principal HOST/MUSICIAN. `sessions` consulta a permissão atual exposta por `identity`; a autorização central atende listagem, leitura e bloqueio para escrita. Anfitriões comuns mantêm isolamento por proprietário. Operações mantêm identidade do ator na auditoria e proprietário original da sessão. Consulta administrativa oferece atalho para `/anfitriao?sessao=<id>`. Regras de palco e encerramento permanecem obrigatórias. Ver [Aceite 010](acceptance/010-admin-host-access.md).
+
+### Catálogo próprio e vínculos musicais (12/11/2026)
+
+O módulo `catalog` depende de `identity` para administração. `requests` e `stage` usam sua API de resolução transacional para vincular músicas; o catálogo não depende desses módulos. A V14 migra snapshots antigos para entradas provisórias, mantém aliases e registra auditoria antes/depois. Unificações preservam IDs e textos históricos por redirecionamento canônico. Busca pública combina catálogo aprovado e Last.fm sem persistir resultados de pesquisa. Aprovação do catálogo não interfere na elegibilidade da fila. [Aceite e roteiro 011](acceptance/011-singflow-catalog.md).
+
+### Sincronização assistida do catálogo (12/11/2026)
+
+O módulo `catalog` mantém processamento persistente por lotes na V15. Um worker agendado reserva um item com token/lease, consulta Last.fm fora de transação e só então aplica resultados sob bloqueio e conferência de versão. Estados e candidatos ficam no PostgreSQL; fechar a tela não cancela o lote. Aprovação automática exige correspondência conservadora e única de título/artista; casos ambíguos são revisados pelo admin com comparação e confirmação de vínculo quando houver duplicata. As APIs `/api/admin/catalog/sync/**` são administrativas; a tela acompanha progresso por REST a cada dois segundos. [Roteiro e critérios 012](acceptance/012-catalog-synchronization.md).
+
+Na revisão assistida, `CatalogRefinement` separa a leitura autorizada dos parâmetros, a consulta Last.fm fora da transação e a substituição versionada dos candidatos. O POST `/api/admin/catalog/sync/items/{id}/search` recebe título/artista do rascunho; não atualiza o cadastro nem aprova automaticamente. O catálogo só muda na confirmação de aprovação já existente.

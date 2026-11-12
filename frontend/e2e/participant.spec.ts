@@ -150,6 +150,7 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
 
   await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
   const songDialog = page.getByRole('dialog', { name: 'Adicionar música' });
+  await songDialog.getByRole('button', { name: 'Não encontrei minha música', exact: true }).click();
   await songDialog.getByLabel('Música', { exact: true }).fill('Na Sua Estante');
   await page.getByRole('button', { name: 'Pedir música' }).click();
   await expect(songDialog.getByRole('alert')).toContainText('Não foi possível confirmar');
@@ -212,7 +213,6 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
   await expect(page.getByRole('status').filter({ hasText: 'Retorno confirmado' })).toBeVisible();
   expect(returns).toHaveLength(2);
   expect(returns[0]).toBe(returns[1]);
-  await expect(page.getByText('3 apresentações concluídas')).toBeVisible();
   await expect(page.locator('article').filter({ hasText: 'Voltei para cantar' })).toHaveCount(1);
   await expect(page.locator('article').filter({ hasText: 'Equalize' })).toContainText('Cancelada');
   await page.getByRole('button', { name: 'Opções da participação' }).click();
@@ -495,9 +495,12 @@ test('host grants individual QR access and the phone confirms a replacement expl
   await page.getByRole('button', { name: 'Confirmar troca de participação' }).click();
   await expect(page).toHaveURL(new RegExp('/vinculado$'));
   await expect(page.getByRole('heading', { name: 'Você está na fila' })).toBeVisible();
-  await expect(page.getByText('Equalize')).toBeVisible();
+  await expect(
+    page.getByRole('list', { name: 'Músicas pendentes' }).getByText('Equalize', { exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
   const songDialog = page.getByRole('dialog', { name: 'Adicionar música', exact: true });
+  await songDialog.getByRole('button', { name: 'Não encontrei minha música', exact: true }).click();
   await songDialog.getByLabel('Música', { exact: true }).fill('Teste');
   await songDialog.getByRole('button', { name: 'Pedir música' }).click();
   await expect(songDialog).toHaveCount(0);
@@ -567,12 +570,9 @@ test('participant reopening restores the session and distinguishes position, nex
   await page.goto(url);
   await expect(page.getByRole('heading', { name: 'Você está na fila' })).toBeVisible();
   await expect(page.getByText('Posição sugerida · 3º', { exact: true })).toBeVisible();
-  await expect(
-    page.getByText(/O acesso vale enquanto a sessão do karaokê estiver aberta/),
-  ).toBeVisible();
   position = 1;
   await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Você é o próximo — prepare-se!' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sua vez está chegando!' })).toBeVisible();
   await expect(page.getByText('Posição sugerida · 1º', { exact: true })).toBeVisible();
   called = true;
   position = null;

@@ -670,14 +670,14 @@
 .sf-menu-backdrop {
   background: var(--p-mask-background, rgb(0 0 0 / 40%));
 }
-.sf-icon-button.sf-menu-primary {
-  background: var(--sf-purple);
-  border-color: var(--sf-purple);
-  color: #fff;
+.sf-icon-button.sf-menu-trigger {
+  background: #f4f6fa;
+  border-color: #d9e0eb;
+  color: var(--sf-muted);
 }
-.sf-icon-button.sf-menu-primary:hover:not(:disabled) {
-  background: var(--sf-purple-hover);
-  border-color: var(--sf-purple-hover);
+.sf-icon-button.sf-menu-trigger:hover:not(:disabled) {
+  background: #e7ebf2;
+  border-color: #b8c2d1;
 }
 
 .sf-queue-actions {
@@ -779,4 +779,171 @@
 }
 .sf-musician-panel .sf-queue-person {
   cursor: default;
+}
+
+/* Participant cards share the same rhythm, including projected return content. */
+.participant-card {
+  display: block;
+  min-width: 0;
+}
+.participant-card .sf-card > h2 {
+  margin: 0 0 16px;
+}
+.participant-card .sf-card > p {
+  line-height: 1.6;
+}
+.participant-return {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--sf-border);
+}
+.participant-return h2 {
+  margin: 0 0 12px;
+}
+
+.participant-upcoming-song {
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+.participant-upcoming-song strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.5;
+}
+.participant-upcoming-song p {
+  color: var(--sf-muted);
+  font-size: 14px;
+}
+
+/* Three stable tabs, fitting the narrowest participant dialogs. */
+.sf-song-tabs .p-tablist-tab-list {
+  display: flex;
+}
+.sf-song-tabs .p-tab {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  padding: 12px 6px;
+  font-size: 13px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.5;
+}
+.sf-song-tabs .p-tabpanels {
+  padding: 0;
+}
+
+.sf-song-tabs .p-tab .pi {
+  font-size: 20px;
+}
+
+/* Expanded music chooser with visible margins; other dialogs retain their normal layout. */
+.sf-confirm-dialog.sf-song-fullscreen.p-dialog {
+  --song-dialog-margin: 12px;
+  width: calc(100vw - 2 * var(--song-dialog-margin));
+  height: calc(100dvh - 2 * var(--song-dialog-margin));
+  max-width: calc(100vw - 2 * var(--song-dialog-margin));
+  max-height: calc(100dvh - 2 * var(--song-dialog-margin));
+  margin: 0;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  overflow: hidden;
+}
+@media (min-width: 768px) {
+  .sf-confirm-dialog.sf-song-fullscreen.p-dialog {
+    --song-dialog-margin: 24px;
+  }
+}
+.sf-song-fullscreen .sf-dialog-frame {
+  height: 100%;
+  width: 100%;
+}
+.sf-song-fullscreen .p-dialog-header {
+  flex: none;
+  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 12px
+    max(20px, env(safe-area-inset-left));
+}
+.sf-song-fullscreen .sf-dialog-frame > .p-dialog-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+.sf-song-fullscreen app-song-choice-tabs {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.sf-song-fullscreen .sf-song-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.sf-song-fullscreen .p-tablist {
+  flex: none;
+  position: relative;
+  z-index: 1;
+  background: #fff;
+  box-shadow: 0 4px 10px -7px rgb(11 30 63 / 28%);
+}
+.sf-song-fullscreen .p-tabpanels {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 max(20px, env(safe-area-inset-right)) 20px max(20px, env(safe-area-inset-left));
+  background: #f4f6fa;
+}
+.sf-song-fullscreen [dialog-footer] {
+  flex: none;
+  margin: 0;
+  padding: 16px max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
+  border-top: 1px solid var(--sf-border);
+  background: var(--sf-surface);
+}
+.sf-song-fullscreen [dialog-footer] {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 -4px 12px -8px rgb(11 30 63 / 25%);
+}
+.sf-song-fullscreen [dialog-footer] button {
+  width: 100%;
+}
+
+.sf-song-fullscreen .sf-dialog-frame > .p-dialog-content > p {
+  margin-inline: max(20px, env(safe-area-inset-left)) max(20px, env(safe-area-inset-right));
+}
+.sf-song-fullscreen .p-tab {
+  border-radius: 10px 10px 0 0;
+  background: #eef0f6;
+  color: var(--sf-muted);
+  border-inline-end: 1px solid var(--sf-border);
+}
+.sf-song-fullscreen .p-tab:last-of-type {
+  border-inline-end: 0;
+}
+.sf-song-fullscreen .p-tab[aria-selected='false'] {
+  background: #fff;
+  border-color: #aeb7c6;
+  box-shadow:
+    inset 0 1px #aeb7c6,
+    inset 0 -1px #aeb7c6;
+}
+.sf-song-fullscreen .p-tab[aria-selected='true'] {
+  background: #ede5ff;
+  color: var(--sf-purple);
+  border-color: var(--sf-purple);
+  box-shadow: inset 0 0 0 1px var(--sf-purple);
+}
+.sf-song-fullscreen .p-tablist-active-bar {
+  background: var(--sf-purple);
+}
+.sf-song-fullscreen .p-tab:focus-visible {
+  outline: 2px solid var(--sf-purple);
+  outline-offset: -4px;
 }

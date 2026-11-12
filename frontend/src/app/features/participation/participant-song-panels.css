@@ -1,0 +1,2 @@
+/* Song panel primitives are shared across participant and host features. */
+@import '../../shared/styles/song-panels.css';

@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import br.tec.flowave.singflow.requests.AssistedRequests;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.*;
 import org.flywaydb.core.Flyway;
@@ -23,7 +24,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @Testcontainers
-@SpringBootTest(properties = {"SINGFLOW_HOST_EMAIL=", "SINGFLOW_HOST_PASSWORD="})
+@SpringBootTest(
+    properties = {
+      "SINGFLOW_HOST_EMAIL=",
+      "SINGFLOW_HOST_PASSWORD=",
+      "LASTFM_API_KEY=",
+      "SINGFLOW_CATALOG_SYNC_ENABLED=false"
+    })
 @AutoConfigureMockMvc
 class SingflowApplicationTests {
   @Container @ServiceConnection
@@ -38,7 +45,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(13);
+    assertThat(flyway.info().applied()).hasSize(17);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -1689,7 +1696,7 @@ class SingflowApplicationTests {
   }
 
   @Test
-  void administratorCanReadOtherHostsOpenSessionButCannotOperateIt() throws Exception {
+  void administratorCanReadAndOperateOtherHostsSessionWithOwnAuditIdentity() throws Exception {
     String owner = host(), admin = administrator();
     UUID session = UUID.randomUUID();
     createOpen(session, owner);
@@ -1732,14 +1739,825 @@ class SingflowApplicationTests {
                 .with(csrf())
                 .contentType("application/json")
                 .content("{\"outcome\":\"COMPLETED\"}"))
-        .andExpect(status().isNotFound());
-    stage.resolve(session, owner, call.id(), "COMPLETED");
+        .andExpect(status().isOk());
+    assertThat(
+            jdbc.sql(
+                    "SELECT actor FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='CALL_COMPLETED'")
+                .param(session)
+                .query(String.class)
+                .single())
+        .isEqualTo(admin);
+    assertThat(
+            jdbc.sql("SELECT owner FROM singflow.sessions WHERE id=?")
+                .param(session)
+                .query(String.class)
+                .single())
+        .isEqualTo(owner);
     mvc.perform(
             post("/api/sessions/" + session + "/close")
-                .with(user(owner).roles("HOST"))
+                .with(user(admin).roles("HOST", "ADMIN"))
                 .with(csrf()))
         .andExpect(status().isOk());
+    assertThat(
+            jdbc.sql(
+                    "SELECT actor FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='SESSION_CLOSED'")
+                .param(session)
+                .query(String.class)
+                .single())
+        .isEqualTo(admin);
     mvc.perform(get(path).with(user(admin).roles("HOST", "ADMIN")))
         .andExpect(status().isConflict());
+  }
+
+  @Test
+  void administratorWithMusicianProfileCanManageAnySessionAndRevocationTakesEffect()
+      throws Exception {
+    String owner = host(), outsider = host(), admin = administrator();
+    jdbc.sql("UPDATE singflow.host_accounts SET role='MUSICIAN' WHERE email=?")
+        .param(admin)
+        .update();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    mvc.perform(get("/api/sessions").with(user(admin).roles("MUSICIAN", "ADMIN")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.id == '" + session + "')]").isNotEmpty());
+    String base = "/api/sessions/" + session;
+    for (String suffix :
+        new String[] {
+          "/participants", "/requests", "/stage", "/musicians", "/musicians/available"
+        }) {
+      mvc.perform(get(base + suffix).with(user(admin).roles("MUSICIAN", "ADMIN")))
+          .andExpect(status().isOk());
+      mvc.perform(get(base + suffix).with(user(outsider).roles("HOST", "ADMIN")))
+          .andExpect(status().isNotFound());
+    }
+    UUID operation = UUID.randomUUID();
+    mvc.perform(
+            post(base + "/participants")
+                .with(user(admin).roles("MUSICIAN", "ADMIN"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    "{\"operationId\":\""
+                        + operation
+                        + "\",\"name\":\"Ana\",\"title\":\"Equalize\"}"))
+        .andExpect(status().isOk());
+    assertThat(
+            jdbc.sql(
+                    "SELECT actor FROM singflow.audit_events WHERE session_id=? AND"
+                        + " action='ASSISTED_CHECK_IN'")
+                .param(session)
+                .query(String.class)
+                .single())
+        .isEqualTo(admin);
+    jdbc.sql("UPDATE singflow.host_accounts SET administrator=false WHERE email=?")
+        .param(admin)
+        .update();
+    mvc.perform(get(base + "/stage").with(user(admin).roles("MUSICIAN", "ADMIN")))
+        .andExpect(status().isForbidden());
+    mvc.perform(post(base + "/close").with(user(admin).roles("MUSICIAN", "ADMIN")).with(csrf()))
+        .andExpect(status().isForbidden());
+    jdbc.sql("UPDATE singflow.host_accounts SET role='HOST' WHERE email=?").param(admin).update();
+    mvc.perform(get(base + "/stage").with(user(admin).roles("HOST", "ADMIN")))
+        .andExpect(status().isNotFound());
+    mvc.perform(get(base + "/stage").with(user(owner).roles("HOST"))).andExpect(status().isOk());
+  }
+
+  @Autowired br.tec.flowave.singflow.catalog.CatalogService catalog;
+
+  @Test
+  void catalogLinksProvisionalRequestsAndPreservesHistoryAcrossEditsAndMerges() throws Exception {
+    String owner = host(), admin = administrator(), title = "Catálogo " + UUID.randomUUID();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    var registration =
+        assistedRequests.register(session, owner, UUID.randomUUID(), "Ana", null, title, "Artista");
+    UUID source = registration.request().catalogSongId();
+    assertThat(source).isNotNull();
+    var repeated =
+        assistedRequests.add(
+            session,
+            owner,
+            registration.participant().id(),
+            UUID.randomUUID(),
+            title.toUpperCase(java.util.Locale.ROOT),
+            "  artista  ");
+    assertThat(repeated.catalogSongId()).isEqualTo(source);
+    assertThat(catalog.list(admin, title, "PENDING", 0).items())
+        .extracting(br.tec.flowave.singflow.catalog.CatalogService.Song::id)
+        .contains(source);
+    assertThat(catalog.approved(title)).isEmpty();
+    // Provisional catalog entries do not block queue eligibility or completed performances.
+    var call = callNext(session, owner);
+    stage.resolve(session, owner, call.id(), "COMPLETED");
+    assertThat(
+            jdbc.sql("SELECT catalog_song_id FROM singflow.stage_calls WHERE id=?")
+                .param(call.id())
+                .query(UUID.class)
+                .single())
+        .isEqualTo(source);
+    var approved = catalog.review(admin, source, 0, "APPROVED", "");
+    assertThat(catalog.approved(title))
+        .extracting(br.tec.flowave.singflow.catalog.CatalogService.Song::id)
+        .contains(source);
+    var edited = catalog.edit(admin, source, approved.version(), title + " corrigido", "Artista");
+    assertThat(catalog.approved(title))
+        .extracting(br.tec.flowave.singflow.catalog.CatalogService.Song::id)
+        .contains(source);
+    var destination = catalog.create(admin, UUID.randomUUID(), title + " oficial", "Artista");
+    catalog.merge(
+        admin,
+        source,
+        edited.version(),
+        destination.id(),
+        destination.version(),
+        "Mesmo cadastro musical");
+    assertThat(
+            jdbc.sql(
+                    "SELECT singflow.catalog_root(catalog_song_id) FROM singflow.song_requests"
+                        + " WHERE id=?")
+                .param(registration.request().id())
+                .query(UUID.class)
+                .single())
+        .isEqualTo(destination.id());
+    assertThat(
+            assistedRequests.list(session, owner).stream()
+                .filter(q -> q.id().equals(registration.request().id()))
+                .findFirst()
+                .orElseThrow()
+                .title())
+        .isEqualTo(title);
+    assertThat(stage.snapshot(session, owner).history().getFirst().title()).isEqualTo(title);
+    var later =
+        assistedRequests.add(
+            session, owner, registration.participant().id(), UUID.randomUUID(), title, "Artista");
+    assertThat(later.catalogSongId()).isEqualTo(destination.id());
+    assertThat(catalog.history(admin, source))
+        .extracting(br.tec.flowave.singflow.catalog.CatalogService.Event::action)
+        .contains("CREATED", "APPROVED", "EDITED", "MERGED");
+    assertThat(catalog.history(admin, source).getFirst().actor()).isEqualTo(admin);
+  }
+
+  @Test
+  void catalogAdminEndpointsEnforceRolesVersionsAndMergeRules() throws Exception {
+    String owner = host(), admin = administrator(), title = "Revisão " + UUID.randomUUID();
+    var song = catalog.create(admin, UUID.randomUUID(), title, "Artista");
+    String path = "/api/admin/catalog/songs/" + song.id();
+    mvc.perform(get("/api/admin/catalog/songs")).andExpect(status().isUnauthorized());
+    mvc.perform(get("/api/admin/catalog/songs").with(user(owner).roles("HOST", "ADMIN")))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post(path + "/review")
+                .with(user(admin).roles("HOST", "ADMIN"))
+                .contentType("application/json")
+                .content("{}"))
+        .andExpect(status().isForbidden());
+    mvc.perform(
+            post(path + "/review")
+                .with(user(admin).roles("HOST", "ADMIN"))
+                .with(csrf())
+                .contentType("application/json")
+                .content(
+                    "{\"version\":0,\"status\":\"REJECTED\",\"reason\":\"Cadastro incorreto\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("REJECTED"));
+    mvc.perform(
+            post(path)
+                .with(user(admin).roles("HOST", "ADMIN"))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"version\":0,\"title\":\"Outro título\",\"artist\":\"Artista\"}"))
+        .andExpect(status().isConflict());
+    assertThat(catalog.approved(title)).isEmpty();
+    assertThatThrownBy(() -> catalog.merge(admin, song.id(), 1, song.id(), 1, "Mesmo cadastro"))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    jdbc.sql("UPDATE singflow.host_accounts SET administrator=false WHERE email=?")
+        .param(admin)
+        .update();
+    mvc.perform(get(path + "/history").with(user(admin).roles("HOST", "ADMIN")))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void catalogConcurrentRequestsShareOneEntryAndConflictingReviewsAreDetected() throws Exception {
+    String owner = host(), admin = administrator(), title = "Concorrência " + UUID.randomUUID();
+    UUID a = UUID.randomUUID(), b = UUID.randomUUID();
+    createOpen(a, owner);
+    createOpen(b, owner);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      var first =
+          pool.submit(
+              () ->
+                  assistedRequests
+                      .register(a, owner, UUID.randomUUID(), "Ana", null, title, "Artista")
+                      .request()
+                      .catalogSongId());
+      var second =
+          pool.submit(
+              () ->
+                  assistedRequests
+                      .register(b, owner, UUID.randomUUID(), "Bruno", null, title, "Artista")
+                      .request()
+                      .catalogSongId());
+      UUID id = first.get(10, TimeUnit.SECONDS);
+      assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo(id);
+      java.util.concurrent.Callable<Boolean> decide =
+          () -> {
+            try {
+              catalog.review(admin, id, 0, "APPROVED", "");
+              return true;
+            } catch (org.springframework.web.server.ResponseStatusException e) {
+              assertThat(e.getStatusCode().value()).isEqualTo(409);
+              return false;
+            }
+          };
+      var one = pool.submit(decide);
+      var two = pool.submit(decide);
+      assertThat(java.util.List.of(one.get(10, TimeUnit.SECONDS), two.get(10, TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder(true, false);
+      assertThat(catalog.history(admin, id))
+          .filteredOn(e -> e.action().equals("APPROVED"))
+          .hasSize(1);
+    }
+  }
+
+  @Test
+  void catalogMigrationBackfillsLegacyRequestsAndStageWithoutRewritingSnapshots() throws Exception {
+    String database = "catalog_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+    String url = postgres.getJdbcUrl().replace("/" + postgres.getDatabaseName(), "/" + database);
+    try (var connection =
+            java.sql.DriverManager.getConnection(
+                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+        var statement = connection.createStatement()) {
+      statement.execute("CREATE DATABASE " + database);
+    }
+    try {
+      Flyway.configure()
+          .dataSource(url, postgres.getUsername(), postgres.getPassword())
+          .target("13")
+          .load()
+          .migrate();
+      UUID session = UUID.randomUUID(),
+          participant = UUID.randomUUID(),
+          request = UUID.randomUUID(),
+          call = UUID.randomUUID();
+      try (var connection =
+              java.sql.DriverManager.getConnection(
+                  url, postgres.getUsername(), postgres.getPassword());
+          var statement = connection.createStatement()) {
+        statement.execute(
+            "INSERT INTO singflow.host_accounts(email,password_hash)"
+                + " VALUES('legacy@example.test','unused')");
+        statement.execute(
+            "INSERT INTO singflow.sessions(id,owner,name,status,created_at) VALUES('"
+                + session
+                + "','legacy@example.test','Legado','OPEN',now())");
+        statement.execute(
+            "INSERT INTO"
+                + " singflow.participants(id,session_id,name,status,origin,checked_in_at,queue_joined_at)"
+                + " VALUES('"
+                + participant
+                + "','"
+                + session
+                + "','Ana','ACTIVE','ASSISTED',now(),now())");
+        statement.execute(
+            "INSERT INTO"
+                + " singflow.song_requests(id,session_id,participant_id,title,artist,status,created_at)"
+                + " VALUES('"
+                + request
+                + "','"
+                + session
+                + "','"
+                + participant
+                + "','Equalize','Pitty','PENDING',now())");
+        statement.execute(
+            "INSERT INTO"
+                + " singflow.stage_calls(id,session_id,participant_id,title,artist,status,created_at)"
+                + " VALUES('"
+                + call
+                + "','"
+                + session
+                + "','"
+                + participant
+                + "','  EQUALIZE  ','pitty','CALLED',now())");
+      }
+      var upgraded =
+          Flyway.configure().dataSource(url, postgres.getUsername(), postgres.getPassword()).load();
+      upgraded.migrate();
+      assertThat(upgraded.validateWithResult().validationSuccessful).isTrue();
+      try (var connection =
+              java.sql.DriverManager.getConnection(
+                  url, postgres.getUsername(), postgres.getPassword());
+          var statement = connection.createStatement()) {
+        try (var result =
+            statement.executeQuery(
+                "SELECT r.title,r.artist,c.title,c.artist,r.catalog_song_id=c.catalog_song_id FROM"
+                    + " singflow.song_requests r CROSS JOIN singflow.stage_calls c")) {
+          assertThat(result.next()).isTrue();
+          assertThat(result.getString(1)).isEqualTo("Equalize");
+          assertThat(result.getString(2)).isEqualTo("Pitty");
+          assertThat(result.getString(3)).isEqualTo("  EQUALIZE  ");
+          assertThat(result.getString(4)).isEqualTo("pitty");
+          assertThat(result.getBoolean(5)).isTrue();
+        }
+        try (var result =
+            statement.executeQuery(
+                "SELECT count(*) FROM singflow.catalog_songs WHERE status='PENDING' AND"
+                    + " source='LEGACY'")) {
+          result.next();
+          assertThat(result.getInt(1)).isEqualTo(1);
+        }
+      }
+    } finally {
+      try (var connection =
+              java.sql.DriverManager.getConnection(
+                  postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+          var statement = connection.createStatement()) {
+        statement.execute("DROP DATABASE " + database + " WITH (FORCE)");
+      }
+    }
+  }
+
+  @Autowired br.tec.flowave.singflow.catalog.LastfmChoices lastfmChoices;
+
+  @Test
+  void lastfmSelectionIsVerifiedAndFreeTextRemainsProvisional() {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpenUnchecked(session, owner);
+    String title = "Lastfm " + UUID.randomUUID();
+    String token =
+        lastfmChoices.issue(
+            new br.tec.flowave.singflow.catalog.SongSearch.Song(
+                title, "Artista", "https://www.last.fm/music/A/_/B", ""));
+    var chosen =
+        assistedRequests.register(
+            session, owner, UUID.randomUUID(), "Ana", null, title, "Artista", token);
+    assertThat(
+            jdbc.sql("SELECT status FROM singflow.catalog_songs WHERE id=?")
+                .param(chosen.request().catalogSongId())
+                .query(String.class)
+                .single())
+        .isEqualTo("APPROVED");
+    var free =
+        assistedRequests.add(
+            session,
+            owner,
+            chosen.participant().id(),
+            UUID.randomUUID(),
+            "Livre " + UUID.randomUUID(),
+            null);
+    assertThat(
+            jdbc.sql("SELECT status FROM singflow.catalog_songs WHERE id=?")
+                .param(free.catalogSongId())
+                .query(String.class)
+                .single())
+        .isEqualTo("PENDING");
+    UUID operation = UUID.randomUUID();
+    assertThatThrownBy(
+            () ->
+                assistedRequests.add(
+                    session,
+                    owner,
+                    chosen.participant().id(),
+                    operation,
+                    title + " adulterado",
+                    "Artista",
+                    token))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM singflow.song_requests WHERE id=?")
+                .param(operation)
+                .query(Long.class)
+                .single())
+        .isZero();
+    jdbc.sql(
+            "UPDATE singflow.lastfm_choices SET expires_at=now()-interval '1 second' WHERE"
+                + " id=cast(? AS uuid)")
+        .param(token)
+        .update();
+    assertThatThrownBy(
+            () ->
+                assistedRequests.add(
+                    session,
+                    owner,
+                    chosen.participant().id(),
+                    UUID.randomUUID(),
+                    title,
+                    "Artista",
+                    token))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    // A replay of the already committed operation remains idempotent even after proof expiry.
+    assertThat(
+            assistedRequests
+                .register(
+                    session, owner, chosen.request().id(), "Ana", null, title, "Artista", token)
+                .request()
+                .id())
+        .isEqualTo(chosen.request().id());
+  }
+
+  private void createOpenUnchecked(UUID session, String owner) {
+    try {
+      createOpen(session, owner);
+    } catch (Exception error) {
+      throw new RuntimeException(error);
+    }
+  }
+
+  @Test
+  void personalOrderChangesNextSongWithoutChangingArrivalOrCompletedCount() {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpenUnchecked(session, owner);
+    var person =
+        assistedRequests.register(session, owner, UUID.randomUUID(), "Ana", null, "Música A", null);
+    var second =
+        assistedRequests.add(
+            session, owner, person.participant().id(), UUID.randomUUID(), "Música B", null);
+    UUID operation = UUID.randomUUID();
+    var expected = java.util.List.of(person.request().id(), second.id());
+    var desired = java.util.List.of(second.id(), person.request().id());
+    assistedRequests.reorder(
+        session, owner, person.participant().id(), operation, expected, desired);
+    assistedRequests.reorder(
+        session, owner, person.participant().id(), operation, expected, desired);
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().title())
+        .isEqualTo("Música B");
+    var current = participation.list(session, owner).getFirst();
+    assertThat(current.checkedInAt()).isEqualTo(person.participant().checkedInAt());
+    assertThat(current.completedPerformances()).isZero();
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE target_id=? AND"
+                        + " action='REQUESTS_REORDERED'")
+                .param(operation)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+    var call = callNext(session, owner);
+    assertThatThrownBy(
+            () ->
+                assistedRequests.reorder(
+                    session,
+                    owner,
+                    person.participant().id(),
+                    UUID.randomUUID(),
+                    desired,
+                    expected))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThat(stage.snapshot(session, owner).active().id()).isEqualTo(call.id());
+    assertThat(stage.snapshot(session, owner).active().title()).isEqualTo("Música B");
+  }
+
+  @Test
+  void concurrentPersonalReordersHaveOneWinnerAndCannotIncludeOtherParticipants() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpen(session, owner);
+    var a = assistedRequests.register(session, owner, UUID.randomUUID(), "Ana", null, "A", null);
+    var b =
+        assistedRequests.add(session, owner, a.participant().id(), UUID.randomUUID(), "B", null);
+    var other =
+        assistedRequests.register(session, owner, UUID.randomUUID(), "Bruno", null, "Outra", null);
+    var expected = java.util.List.of(a.request().id(), b.id());
+    var desired = java.util.List.of(b.id(), a.request().id());
+    assertThatThrownBy(
+            () ->
+                assistedRequests.reorder(
+                    session,
+                    owner,
+                    a.participant().id(),
+                    UUID.randomUUID(),
+                    java.util.List.of(a.request().id(), other.request().id()),
+                    java.util.List.of(other.request().id(), a.request().id())))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      Callable<Boolean> action =
+          () -> {
+            try {
+              assistedRequests.reorder(
+                  session, owner, a.participant().id(), UUID.randomUUID(), expected, desired);
+              return true;
+            } catch (org.springframework.web.server.ResponseStatusException e) {
+              assertThat(e.getStatusCode().value()).isEqualTo(409);
+              return false;
+            }
+          };
+      var first = pool.submit(action);
+      var second = pool.submit(action);
+      assertThat(
+              java.util.List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder(true, false);
+    }
+  }
+
+  @Test
+  void participantEditsPendingSongWithoutChangingOrderAndCannotEditReservedOrForeignRequest() {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpenUnchecked(session, owner);
+    var person =
+        assistedRequests.register(session, owner, UUID.randomUUID(), "Ana", null, "Música A", null);
+    var other =
+        assistedRequests.register(session, owner, UUID.randomUUID(), "Bruno", null, "Outra", null);
+    var second =
+        assistedRequests.add(
+            session, owner, person.participant().id(), UUID.randomUUID(), "Música B", null);
+    UUID id = person.request().id();
+    long position =
+        jdbc.sql("SELECT request_order FROM singflow.song_requests WHERE id=?")
+            .param(id)
+            .query(Long.class)
+            .single();
+    assistedRequests.editSelf(
+        session,
+        owner,
+        person.participant().id(),
+        id,
+        "Música A",
+        null,
+        "Nova música",
+        "Artista",
+        null);
+    assistedRequests.editSelf(
+        session,
+        owner,
+        person.participant().id(),
+        id,
+        "Música A",
+        null,
+        "Nova música",
+        "Artista",
+        null);
+    assertThat(
+            jdbc.sql("SELECT request_order FROM singflow.song_requests WHERE id=?")
+                .param(id)
+                .query(Long.class)
+                .single())
+        .isEqualTo(position);
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().title())
+        .isEqualTo("Nova música");
+    assertThat(participation.list(session, owner).getFirst().checkedInAt())
+        .isEqualTo(person.participant().checkedInAt());
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE target_id=? AND"
+                        + " action='SELF_REQUEST_EDITED'")
+                .param(id)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+    assertThatThrownBy(
+            () ->
+                assistedRequests.editSelf(
+                    session,
+                    owner,
+                    person.participant().id(),
+                    id,
+                    "Música A",
+                    null,
+                    "Edição obsoleta",
+                    null,
+                    null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThatThrownBy(
+            () ->
+                assistedRequests.editSelf(
+                    session,
+                    owner,
+                    person.participant().id(),
+                    other.request().id(),
+                    "Outra",
+                    null,
+                    "Inválida",
+                    null,
+                    null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    var call = callNext(session, owner);
+    assertThatThrownBy(
+            () ->
+                assistedRequests.editSelf(
+                    session,
+                    owner,
+                    person.participant().id(),
+                    id,
+                    "Nova música",
+                    "Artista",
+                    "Depois de convocar",
+                    null,
+                    null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThat(stage.snapshot(session, owner).active().title()).isEqualTo("Nova música");
+  }
+
+  @Test
+  void hostManualOrderPersistsUntilEachOpportunityAndAppendsNewArrivals() {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpenUnchecked(session, owner);
+    var a = assistedRequests.register(session, owner, UUID.randomUUID(), "Ana", null, "A", null);
+    var b = assistedRequests.register(session, owner, UUID.randomUUID(), "Bruno", null, "B", null);
+    var c = assistedRequests.register(session, owner, UUID.randomUUID(), "Carla", null, "C", null);
+    var expected =
+        stage.snapshot(session, owner).suggestions().stream().map(v -> v.participantId()).toList();
+    var order = List.of(c.participant().id(), a.participant().id(), b.participant().id());
+    UUID operation = UUID.randomUUID();
+    stage.reorder(session, owner, operation, expected, order);
+    stage.reorder(session, owner, operation, expected, order);
+    assertThat(
+            stage.snapshot(session, owner).suggestions().stream()
+                .map(v -> v.participantId())
+                .toList())
+        .isEqualTo(order);
+    var d = assistedRequests.register(session, owner, UUID.randomUUID(), "Dora", null, "D", null);
+    assertThat(
+            stage.snapshot(session, owner).suggestions().stream()
+                .map(v -> v.participantId())
+                .toList())
+        .containsExactly(
+            c.participant().id(), a.participant().id(), b.participant().id(), d.participant().id());
+    for (var id : order) {
+      var next = stage.snapshot(session, owner).suggestions().getFirst();
+      assertThat(next.participantId()).isEqualTo(id);
+      var call =
+          stage
+              .confirm(session, owner, UUID.randomUUID(), id, next.requestId(), null, null)
+              .active();
+      stage.resolve(session, owner, call.id(), "COMPLETED");
+    }
+    assertThat(stage.snapshot(session, owner).suggestions().getFirst().participantId())
+        .isEqualTo(d.participant().id());
+    assertThat(
+            jdbc.sql("SELECT count(*) FROM singflow.stage_manual_order WHERE session_id=?")
+                .param(session)
+                .query(Long.class)
+                .single())
+        .isZero();
+    assertThat(participation.list(session, owner).getFirst().checkedInAt())
+        .isEqualTo(a.participant().checkedInAt());
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE target_id=? AND"
+                        + " action='QUEUE_MANUALLY_REORDERED'")
+                .param(operation)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void hostCanExplicitlyCallOutOfOrderAndPauseResumeWithoutLosingRequests() {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpenUnchecked(session, owner);
+    var a = assistedRequests.register(session, owner, UUID.randomUUID(), "Ana", null, "A", null);
+    var b = assistedRequests.register(session, owner, UUID.randomUUID(), "Bruno", null, "B", null);
+    assertThatThrownBy(
+            () ->
+                stage.confirm(
+                    session,
+                    owner,
+                    UUID.randomUUID(),
+                    b.participant().id(),
+                    b.request().id(),
+                    null,
+                    null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    UUID operation = UUID.randomUUID();
+    var called =
+        stage.confirm(
+            session,
+            owner,
+            operation,
+            b.participant().id(),
+            b.request().id(),
+            null,
+            null,
+            null,
+            true);
+    assertThat(called.active().participantId()).isEqualTo(b.participant().id());
+    stage.confirm(
+        session, owner, operation, b.participant().id(), b.request().id(), null, null, null, true);
+    assertThatThrownBy(
+            () ->
+                stage.confirm(
+                    session,
+                    owner,
+                    UUID.randomUUID(),
+                    a.participant().id(),
+                    a.request().id(),
+                    null,
+                    null,
+                    null,
+                    true))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    stage.resolve(session, owner, operation, "CANCELLED");
+    var paused = stage.availability(session, owner, b.participant().id(), "pause");
+    assertThat(paused.paused().stream().map(v -> v.participantId()).toList())
+        .containsExactly(b.participant().id());
+    assertThat(paused.suggestions().stream().map(v -> v.participantId()).toList())
+        .doesNotContain(b.participant().id());
+    assertThatThrownBy(
+            () ->
+                stage.confirm(
+                    session,
+                    owner,
+                    UUID.randomUUID(),
+                    b.participant().id(),
+                    b.request().id(),
+                    null,
+                    null,
+                    null,
+                    true))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    stage.availability(session, owner, b.participant().id(), "resume");
+    assertThat(stage.snapshot(session, owner).paused()).isEmpty();
+    assertThat(
+            assistedRequests.list(session, owner).stream()
+                .filter(v -> v.participantId().equals(b.participant().id()))
+                .findFirst()
+                .orElseThrow()
+                .status())
+        .isEqualTo("PENDING");
+    assertThat(
+            participation.list(session, owner).stream()
+                .filter(v -> v.id().equals(b.participant().id()))
+                .findFirst()
+                .orElseThrow()
+                .completedPerformances())
+        .isZero();
+    assertThat(
+            jdbc.sql(
+                    "SELECT count(*) FROM singflow.audit_events WHERE target_id=? AND"
+                        + " action='CALL_PRIORITY_OVERRIDDEN'")
+                .param(operation)
+                .query(Long.class)
+                .single())
+        .isEqualTo(1);
+    mvcQueueAuthorization(session, owner);
+  }
+
+  private void mvcQueueAuthorization(UUID session, String owner) {
+    try {
+      mvc.perform(
+              post("/api/sessions/" + session + "/stage/reorder")
+                  .with(user(host()).roles("HOST"))
+                  .with(csrf())
+                  .contentType("application/json")
+                  .content(
+                      "{\"operationId\":\""
+                          + UUID.randomUUID()
+                          + "\",\"expectedOrder\":[\""
+                          + UUID.randomUUID()
+                          + "\"],\"order\":[\""
+                          + UUID.randomUUID()
+                          + "\"]}"))
+          .andExpect(status().isNotFound());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @Test
+  void concurrentHostReordersHaveOneWinnerAndRejectCalledOrForeignParticipants() throws Exception {
+    String owner = host();
+    UUID session = UUID.randomUUID();
+    createOpenUnchecked(session, owner);
+    var a = assistedRequests.register(session, owner, UUID.randomUUID(), "Ana", null, "A", null);
+    var b = assistedRequests.register(session, owner, UUID.randomUUID(), "Bruno", null, "B", null);
+    var expected = List.of(a.participant().id(), b.participant().id());
+    var order = List.of(b.participant().id(), a.participant().id());
+    assertThatThrownBy(
+            () ->
+                stage.reorder(
+                    session,
+                    owner,
+                    UUID.randomUUID(),
+                    expected,
+                    List.of(b.participant().id(), UUID.randomUUID())))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    try (var pool = Executors.newFixedThreadPool(2)) {
+      Callable<Boolean> action =
+          () -> {
+            try {
+              stage.reorder(session, owner, UUID.randomUUID(), expected, order);
+              return true;
+            } catch (org.springframework.web.server.ResponseStatusException e) {
+              assertThat(e.getStatusCode().value()).isEqualTo(409);
+              return false;
+            }
+          };
+      var one = pool.submit(action);
+      var two = pool.submit(action);
+      assertThat(List.of(one.get(10, TimeUnit.SECONDS), two.get(10, TimeUnit.SECONDS)))
+          .containsExactlyInAnyOrder(true, false);
+    }
+    stage.confirm(
+        session, owner, UUID.randomUUID(), b.participant().id(), b.request().id(), null, null);
+    assertThatThrownBy(() -> stage.reorder(session, owner, UUID.randomUUID(), order, expected))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
   }
 }

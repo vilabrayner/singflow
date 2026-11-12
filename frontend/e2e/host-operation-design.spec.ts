@@ -135,14 +135,14 @@ test('queue search never promotes a filtered participant and a stale call stays 
   await page.getByLabel('Buscar na fila').fill('Legião');
   await expect(page.locator('.sf-queue-person')).toHaveCount(1);
   await expect(page.locator('.sf-queue-person')).toContainText('Bruno');
-  await expect(page.getByRole('button', { name: 'Chamar' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Chamar Bruno', exact: true })).toBeEnabled();
   await page.getByLabel('Buscar na fila').fill('Ana');
-  await page.getByRole('button', { name: 'Chamar' }).click();
-  await expect(page.getByRole('heading', { name: 'Convocar Ana?' })).toBeFocused();
+  await page.getByRole('button', { name: 'Chamar Ana', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Chamar Ana?' })).toBeFocused();
   await page.getByRole('button', { name: 'Voltar', exact: true }).click();
   expect(api.calls).toHaveLength(0);
-  await page.getByRole('button', { name: 'Chamar' }).click();
-  await page.getByRole('button', { name: 'Confirmar convocação' }).click();
+  await page.getByRole('button', { name: 'Chamar Ana', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirmar' }).click();
   await expect(page.getByRole('alert')).toContainText('A fila mudou');
   await expect(page.locator('.current-call')).toHaveCount(0);
   expect(api.calls).toEqual(['ana']);
@@ -240,62 +240,143 @@ test('participant details confirm pauses and returns without losing history', as
   );
 });
 
-test('skipping gives the next participant one opportunity and safely retries a lost response', async ({
+test('host drags the active queue, calls outside the order and pauses or resumes participants', async ({
   page,
-}) => {
+}, testInfo) => {
   const api = await setup(page);
-  const operations: string[] = [];
-  await page.route('**/stage/skip', (route) => {
-    const input = route.request().postDataJSON();
-    expect(input.participantId).toBe('ana');
-    expect(input.expectedRequestId).toBe('song-ana');
-    operations.push(input.operationId);
-    if (operations.length === 1) {
-      const bruno = api.people.splice(
-        api.people.findIndex((p) => p.id === 'bruno'),
-        1,
-      )[0];
-      api.people.unshift(bruno);
-      return route.abort();
-    }
-    return route.fulfill({
-      json: {
-        active: null,
-        history: [],
-        waits: [],
-        suggestions: api.people
-          .filter((p) => p.status === 'ACTIVE')
-          .map((p) => ({
-            participantId: p.id,
-            name: p.name,
-            tableLabel: p.tableLabel,
-            completed: p.completedPerformances,
-            requestId: api.songs.find((s) => s.participantId === p.id)?.id ?? null,
-            title: api.songs.find((s) => s.participantId === p.id)?.title ?? null,
-            artist: null,
-            reason: 'Próxima oportunidade',
-          })),
-      },
+  let order = ['ana', 'bruno'];
+  let active: any = null;
+  const reorders: any[] = [];
+  const calls: any[] = [];
+  const choice = (p: any) => {
+    const song = api.songs.find((s) => s.participantId === p.id);
+    return {
+      participantId: p.id,
+      name: p.name,
+      completed: p.completedPerformances,
+      tableLabel: p.tableLabel,
+      requestId: song?.id ?? null,
+      title: song?.title ?? null,
+      artist: song?.artist ?? null,
+      reason: 'Fila',
+    };
+  };
+  const view = () => ({
+    active,
+    history: [],
+    waits: [],
+    suggestions: api.people
+      .filter((p) => p.status === 'ACTIVE' && p.id !== active?.participantId)
+      .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+      .map(choice),
+    paused: api.people.filter((p) => p.status === 'PAUSED').map(choice),
+  });
+  await page.route('**/stage', (route) => route.fulfill({ json: view() }));
+  await page.route('**/stage/reorder', (route) => {
+    const body = route.request().postDataJSON();
+    reorders.push(body);
+    order = body.order;
+    return route.fulfill({ json: view() });
+  });
+  await page.route('**/stage/calls', (route) => {
+    const body = route.request().postDataJSON();
+    calls.push(body);
+    active = {
+      id: body.operationId,
+      participantId: body.participantId,
+      participantName: 'Ana',
+      requestId: body.expectedRequestId,
+      title: 'Evidências',
+      artist: 'Chitãozinho & Xororó',
+      status: 'CALLED',
+      acceptedAt: null,
+    };
+    return route.fulfill({ json: view() });
+  });
+  await page.route('**/stage/participants/*/*', (route) => {
+    const parts = new URL(route.request().url()).pathname.split('/');
+    const action = parts.at(-1),
+      id = parts.at(-2);
+    api.people.find((p) => p.id === id)!.status = action === 'pause' ? 'PAUSED' : 'ACTIVE';
+    return route.fulfill({ json: view() });
+  });
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Chamar Bruno', exact: true })).toBeEnabled();
+  await page.getByLabel('Buscar na fila').fill('Bruno');
+  await expect(page.getByRole('button', { name: /^Ordenar Bruno/ })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  await page.getByLabel('Buscar na fila').fill('');
+  const handle = page.getByRole('button', { name: /^Ordenar Bruno/ });
+  await handle.scrollIntoViewIfNeeded();
+  const from = await handle.boundingBox(),
+    target = await page.getByRole('button', { name: /^Ordenar Ana/ }).boundingBox();
+  const originalLayout = await handle.locator('..').evaluate((row) => {
+    const bounds = row.getBoundingClientRect();
+    return Array.from(
+      row.querySelectorAll('.sf-host-queue-grip,.sf-host-queue-copy,.sf-host-queue-actions'),
+    ).map((el) => {
+      const rect = el.getBoundingClientRect();
+      return { x: rect.x - bounds.x, y: rect.y - bounds.y, width: rect.width, height: rect.height };
     });
   });
-  const call = page.getByRole('button', { name: 'Chamar', exact: true });
-  const skip = page.getByRole('button', { name: 'Pular', exact: true });
-  await expect(skip).toBeEnabled();
-  const callBounds = await call.boundingBox();
-  const skipBounds = await skip.boundingBox();
-  expect(skipBounds!.y).toBe(callBounds!.y);
-  expect(skipBounds!.x).toBeGreaterThan(callBounds!.x);
-  await skip.click();
-  await expect(page.getByRole('alert')).toContainText('Não foi possível confirmar');
-  await skip.click();
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2 - 8, { steps: 4 });
+  const preview = page.locator('.sf-host-queue-item.cdk-drag-preview');
+  await expect(preview).toBeVisible();
+  const previewLayout = await preview.evaluate((row) => {
+    const bounds = row.getBoundingClientRect();
+    return Array.from(
+      row.querySelectorAll('.sf-host-queue-grip,.sf-host-queue-copy,.sf-host-queue-actions'),
+    ).map((el) => {
+      const rect = el.getBoundingClientRect();
+      return { x: rect.x - bounds.x, y: rect.y - bounds.y, width: rect.width, height: rect.height };
+    });
+  });
+  for (let index = 0; index < originalLayout.length; index++)
+    for (const key of ['x', 'y', 'width', 'height'] as const)
+      expect(Math.abs(previewLayout[index][key] - originalLayout[index][key])).toBeLessThan(2);
+  await page.screenshot({
+    path: testInfo.outputPath('host-queue-during-drag.png'),
+    fullPage: true,
+    scale: 'css',
+  });
+  await page.mouse.move(target!.x + 16, target!.y + 5, { steps: 20 });
+  await page.mouse.up();
+  await expect.poll(() => reorders.length).toBe(1);
+  expect(reorders[0]).toMatchObject({ expectedOrder: ['ana', 'bruno'], order: ['bruno', 'ana'] });
   await expect(page.locator('.sf-queue-person').first()).toContainText('Bruno');
-  expect(operations).toHaveLength(2);
-  expect(operations[0]).toBe(operations[1]);
-  expect(api.calls).toHaveLength(0);
-  expect(
-    api.people.filter((p) => ['ana', 'bruno'].includes(p.id)).every((p) => p.status === 'ACTIVE'),
-  ).toBe(true);
-  expect(api.songs.every((s) => s.status === 'PENDING')).toBe(true);
   await page.reload();
   await expect(page.locator('.sf-queue-person').first()).toContainText('Bruno');
+  await page.getByRole('button', { name: 'Chamar Ana', exact: true }).click();
+  await expect(
+    page.getByText('Esta pessoa será chamada antes das demais, fora da ordem sugerida.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Confirmar', exact: true }).click();
+  await expect.poll(() => calls.length).toBe(1);
+  expect(calls[0]).toMatchObject({
+    participantId: 'ana',
+    expectedRequestId: 'song-ana',
+    allowOutOfOrder: true,
+  });
+  await expect(page.getByRole('button', { name: 'Chamar Bruno', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Pausar Bruno', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirmar pausa', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Retomar Bruno', exact: true })).toBeVisible();
+  await expect(page.locator('.sf-queue-person').filter({ hasText: 'Bruno' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Retomar Bruno', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirmar retomada', exact: true }).click();
+  await expect(page.locator('.sf-queue-person').filter({ hasText: 'Bruno' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retomar Bruno', exact: true })).toHaveCount(0);
+  expect(api.songs.every((s) => s.status === 'PENDING')).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath('host-manual-queue.png'),
+    fullPage: true,
+    scale: 'css',
+  });
 });

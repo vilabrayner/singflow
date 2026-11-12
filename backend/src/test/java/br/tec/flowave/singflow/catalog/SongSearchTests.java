@@ -82,4 +82,50 @@ class SongSearchTests {
     assertThat(new SongSearch(builder.build(), "test-key").search("abc")).hasSize(10);
     server.verify();
   }
+
+  @Test
+  void catalogSearchSupportsShortTitlesArtistFilteringAndSafeReferences() {
+    var builder = RestClient.builder().baseUrl("https://example.test/");
+    var server = MockRestServiceServer.bindTo(builder).build();
+    server
+        .expect(queryParam("track", "Ox"))
+        .andExpect(queryParam("artist", "Artista"))
+        .andRespond(
+            withSuccess(
+                """
+{"results":{"trackmatches":{"track":[{"name":"Ox","artist":"Artista","url":"http://www.last.fm/music/Artista/_/Ox","mbid":"11111111-1111-4111-8111-111111111111"}]}}}
+""",
+                MediaType.APPLICATION_JSON));
+    var search = new SongSearch(builder.build(), "test-key");
+    assertThat(search.searchForCatalog("Ox", "Artista"))
+        .containsExactly(
+            new SongSearch.Song(
+                "Ox",
+                "Artista",
+                "https://www.last.fm/music/Artista/_/Ox",
+                "11111111-1111-4111-8111-111111111111"));
+    server.verify();
+    assertThat(SongSearch.safeUrl("javascript:alert(1)")).isEmpty();
+    assertThat(SongSearch.safeUrl("https://last.fm.example.test/path")).isEmpty();
+    assertThat(SongSearch.safeUrl("https://user@www.last.fm/path")).isEmpty();
+  }
+
+  @Test
+  void providerRateLimitIsPreservedWithoutLeakingTheKey() {
+    var builder = RestClient.builder().baseUrl("https://example.test/");
+    var server = MockRestServiceServer.bindTo(builder).build();
+    server
+        .expect(anything())
+        .andRespond(
+            withSuccess(
+                "{\"error\":29,\"message\":\"private-detail\"}", MediaType.APPLICATION_JSON));
+    try {
+      new SongSearch(builder.build(), "private-key").search("Song");
+      fail("Expected limit");
+    } catch (ResponseStatusException error) {
+      assertThat(error.getStatusCode().value()).isEqualTo(429);
+      assertThat(error.getMessage()).doesNotContain("private-key", "private-detail");
+    }
+    server.verify();
+  }
 }

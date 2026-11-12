@@ -4,7 +4,6 @@
       buttonId="account-options-button"
       label="Opções da conta"
       icon="pi pi-user"
-      [primary]="false"
       [disabled]="locked()"
       [opened]="accountOptions()"
       (openedChange)="$event ? toggleAccount() : dismissAccount()"

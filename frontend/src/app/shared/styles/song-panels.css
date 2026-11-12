@@ -1,0 +1,39 @@
+.choice-panel {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+  padding: 16px 12px;
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  background: var(--sf-surface, #fff);
+  color: var(--sf-navy);
+  box-sizing: border-box;
+}
+.choice-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.choice-copy strong {
+  display: block;
+  font-size: 17px;
+  line-height: 1.4;
+  font-weight: 800;
+  padding-top: 9px;
+}
+.choice-copy p {
+  padding: 0;
+  font-size: 14px;
+  color: var(--sf-muted);
+  line-height: 1.5;
+  margin: 5px 0 10px;
+}
+.choice-copy app-status-badge {
+  display: block;
+  margin-top: 10px;
+}
+
+@media (max-width: 480px) {
+  .choice-panel {
+    padding: 12px 10px;
+  }
+}

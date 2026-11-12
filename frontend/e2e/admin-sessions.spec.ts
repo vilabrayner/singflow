@@ -113,8 +113,7 @@ test('admin reads host, musicians and live queue without operating the session',
   });
   await expect(dialog.getByRole('region', { name: 'Fila sugerida' })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
-  await page.getByRole('button', { name: 'Opções das sessões', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Atualizar lista', exact: true }).click();
+  await page.getByRole('button', { name: 'Atualizar sessões', exact: true }).click();
   await page.getByLabel('Buscar sessão ou anfitrião').fill('');
   await expect(page.getByText('Nenhuma sessão aberta no momento.', { exact: true })).toBeVisible();
   expect(writes).toEqual([]);

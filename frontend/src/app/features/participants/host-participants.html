@@ -22,6 +22,7 @@
         label="Primeira música"
         [titleControl]="registrationForm.controls.title"
         [artistControl]="registrationForm.controls.artist"
+        [selectionControl]="registrationForm.controls.selectionToken"
         [locked]="locked()"
       />
       <details class="sf-disclosure">
@@ -95,7 +96,7 @@
     #directoryDialog
     [title]="person()?.name ?? 'Participantes (' + people().length + ')'"
     [busy]="locked()"
-    [error]="confirmation() ? '' : error()"
+    [error]="confirmation() || addingSong() ? '' : error()"
     returnFocus="queue-options-button"
     (dismissed)="closeDirectory()"
   >
@@ -151,7 +152,6 @@
             buttonId="participant-origin"
             label="Origem da inscrição"
             icon="pi pi-user-edit"
-            [primary]="false"
           >
             <div class="sf-participant-origin" tabindex="0">
               <p>Participante criado pelo anfitrião.</p>
@@ -191,38 +191,84 @@
             </button>
           }
           @if (addingSong()) {
-            <form class="host-form" [formGroup]="songForm" (ngSubmit)="addSong()">
-              <app-song-search
-                label="Nova música"
-                [titleControl]="songForm.controls.title"
-                [artistControl]="songForm.controls.artist"
-                [locked]="locked()"
-              />
-
-              <div class="sf-dialog-actions">
-                <button
-                  type="submit"
-                  class="sf-button sf-primary"
-                  [disabled]="songForm.invalid || locked()"
-                >
-                  Salvar música
-                </button>
+            <app-confirmation-dialog
+              title="Adicionar música"
+              [fullscreen]="true"
+              [busy]="locked()"
+              [error]="error()"
+              returnFocus="add-participant-song"
+              (dismissed)="cancelSong()"
+            >
+              <p>Músicas de {{ person.name }}</p>
+              <div class="sf-host-song-scroll">
+                <div [hidden]="manualSong()">
+                  <app-catalog-song-picker
+                    [disabled]="locked()"
+                    [addedSongs]="existingSongs()"
+                    (picked)="pickSong($event)"
+                    (manual)="manualSong.set(true); songForm.reset()"
+                  />
+                </div>
+                <div [hidden]="!manualSong()">
+                  <button
+                    type="button"
+                    class="sf-button sf-text sf-full"
+                    [disabled]="locked()"
+                    (click)="manualSong.set(false)"
+                  >
+                    <i class="pi pi-arrow-left" aria-hidden="true"></i>Voltar ao catálogo
+                  </button>
+                  <form
+                    id="host-song-form"
+                    class="host-form"
+                    [formGroup]="songForm"
+                    (ngSubmit)="addSong()"
+                  >
+                    <label
+                      >Nova música<input
+                        pInputText
+                        formControlName="title"
+                        maxlength="160"
+                        required
+                        [readOnly]="locked()"
+                    /></label>
+                    <label
+                      >Artista (opcional)<input
+                        pInputText
+                        formControlName="artist"
+                        maxlength="160"
+                        [readOnly]="locked()"
+                    /></label>
+                  </form>
+                </div>
+              </div>
+              <div dialog-footer class="sf-dialog-actions">
+                @if (manualSong()) {
+                  <button
+                    type="submit"
+                    form="host-song-form"
+                    class="sf-button sf-primary"
+                    [disabled]="locked() || songForm.invalid"
+                  >
+                    Salvar música
+                  </button>
+                }
                 <button
                   type="button"
-                  class="sf-button sf-text"
+                  class="sf-button sf-outline"
                   [disabled]="locked()"
                   (click)="cancelSong()"
                 >
                   Cancelar música
                 </button>
               </div>
-            </form>
+            </app-confirmation-dialog>
           }
         }
-        <ul class="sf-request-list">
+        <ul class="sf-request-list sf-host-song-list">
           @for (song of songs(); track song.id) {
-            <li>
-              <div>
+            <li class="choice-panel sf-host-song-item">
+              <div class="choice-copy">
                 <strong>{{ song.title }}</strong>
                 @if (song.artist) {
                   <p>{{ song.artist }}</p>
@@ -318,9 +364,9 @@
           Fora da fila
         </button>
       </div>
-      <ul class="sf-people-list sf-dialog-list">
+      <ul class="sf-people-list sf-dialog-list sf-host-people-list">
         @for (person of visiblePeople(); track person.id) {
-          <li>
+          <li class="choice-panel sf-host-person-item">
             <button
               [id]="'participant-' + person.id"
               type="button"
@@ -332,10 +378,12 @@
                 ><strong>{{ person.name }}</strong
                 ><span
                   >{{ person.tableLabel ? 'Mesa ' + person.tableLabel + ' · ' : ''
-                  }}{{ person.completedPerformances }} apresentações ·
-                  {{ status(person.status) }}</span
+                  }}{{ person.completedPerformances }} apresentações</span
                 ></span
-              ><i class="pi pi-chevron-right" aria-hidden="true"></i>
+              >
+              <app-status-badge [tone]="person.status === 'ACTIVE' ? 'positive' : 'neutral'">{{
+                status(person.status)
+              }}</app-status-badge>
             </button>
             @if (
               session().status === 'OPEN' &&
