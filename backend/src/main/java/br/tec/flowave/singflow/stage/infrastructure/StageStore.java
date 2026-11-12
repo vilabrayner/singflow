@@ -58,17 +58,25 @@ public class StageStore {
   }
 
   public void insert(
-      UUID id, UUID session, UUID participant, UUID request, String title, String artist) {
+      UUID id,
+      UUID session,
+      UUID participant,
+      UUID request,
+      String title,
+      String artist,
+      UUID catalogSong) {
     jdbc.sql(
             "INSERT INTO"
-                + " singflow.stage_calls(id,session_id,participant_id,request_id,title,artist,status,created_at)"
-                + " VALUES (:id,:session,:participant,:request,:title,:artist,'CALLED',:created)")
+                + " singflow.stage_calls(id,session_id,participant_id,request_id,title,artist,status,created_at,catalog_song_id)"
+                + " VALUES"
+                + " (:id,:session,:participant,:request,:title,:artist,'CALLED',:created,:catalog)")
         .param("id", id)
         .param("session", session)
         .param("participant", participant)
         .param("request", request)
         .param("title", title)
         .param("artist", artist)
+        .param("catalog", catalogSong)
         .param("created", Timestamp.from(Instant.now()))
         .update();
   }
@@ -83,11 +91,13 @@ public class StageStore {
     if (updated != 1) throw new IllegalStateException("Call was not pending under session lock");
   }
 
-  public void setSong(UUID session, UUID call, String title, String artist) {
+  public void setSong(UUID session, UUID call, String title, String artist, UUID catalogSong) {
     int updated =
         jdbc.sql(
-                "UPDATE singflow.stage_calls SET title=:title,artist=:artist WHERE"
+                "UPDATE singflow.stage_calls SET"
+                    + " title=:title,artist=:artist,catalog_song_id=:catalog WHERE"
                     + " session_id=:session AND id=:call AND status='CALLED' AND title IS NULL")
+            .param("catalog", catalogSong)
             .param("title", title)
             .param("artist", artist)
             .param("session", session)
@@ -152,6 +162,60 @@ public class StageStore {
             VALUES (?,?,?,?,?)
             """)
         .params(operation, session, participant, request, next)
+        .update();
+  }
+
+  public List<UUID> manualOrder(UUID session) {
+    return jdbc.sql(
+            "SELECT participant_id FROM singflow.stage_manual_order WHERE session_id=? ORDER BY"
+                + " position")
+        .param(session)
+        .query(UUID.class)
+        .list();
+  }
+
+  public void consumeManual(UUID session, UUID participant) {
+    jdbc.sql("DELETE FROM singflow.stage_manual_order WHERE session_id=? AND participant_id=?")
+        .params(session, participant)
+        .update();
+  }
+
+  public boolean replayOrder(
+      UUID session, UUID operation, List<UUID> expected, List<UUID> ordered) {
+    var saved =
+        jdbc.sql(
+                "SELECT session_id,expected_ids,ordered_ids FROM singflow.stage_queue_reorders"
+                    + " WHERE operation_id=?")
+            .param(operation)
+            .query(
+                (rs, n) ->
+                    List.of(
+                        rs.getObject(1, UUID.class),
+                        Arrays.asList((UUID[]) rs.getArray(2).getArray()),
+                        Arrays.asList((UUID[]) rs.getArray(3).getArray())))
+            .optional();
+    if (saved.isEmpty()) return false;
+    if (!saved.get().equals(List.of(session, expected, ordered)))
+      throw new org.springframework.web.server.ResponseStatusException(
+          org.springframework.http.HttpStatus.CONFLICT, "Identificador já utilizado.");
+    return true;
+  }
+
+  public void saveOrder(UUID session, UUID operation, List<UUID> expected, List<UUID> ordered) {
+    jdbc.sql("DELETE FROM singflow.stage_manual_order WHERE session_id=?").param(session).update();
+    for (int i = 0; i < ordered.size(); i++)
+      jdbc.sql("INSERT INTO singflow.stage_manual_order VALUES(?,?,?)")
+          .params(session, ordered.get(i), i)
+          .update();
+    jdbc.sql(
+            "INSERT INTO"
+                + " singflow.stage_queue_reorders(operation_id,session_id,expected_ids,ordered_ids)"
+                + " VALUES(?,?,cast(? AS uuid[]),cast(? AS uuid[]))")
+        .params(
+            operation,
+            session,
+            expected.toString().replace('[', '{').replace(']', '}'),
+            ordered.toString().replace('[', '{').replace(']', '}'))
         .update();
   }
 

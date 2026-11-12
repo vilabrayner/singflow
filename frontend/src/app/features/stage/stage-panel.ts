@@ -1,3 +1,11 @@
+import {
+  CdkDrag,
+  CdkDragHandle,
+  CdkDropList,
+  CdkDragDrop,
+  moveItemInArray,
+} from '@angular/cdk/drag-drop';
+import { HistoryItem } from '../../shared/components/history-item';
 import { SongSearch } from '../../shared/components/song-search';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
@@ -16,7 +24,7 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { DatePipe, DOCUMENT } from '@angular/common';
+import { DOCUMENT } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { StageApi, StageCall, StageView, Suggestion, callStatus } from './stage-api';
@@ -29,16 +37,20 @@ type CallSelection = Pick<Suggestion, 'participantId' | 'name' | 'requestId' | '
 @Component({
   selector: 'app-stage-panel',
   imports: [
+    CdkDrag,
+    CdkDragHandle,
+    CdkDropList,
+    HistoryItem,
     SongSearch,
     ConfirmationDialog,
     OptionsMenu,
-    DatePipe,
     ReactiveFormsModule,
     InputTextModule,
     SurfaceCard,
     StatusBadge,
   ],
   templateUrl: './stage-panel.html',
+  styleUrls: ['../../shared/styles/song-panels.css', '../../shared/styles/host-panels.css'],
 })
 export class StagePanel {
   readonly sessionId = input.required<string>();
@@ -60,11 +72,6 @@ export class StagePanel {
       label: 'Participantes',
       icon: 'pi pi-users',
       command: () => this.participantsRequested.emit(),
-    },
-    {
-      label: 'Histórico do palco',
-      icon: 'pi pi-history',
-      command: () => this.showingHistory.set(true),
     },
   ]);
   readonly working = output<boolean>();
@@ -89,7 +96,64 @@ export class StagePanel {
     },
   ]);
   readonly search = signal('');
-  readonly showingHistory = signal(false);
+  readonly dragging = signal(false);
+  readonly availabilityChoice = signal<{ person: Suggestion; action: 'pause' | 'resume' } | null>(
+    null,
+  );
+  readonly outOfOrder = signal(false);
+  private dragOrder: string[] = [];
+  private reorderOperation: { body: string; id: string } | null = null;
+  captureQueue() {
+    this.dragOrder = (this.state()?.suggestions ?? []).map((p) => p.participantId);
+    this.dragging.set(true);
+  }
+  async dropQueue(event: CdkDragDrop<Suggestion[]>) {
+    this.dragging.set(false);
+    if (this.locked() || this.search().trim() || event.previousIndex === event.currentIndex) return;
+    const current = (this.state()?.suggestions ?? []).map((p) => p.participantId);
+    if (JSON.stringify(current) !== JSON.stringify(this.dragOrder)) return;
+    const order = [...current];
+    moveItemInArray(order, event.previousIndex, event.currentIndex);
+    await this.saveOrder(current, order);
+  }
+  async nudgeQueue(person: Suggestion, direction: number) {
+    if (this.locked() || this.search().trim()) return;
+    const expected = (this.state()?.suggestions ?? []).map((p) => p.participantId),
+      index = expected.indexOf(person.participantId),
+      target = index + direction;
+    if (index < 0 || target < 0 || target >= expected.length) return;
+    const order = [...expected];
+    moveItemInArray(order, index, target);
+    await this.saveOrder(expected, order);
+  }
+  private async saveOrder(expected: string[], order: string[]) {
+    const body = JSON.stringify({ expected, order });
+    if (this.reorderOperation?.body !== body)
+      this.reorderOperation = { body, id: createOperationId() };
+    await this.run(() =>
+      this.api.reorder(this.sessionId(), this.reorderOperation!.id, expected, order),
+    );
+    if (!this.error()) this.reorderOperation = null;
+    else {
+      const session = this.sessionId();
+      try {
+        const view = await this.api.snapshot(session);
+        if (session === this.sessionId()) this.state.set(view);
+      } catch {}
+    }
+  }
+  async confirmAvailability() {
+    const choice = this.availabilityChoice();
+    if (!choice) return;
+    await this.run(() =>
+      this.api.availability(this.sessionId(), choice.person.participantId, choice.action),
+    );
+    if (!this.error()) this.availabilityChoice.set(null);
+  }
+  queuePosition(id: string) {
+    return (this.state()?.suggestions.findIndex((p) => p.participantId === id) ?? -1) + 1;
+  }
+
   readonly visibleSuggestions = computed(() => {
     const query = this.search().trim().toLocaleLowerCase();
     return (this.state()?.suggestions ?? []).filter((p) =>
@@ -112,6 +176,7 @@ export class StagePanel {
   readonly choosingNext = signal<CallSelection | null>(null);
   readonly labels = callStatus;
   readonly songForm = this.fb.group({
+    selectionToken: [''],
     title: ['', [Validators.required, Validators.maxLength(160)]],
     artist: ['', Validators.maxLength(160)],
   });
@@ -124,15 +189,16 @@ export class StagePanel {
   cancelOutcome() {
     this.pendingOutcome.set(null);
   }
-  cancelCall() {
-    this.choosingNext.set(null);
-    this.focus(this.definingActiveSong() ? 'define-active-song' : 'approve-next');
+  callFocusId() {
+    if (this.definingActiveSong()) return 'define-active-song';
+    const id = this.choosingNext()?.participantId;
+    return id && id !== this.state()?.suggestions[0]?.participantId ? 'call-' + id : 'approve-next';
   }
-  private skipOperation: {
-    participantId: string;
-    requestId: string | null;
-    operationId: string;
-  } | null = null;
+  cancelCall() {
+    const target = this.callFocusId();
+    this.choosingNext.set(null);
+    this.focus(target);
+  }
   private context = '';
   private generation = 0;
   private confirmationKey: string = createOperationId();
@@ -155,7 +221,9 @@ export class StagePanel {
           this.document.hidden ||
           this.locked() ||
           this.pendingOutcome() ||
-          this.choosingNext()
+          this.choosingNext() ||
+          this.availabilityChoice() ||
+          this.dragging()
         )
           return;
         checking = true;
@@ -167,7 +235,9 @@ export class StagePanel {
             generation !== this.generation ||
             this.locked() ||
             this.pendingOutcome() ||
-            this.choosingNext()
+            this.choosingNext() ||
+            this.availabilityChoice() ||
+            this.dragging()
           )
             return;
           this.state.set(snapshot);
@@ -196,8 +266,9 @@ export class StagePanel {
     this.loading.set(true);
     if (this.context !== session) {
       this.context = session;
-      this.skipOperation = null;
-      this.showingHistory.set(false);
+      this.reorderOperation = null;
+      this.availabilityChoice.set(null);
+      this.dragging.set(false);
       this.search.set('');
       this.state.set(null);
       this.songForm.reset();
@@ -224,6 +295,10 @@ export class StagePanel {
   }
   choose(suggestion: CallSelection, operation: string = createOperationId()) {
     this.confirmationKey = operation;
+    this.outOfOrder.set(
+      operation !== this.state()?.active?.id &&
+        suggestion.participantId !== this.state()?.suggestions[0]?.participantId,
+    );
     this.error.set('');
     this.songForm.reset();
     this.choosingNext.set(suggestion);
@@ -265,32 +340,14 @@ export class StagePanel {
       this.working.emit(false);
     }
   }
-  async skip(suggestion: Suggestion) {
-    if (this.locked()) return;
-    if (
-      this.skipOperation?.participantId !== suggestion.participantId ||
-      this.skipOperation?.requestId !== suggestion.requestId
-    ) {
-      this.skipOperation = {
-        participantId: suggestion.participantId,
-        requestId: suggestion.requestId,
-        operationId: createOperationId(),
-      };
-    }
-    const operationId = this.skipOperation.operationId;
-    await this.run(async () => {
-      const next = await this.api.skip(this.sessionId(), operationId, suggestion);
-      this.skipOperation = null;
-      return next;
-    });
-  }
-
   async confirm() {
     const next = this.choosingNext();
     if (!next) return;
     const song = next.requestId ? undefined : this.songForm.getRawValue();
     if (song && (!song.title.trim() || this.songForm.invalid)) return;
-    await this.run(() => this.api.confirm(this.sessionId(), this.confirmationKey, next, song));
+    await this.run(() =>
+      this.api.confirm(this.sessionId(), this.confirmationKey, next, song, this.outOfOrder()),
+    );
   }
   async resolve() {
     const call = this.state()?.active,

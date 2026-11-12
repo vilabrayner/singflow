@@ -1,3 +1,4 @@
+import { AdminCatalog } from './admin-catalog';
 import { afterNextRender, Component, inject, Injector, OnInit, signal } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -27,10 +28,11 @@ interface Event {
 }
 @Component({
   selector: 'app-admin-page',
-  styleUrl: './admin.page.css',
+  styleUrls: ['../../shared/styles/admin-collections.css', './admin.page.css'],
   imports: [
     PanelHeader,
     AdminSessions,
+    AdminCatalog,
     SurfaceCard,
     StatusBadge,
     ConfirmationDialog,
@@ -158,19 +160,36 @@ interface Event {
           >
             Sessões abertas
           </button>
+          <button
+            type="button"
+            class="sf-button"
+            [class.sf-primary]="section() === 'catalog'"
+            [class.sf-outline]="section() !== 'catalog'"
+            [attr.aria-current]="section() === 'catalog' ? 'page' : null"
+            [disabled]="busy()"
+            (click)="selectSection('catalog')"
+          >
+            Catálogo
+          </button>
         </nav>
-        @if (section() === 'sessions') {
+        @if (section() === 'catalog') {
+          <app-admin-catalog />
+        } @else if (section() === 'sessions') {
           <app-admin-sessions />
         } @else {
           <app-surface-card labelledBy="admin-accounts-title">
             <div class="admin-card-heading">
               <h1 id="admin-accounts-title" tabindex="-1">Cadastros</h1>
-              <app-options-menu
-                buttonId="admin-list-options"
-                label="Opções dos cadastros"
+              <button
+                type="button"
+                class="sf-icon-button"
+                aria-label="Atualizar cadastros"
+                title="Atualizar cadastros"
                 [disabled]="busy()"
-                [items]="listMenu"
-              />
+                (click)="load(page())"
+              >
+                <i class="pi pi-refresh" aria-hidden="true"></i>
+              </button>
             </div>
             <p class="admin-intro">Acompanhe e libere os acessos ao SingFlow.</p>
             <form class="admin-search host-form" [formGroup]="filters" (ngSubmit)="load(0)">
@@ -452,11 +471,17 @@ export class AdminPage implements OnInit {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly notifications = inject(Notifications);
   readonly showPassword = signal(false);
-  readonly section = signal<'accounts' | 'sessions'>('accounts');
-  selectSection(section: 'accounts' | 'sessions') {
+  readonly section = signal<'accounts' | 'sessions' | 'catalog'>('accounts');
+  selectSection(section: 'accounts' | 'sessions' | 'catalog') {
     if (this.busy()) return;
     this.section.set(section);
-    this.revealPage(section === 'accounts' ? 'admin-accounts-title' : 'admin-sessions-title');
+    this.revealPage(
+      section === 'accounts'
+        ? 'admin-accounts-title'
+        : section === 'catalog'
+          ? 'admin-catalog-title'
+          : 'admin-sessions-title',
+    );
   }
   readonly authorized = signal(false);
   readonly forbidden = signal(false);
@@ -479,10 +504,6 @@ export class AdminPage implements OnInit {
   readonly filters = this.fb.group({ search: [''], status: ['PENDING'], role: [''] });
   readonly showingFilters = signal(false);
   readonly filterDraft = this.fb.group({ status: ['PENDING'], role: [''] });
-  readonly listMenu = [
-    { label: 'Filtrar cadastros', icon: 'pi pi-filter', command: () => this.openFilters() },
-    { label: 'Atualizar lista', icon: 'pi pi-refresh', command: () => void this.load(this.page()) },
-  ];
   private readonly appliedFilters = signal({ status: 'PENDING', role: '' });
   filterSummary() {
     const { status, role } = this.appliedFilters();

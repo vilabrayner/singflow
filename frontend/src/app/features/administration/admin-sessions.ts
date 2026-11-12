@@ -1,3 +1,4 @@
+import { Router } from '@angular/router';
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -21,27 +22,10 @@ interface Detail extends Summary {
 @Component({
   selector: 'app-admin-sessions',
   imports: [SurfaceCard, OptionsMenu, ConfirmationDialog, StatusBadge, InputTextModule, DatePipe],
+  styleUrl: '../../shared/styles/admin-collections.css',
   styles: `
     :host {
       display: block;
-    }
-    .session-heading {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-    }
-    .session-heading h1 {
-      margin: 0;
-    }
-    .session-search {
-      display: grid;
-      gap: 8px;
-      margin-top: 24px;
-    }
-    .session-search input {
-      width: 100%;
-      min-height: var(--sf-touch);
     }
     .session-section {
       padding-top: 20px;
@@ -88,58 +72,98 @@ interface Detail extends Summary {
       color: var(--sf-purple);
       font-weight: 750;
     }
-    .session-empty {
-      padding: 24px 0;
-      text-align: center;
-      color: var(--sf-muted);
-    }
   `,
   template: `
     <app-surface-card labelledBy="admin-sessions-title">
-      <div class="session-heading">
+      <div class="admin-card-heading">
         <h1 id="admin-sessions-title" tabindex="-1">Sessões abertas</h1>
-        <app-options-menu
-          buttonId="admin-sessions-options"
-          label="Opções das sessões"
-          [items]="listMenu"
+        <button
+          type="button"
+          class="sf-icon-button"
+          aria-label="Atualizar sessões"
+          title="Atualizar sessões"
           [disabled]="loading()"
-        />
+          (click)="load()"
+        >
+          <i class="pi pi-refresh" aria-hidden="true"></i>
+        </button>
       </div>
-      <p>Acompanhe os eventos em andamento. Esta área é somente de consulta.</p>
+      <p class="admin-intro">
+        Acompanhe os eventos e use as opções da sessão para gerenciar como anfitrião.
+      </p>
       @if (error() && !selected()) {
         <p role="alert" class="sf-dialog-error">{{ error() }}</p>
       }
-      <label class="session-search"
-        >Buscar sessão ou anfitrião<input
-          pInputText
-          [value]="search()"
-          (input)="search.set($any($event.target).value)"
-          placeholder="Nome da sessão ou anfitrião"
-      /></label>
-      <p role="status">
-        {{ loading() ? 'Atualizando sessões…' : filtered().length + ' sessão(ões) aberta(s)' }}
-      </p>
-      <ul class="sf-people-list">
+      <form class="admin-search host-form" (submit)="$event.preventDefault(); load()">
+        <label for="admin-session-search">Buscar sessão ou anfitrião</label>
+        <div class="admin-search-controls">
+          <input
+            id="admin-session-search"
+            pInputText
+            [value]="search()"
+            (input)="search.set($any($event.target).value)"
+            placeholder="Nome da sessão ou anfitrião"
+            maxlength="160"
+            [readOnly]="loading()"
+          />
+          <button
+            type="submit"
+            class="sf-icon-button"
+            aria-label="Buscar sessões"
+            title="Buscar sessões"
+            [disabled]="loading()"
+          >
+            <i class="pi pi-search" aria-hidden="true"></i>
+          </button>
+        </div>
+      </form>
+      <div class="admin-list-summary">
+        <p role="status" aria-live="polite">
+          {{
+            loading()
+              ? 'Atualizando sessões…'
+              : filtered().length +
+                (filtered().length === 1 ? ' sessão aberta' : ' sessões abertas')
+          }}
+        </p>
+      </div>
+      <ul class="sf-people-list" aria-label="Sessões abertas" [attr.aria-busy]="loading()">
         @for (item of filtered(); track item.session.id) {
           <li>
             <button
               type="button"
-              class="sf-person-row"
+              class="sf-person-row admin-collection-row"
               [id]="'admin-session-' + item.session.id"
               (click)="open(item)"
             >
-              <span
+              <i class="pi pi-calendar admin-avatar" aria-hidden="true"></i>
+              <span class="admin-person-copy"
                 ><strong>{{ item.session.name }}</strong
-                ><span>{{ item.host.name || item.host.email }}</span
-                ><span>Aberta · {{ item.session.createdAt | date: 'dd/MM HH:mm' }}</span></span
-              ><i class="pi pi-chevron-right" aria-hidden="true"></i>
+                ><span>Anfitrião: {{ item.host.name || item.host.email }}</span
+                ><span class="admin-item-meta"
+                  ><app-status-badge tone="positive">Aberta</app-status-badge
+                  ><span>{{ item.session.createdAt | date: 'dd/MM HH:mm' }}</span></span
+                ></span
+              ><i class="pi pi-chevron-right admin-row-arrow" aria-hidden="true"></i>
             </button>
           </li>
         } @empty {
-          <li class="session-empty">
-            {{
-              search() ? 'Nenhuma sessão corresponde à busca.' : 'Nenhuma sessão aberta no momento.'
-            }}
+          <li class="admin-empty-state">
+            <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-calendar"></i></span>
+            <h2>
+              {{
+                search()
+                  ? 'Nenhuma sessão corresponde à busca.'
+                  : 'Nenhuma sessão aberta no momento.'
+              }}
+            </h2>
+            <p>
+              {{
+                search()
+                  ? 'Tente outro nome de sessão ou anfitrião.'
+                  : 'As sessões aparecerão aqui quando forem abertas.'
+              }}
+            </p>
           </li>
         }
       </ul>
@@ -264,6 +288,7 @@ interface Detail extends Summary {
 })
 export class AdminSessions implements OnInit, OnDestroy {
   private readonly api = inject(ApiClient);
+  private readonly router = inject(Router);
   private readonly document = inject(DOCUMENT);
   readonly sessions = signal<Summary[]>([]);
   readonly selected = signal<Summary | null>(null);
@@ -279,10 +304,16 @@ export class AdminSessions implements OnInit, OnDestroy {
       (s.session.name + ' ' + s.host.name + ' ' + s.host.email).toLocaleLowerCase().includes(q),
     );
   });
-  readonly listMenu = [
-    { label: 'Atualizar lista', icon: 'pi pi-refresh', command: () => void this.load() },
-  ];
   readonly detailMenu = [
+    {
+      label: 'Gerenciar como anfitrião',
+      icon: 'pi pi-microphone',
+      command: () => {
+        const session = this.selected()?.session;
+        if (session)
+          void this.router.navigate(['/anfitriao'], { queryParams: { sessao: session.id } });
+      },
+    },
     { label: 'Atualizar consulta', icon: 'pi pi-refresh', command: () => void this.refresh() },
   ];
   private timer?: ReturnType<typeof setInterval>;

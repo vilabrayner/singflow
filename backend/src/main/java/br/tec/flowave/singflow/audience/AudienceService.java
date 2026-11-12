@@ -407,11 +407,24 @@ WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR e
       String table,
       String title,
       String artist) {
+    return join(session, raw, code, name, table, title, artist, null);
+  }
+
+  @Transactional
+  public OwnView join(
+      UUID session,
+      String raw,
+      String code,
+      String name,
+      String table,
+      String title,
+      String artist,
+      String selectionToken) {
     String owner = owner(session, true);
     var g = grant(session, raw, false);
     if (g.participantId() != null) return me(session, raw);
     checkCode(session, code);
-    requests.registerSelf(session, owner, g.id(), name, table, title, artist);
+    requests.registerSelf(session, owner, g.id(), name, table, title, artist, selectionToken);
     jdbc.sql("UPDATE singflow.participant_grants SET participant_id=id WHERE id=?")
         .param(g.id())
         .update();
@@ -454,9 +467,54 @@ WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR e
 
   @Transactional
   public OwnView add(UUID session, String raw, UUID operation, String title, String artist) {
+    return add(session, raw, operation, title, artist, null);
+  }
+
+  @Transactional
+  public OwnView add(
+      UUID session,
+      String raw,
+      UUID operation,
+      String title,
+      String artist,
+      String selectionToken) {
     String owner = owner(session, true);
     var g = grant(session, raw, true);
-    requests.addSelf(session, owner, g.participantId(), operation, title, artist);
+    requests.addSelf(session, owner, g.participantId(), operation, title, artist, selectionToken);
+    return me(session, raw);
+  }
+
+  @Transactional
+  public OwnView reorder(
+      UUID session, String raw, UUID operation, List<UUID> expected, List<UUID> ordered) {
+    String owner = owner(session, true);
+    var g = grant(session, raw, true);
+    requests.reorder(session, owner, g.participantId(), operation, expected, ordered);
+    return me(session, raw);
+  }
+
+  @Transactional
+  public OwnView edit(
+      UUID session,
+      String raw,
+      UUID request,
+      String expectedTitle,
+      String expectedArtist,
+      String title,
+      String artist,
+      String selectionToken) {
+    String owner = owner(session, true);
+    var g = grant(session, raw, true);
+    requests.editSelf(
+        session,
+        owner,
+        g.participantId(),
+        request,
+        expectedTitle,
+        expectedArtist,
+        title,
+        artist,
+        selectionToken);
     return me(session, raw);
   }
 
@@ -495,6 +553,17 @@ WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR e
   @Transactional
   public OwnView returnToQueue(
       UUID session, String raw, UUID operation, String title, String artist) {
+    return returnToQueue(session, raw, operation, title, artist, null);
+  }
+
+  @Transactional
+  public OwnView returnToQueue(
+      UUID session,
+      String raw,
+      UUID operation,
+      String title,
+      String artist,
+      String selectionToken) {
     String owner = owner(session, true);
     var g = grant(session, raw, true);
     if (operation == null
@@ -530,7 +599,7 @@ WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR e
           HttpStatus.CONFLICT, "Seu retorno depende do anfitrião ou você já está participando.");
     var p = current.participant();
     participants.updateStage(session, owner, p.id(), "ACTIVE", 0, p.consecutiveAbsences(), true);
-    requests.addSelf(session, owner, p.id(), operation, cleanTitle, cleanArtist);
+    requests.addSelf(session, owner, p.id(), operation, cleanTitle, cleanArtist, selectionToken);
     jdbc.sql(
             "INSERT INTO singflow.participant_returns(operation_id,grant_id,title,artist) VALUES"
                 + " (?,?,?,?)")

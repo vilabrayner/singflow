@@ -130,12 +130,12 @@ Escopo proposto: sugestões, aprovação/rejeição e notificações WebSocket p
 
 Aceite:
 
-- Sugestão pendente não entra na fila elegível.
+- Cadastro musical provisório não bloqueia pedidos nem apresentações; apenas entradas aprovadas compõem a busca local do catálogo.
 - Aprovação/rejeição tem ator e registro auditável.
 - Eventos são enviados após commit e assinaturas respeitam autorização.
 - Reconexão recupera o estado oficial por REST, inclusive após perda de eventos.
 
-Antes de iniciar: definir responsáveis pela aprovação e escopo de compartilhamento do catálogo entre sessões.
+Definido em 12/11/2026: catálogo único para todo o SingFlow, organizado pelo admin, com provisórios sem bloquear o palco. O primeiro incremento está registrado no Aceite 011; notificações WebSocket continuam pendentes.
 
 ## Etapa 5 — PWA e preparação de publicação
 
@@ -154,3 +154,21 @@ A escolha do provedor e qualquer publicação serão revisadas separadamente. Co
 ## Busca de músicas Last.fm — 11/11/2026
 
 Implementação autorizada: componente compartilhado nos formulários de anfitrião e participante, a partir de 3 caracteres, até 10 sugestões e texto livre permitido. Consulta via backend com `LASTFM_API_KEY`, sem chave no frontend. Este incremento não implementa aprovação de catálogo nem WebSocket. Configuração e ensaio em [Aceite 009](acceptance/009-song-search.md).
+
+## Catálogo SingFlow — incremento de 12/11/2026
+
+Implementação autorizada: catálogo global, revisão administrativa, entradas provisórias sem bloquear o palco e vínculos com pedidos/convocações existentes. Área Admin → Catálogo, V14 e busca local complementada pelo Last.fm implementadas. Backend validado pelo responsável com BUILD SUCCESS; ensaio integrado pendente. [Roteiro 011](acceptance/011-singflow-catalog.md).
+
+Retirada a proposta de prioridade por assiduidade. Contas opcionais de participantes, associação, rankings e recomendações ficam para incrementos posteriores. Mecanismos futuros de benefícios devem preservar as regras isonômicas da fila.
+
+## Sincronização das provisórias — 12/11/2026
+
+Implementados acompanhamento em tela, processamento persistente, aprovação automática conservadora e revisão com escolha Last.fm ou edição manual, pausa/retomada, vínculo explícito de duplicatas e auditoria. Backend validado pelo responsável com BUILD SUCCESS e 110 testes de interface aprovados com API simulada. [Ensaio integrado pendente](acceptance/012-catalog-synchronization.md). WebSocket, rankings, links de repertório e conta opcional do participante continuam em etapas separadas.
+
+## Escolhas do participante — 12/11/2026
+
+Implementados catálogo aprovado, busca complementar Last.fm, texto livre, seleção externa validada no backend com aprovação automática e setas para reordenar pedidos pendentes. Prioridade entre pessoas preservada. V16 e backend validados pelo responsável com BUILD SUCCESS; [ensaio 013](acceptance/013-participant-song-choices.md). WebSocket, rankings, links de repertório e contas opcionais continuam em incrementos posteriores.
+
+## Intervenções do anfitrião — 12/11/2026
+
+Implementadas ordem manual persistente por oportunidade, convocação explícita fora da vez e botões de pausa/retomada com preservação dos pedidos. V17 validada pelo responsável com BUILD SUCCESS. [Ensaio 015](acceptance/015-host-queue-interventions.md). Músico e participante consultam a ordem efetiva. Benefícios de assiduidade continuam sem interferir na prioridade.

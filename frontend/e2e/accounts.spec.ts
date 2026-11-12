@@ -160,8 +160,7 @@ test('administrator approves and suspends with confirmation, reason and account 
   await page.getByRole('button', { name: 'Confirmar aprovação', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(decisions).toHaveLength(1);
-  await page.getByRole('button', { name: 'Opções dos cadastros' }).click();
-  await page.getByRole('menuitem', { name: 'Filtrar cadastros' }).click();
+  await page.getByRole('button', { name: 'Pendentes', exact: true }).click();
   await page.getByLabel('Situação', { exact: true }).selectOption('');
   await page.getByRole('button', { name: 'Aplicar filtros' }).click();
   await page.getByRole('button', { name: /Nova pessoa/ }).click();

@@ -33,6 +33,7 @@ export interface StageView {
   active: StageCall | null;
   history: StageCall[];
   waits: StageWait[];
+  paused?: Suggestion[];
 }
 @Injectable({ providedIn: 'root' })
 export class StageApi {
@@ -44,24 +45,22 @@ export class StageApi {
     session: string,
     operationId: string,
     suggestion: Pick<Suggestion, 'participantId' | 'requestId'>,
-    song?: { title: string; artist: string },
+    song?: { title: string; artist: string; selectionToken?: string },
+    allowOutOfOrder = false,
   ) {
     return this.api.post<StageView>(`/sessions/${session}/stage/calls`, {
       operationId,
       participantId: suggestion.participantId,
       expectedRequestId: suggestion.requestId,
       ...song,
+      ...(allowOutOfOrder ? { allowOutOfOrder: true } : {}),
     });
   }
-  skip(
-    session: string,
-    operationId: string,
-    suggestion: Pick<Suggestion, 'participantId' | 'requestId'>,
-  ) {
-    return this.api.post<StageView>(`/sessions/${session}/stage/skip`, {
+  reorder(session: string, operationId: string, expectedOrder: string[], order: string[]) {
+    return this.api.post<StageView>(`/sessions/${session}/stage/reorder`, {
       operationId,
-      participantId: suggestion.participantId,
-      expectedRequestId: suggestion.requestId,
+      expectedOrder,
+      order,
     });
   }
   resolve(session: string, call: string, outcome: string) {

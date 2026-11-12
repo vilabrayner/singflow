@@ -142,3 +142,11 @@ A implementação será feita em etapas, com autorização do responsável antes
 ### Busca de músicas (Last.fm)
 
 Configure `LASTFM_API_KEY` somente no backend: no `.env` da raiz para o inicializador local/Compose, ou nas variáveis do serviço em produção. Reinicie o backend após configurar. Sem chave, o preenchimento livre continua disponível. O frontend usa `/api/public/songs/search` sem receber a chave. Consulte [configuração e roteiro da busca](docs/acceptance/009-song-search.md).
+
+### Catálogo SingFlow
+
+A administração em `/admin` oferece **Catálogo** para revisar, aprovar, corrigir e unificar músicas. A V14 vincula pedidos e convocações sem alterar o histórico ou a prioridade da fila. A busca usa músicas locais aprovadas e complementa pelo Last.fm; texto livre continua permitido. [Configuração e ensaio do catálogo](docs/acceptance/011-singflow-catalog.md).
+
+### Sincronizar músicas provisórias
+
+Em **Admin → Catálogo → Sincronizar provisórias**, inicie um lote e acompanhe aprovações automáticas, revisão e falhas. Estado salvo pela V15; utiliza a mesma `LASTFM_API_KEY` do backend. Título e artista precisam corresponder exatamente, sem ambiguidade, para aprovação automática. Fechar a tela preserva o trabalho. [Roteiro e regras de sincronização](docs/acceptance/012-catalog-synchronization.md).

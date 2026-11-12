@@ -16,12 +16,12 @@ class AssistedEndpoints {
       @NotBlank @Size(max = 120) String name,
       @Size(max = 40) String tableLabel,
       @NotBlank @Size(max = 160) String title,
-      @Size(max = 160) String artist) {}
+      @Size(max = 160) String artist, @Size(max=36) String selectionToken) {}
 
   record Request(
       @NotNull UUID operationId,
       @NotBlank @Size(max = 160) String title,
-      @Size(max = 160) String artist) {}
+      @Size(max = 160) String artist, @Size(max=36) String selectionToken) {}
 
   private final AssistedRequests requests;
 
@@ -39,7 +39,7 @@ class AssistedEndpoints {
         input.name(),
         input.tableLabel(),
         input.title(),
-        input.artist());
+        input.artist(),input.selectionToken());
   }
 
   @GetMapping("/requests")
@@ -54,7 +54,7 @@ class AssistedEndpoints {
       @Valid @RequestBody Request input,
       Principal actor) {
     return requests.add(
-        session, actor.getName(), participant, input.operationId(), input.title(), input.artist());
+        session, actor.getName(), participant, input.operationId(), input.title(), input.artist(),input.selectionToken());
   }
 
   @PostMapping("/participants/{participant}/leave")

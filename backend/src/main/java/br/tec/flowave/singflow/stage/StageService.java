@@ -1,6 +1,7 @@
 package br.tec.flowave.singflow.stage;
 
 import br.tec.flowave.singflow.audit.AuditTrail;
+import br.tec.flowave.singflow.catalog.CatalogService;
 import br.tec.flowave.singflow.participants.*;
 import br.tec.flowave.singflow.requests.AssistedRequests;
 import br.tec.flowave.singflow.sessions.*;
@@ -46,25 +47,29 @@ public class StageService {
       List<Suggestion> suggestions,
       CallView active,
       List<CallView> history,
-      List<WaitView> waits) {}
+      List<WaitView> waits,
+      List<Suggestion> paused) {}
 
   private final StageStore store;
   private final SessionAccess sessions;
   private final Participation participants;
   private final AssistedRequests requests;
   private final AuditTrail audit;
+  private final CatalogService catalog;
 
   public StageService(
       StageStore store,
       SessionAccess sessions,
       Participation participants,
       AssistedRequests requests,
-      AuditTrail audit) {
+      AuditTrail audit,
+      CatalogService catalog) {
     this.store = store;
     this.sessions = sessions;
     this.participants = participants;
     this.requests = requests;
     this.audit = audit;
+    this.catalog = catalog;
   }
 
   private ResponseStatusException conflict(String message) {
@@ -150,6 +155,14 @@ public class StageService {
                     ranked.addFirst(candidate);
                   });
             });
+    var manual = store.manualOrder(session);
+    // Stable sort preserves the automatic ranking for arrivals outside the manual batch.
+    ranked.sort(
+        Comparator.comparingInt(
+            c -> {
+              int index = manual.indexOf(c.participantId());
+              return index < 0 ? Integer.MAX_VALUE : index;
+            }));
     return ranked;
   }
 
@@ -197,7 +210,48 @@ public class StageService {
             .findFirst()
             .orElse(null),
         calls.stream().filter(c -> !c.status().equals("CALLED")).map(c -> view(c, people)).toList(),
-        waits);
+        waits,
+        people.stream()
+            .filter(p -> p.status().equals("PAUSED"))
+            .map(
+                p -> {
+                  var song =
+                      requests.list(session, actor).stream()
+                          .filter(
+                              r -> r.participantId().equals(p.id()) && r.status().equals("PENDING"))
+                          .findFirst()
+                          .orElse(null);
+                  return new Suggestion(
+                      p.id(),
+                      p.name(),
+                      p.tableLabel(),
+                      p.completedPerformances(),
+                      song == null ? null : song.id(),
+                      song == null ? null : song.title(),
+                      song == null ? null : song.artist(),
+                      "Pausado");
+                })
+            .toList());
+  }
+
+  @Transactional
+  public StageView reorder(
+      UUID session, String actor, UUID operation, List<UUID> expected, List<UUID> ordered) {
+    sessions.lockOwned(session, actor, true);
+    if (store.replayOrder(session, operation, expected, ordered)) return snapshot(session, actor);
+    var current = ranked(session, actor).stream().map(Candidate::participantId).toList();
+    if (expected.isEmpty()
+        || expected.size() > 500
+        || new HashSet<>(expected).size() != expected.size()
+        || ordered.size() != expected.size()
+        || new HashSet<>(ordered).size() != ordered.size()
+        || !new HashSet<>(expected).equals(new HashSet<>(ordered))
+        || !current.equals(expected))
+      throw conflict("A fila mudou. Atualize antes de reorganizar.");
+    store.saveOrder(session, operation, expected, ordered);
+    store.consumeSkip(session);
+    audit.record(actor, session, "QUEUE_MANUALLY_REORDERED", operation);
+    return snapshot(session, actor);
   }
 
   @Transactional
@@ -237,6 +291,50 @@ public class StageService {
       UUID expectedRequest,
       String selectedTitle,
       String selectedArtist) {
+    return confirm(
+        session,
+        actor,
+        operation,
+        participant,
+        expectedRequest,
+        selectedTitle,
+        selectedArtist,
+        null);
+  }
+
+  @Transactional
+  public StageView confirm(
+      UUID session,
+      String actor,
+      UUID operation,
+      UUID participant,
+      UUID expectedRequest,
+      String selectedTitle,
+      String selectedArtist,
+      String selectionToken) {
+    return confirm(
+        session,
+        actor,
+        operation,
+        participant,
+        expectedRequest,
+        selectedTitle,
+        selectedArtist,
+        selectionToken,
+        false);
+  }
+
+  @Transactional
+  public StageView confirm(
+      UUID session,
+      String actor,
+      UUID operation,
+      UUID participant,
+      UUID expectedRequest,
+      String selectedTitle,
+      String selectedArtist,
+      String selectionToken,
+      boolean allowOutOfOrder) {
     sessions.lockOwned(session, actor, true);
     String title = clean(selectedTitle);
     String artist = clean(selectedArtist);
@@ -250,7 +348,13 @@ public class StageService {
         throw conflict("Identificador já utilizado.");
       if (expectedRequest == null && title != null) {
         if (call.title() == null && call.status().equals("CALLED")) {
-          store.setSong(session, operation, title, artist);
+          store.setSong(
+              session,
+              operation,
+              title,
+              artist,
+              catalog.register(
+                  title, artist, actor, expectedRequest == null ? selectionToken : null));
           audit.record(actor, session, "CALL_SONG_SELECTED", operation);
         } else if (!Objects.equals(call.title(), title) || !Objects.equals(call.artist(), artist)) {
           throw conflict("Identificador já utilizado com outra música.");
@@ -262,9 +366,13 @@ public class StageService {
       throw conflict("Resolva a convocação atual antes de chamar outra pessoa.");
     var suggestions = ranked(session, actor);
     if (suggestions.isEmpty()) throw conflict("Não há participante elegível.");
-    var next = suggestions.getFirst();
-    if (!next.participantId().equals(participant)
-        || !Objects.equals(next.requestId(), expectedRequest))
+    var next =
+        suggestions.stream()
+            .filter(c -> c.participantId().equals(participant))
+            .findFirst()
+            .orElseThrow(() -> conflict("Participante não está elegível. Atualize a fila."));
+    boolean overridden = !suggestions.getFirst().participantId().equals(participant);
+    if ((overridden && !allowOutOfOrder) || !Objects.equals(next.requestId(), expectedRequest))
       throw conflict("A sugestão mudou. Atualize a lista antes de confirmar.");
     if (expectedRequest == null && title == null)
       throw conflict("Informe a música antes de confirmar a convocação.");
@@ -273,9 +381,17 @@ public class StageService {
       title = next.title();
       artist = next.artist();
     }
-    store.insert(operation, session, participant, expectedRequest, title, artist);
+    store.insert(
+        operation,
+        session,
+        participant,
+        expectedRequest,
+        title,
+        artist,
+        catalog.register(title, artist, actor, expectedRequest == null ? selectionToken : null));
     store.consumeSkip(session);
     audit.record(actor, session, "CALL_CONFIRMED", operation);
+    if (overridden) audit.record(actor, session, "CALL_PRIORITY_OVERRIDDEN", operation);
     return snapshot(session, actor);
   }
 
@@ -394,7 +510,10 @@ public class StageService {
               .toList();
       store.waitFor(session, p.id(), blockers);
     }
-    if (!outcome.equals("CANCELLED")) progress(session, actor, p.id());
+    if (!outcome.equals("CANCELLED")) {
+      store.consumeManual(session, p.id());
+      progress(session, actor, p.id());
+    }
   }
 
   private void progress(UUID session, String actor, UUID served) {
@@ -439,6 +558,7 @@ public class StageService {
       if (!p.status().equals("ACTIVE"))
         throw conflict("Somente uma participação ativa pode ser pausada.");
       participants.updateStage(session, actor, id, "PAUSED", 0, p.consecutiveAbsences(), false);
+      store.consumeManual(session, id);
     } else if (action.equals("resume")) {
       if (p.status().equals("ACTIVE")) return snapshot(session, actor);
       if (!p.status().equals("PAUSED") && !p.status().equals("SUSPENDED"))
@@ -484,6 +604,7 @@ public class StageService {
           call.get().artist(),
           event.auditActor(),
           false);
+    store.consumeManual(event.sessionId(), event.participantId());
     store.removeWait(event.sessionId(), event.participantId());
     if (sessions.requireOwned(event.sessionId(), event.actor()).status().equals("OPEN"))
       progress(event.sessionId(), event.actor(), event.participantId());

@@ -1,0 +1,146 @@
+.admin-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.admin-card-heading h1 {
+  margin: 0;
+}
+.admin-intro {
+  margin: 12px 0 24px;
+}
+.admin-search {
+  margin: 0;
+}
+.admin-search-controls {
+  display: flex;
+  gap: 8px;
+}
+.admin-search-controls input {
+  width: 100%;
+  min-width: 0;
+}
+.admin-list-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 12px 0 0;
+}
+.admin-list-summary p {
+  margin: 0;
+  font-size: 13px;
+}
+.admin-filter-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--sf-touch);
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: var(--sf-purple);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-filter-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.admin-account-row,
+.admin-collection-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 16px;
+  align-items: start;
+  gap: 12px;
+}
+.admin-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-top: 2px;
+  border-radius: 12px;
+  background: #f1eafe;
+  color: var(--sf-purple);
+  font-size: 18px;
+}
+.admin-row-arrow {
+  align-self: center;
+  font-size: 13px;
+  color: var(--sf-muted);
+}
+.admin-person-copy {
+  min-width: 0;
+}
+.admin-email {
+  overflow-wrap: anywhere;
+}
+.sf-person-row .admin-account-meta,
+.sf-person-row .admin-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 8px;
+}
+.admin-empty-state {
+  padding: 32px 4px;
+  text-align: center;
+}
+.admin-empty-state .sf-card-icon {
+  margin: 0 auto 16px;
+}
+.admin-empty-state h2 {
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+.admin-empty-state p {
+  max-width: 320px;
+  margin: auto;
+}
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--sf-border);
+  font-size: 14px;
+  color: var(--sf-muted);
+}
+.admin-select {
+  width: 100%;
+  min-height: var(--sf-touch);
+  padding: 12px;
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+  background: var(--sf-surface);
+  color: var(--sf-navy);
+  font: inherit;
+  margin-bottom: 8px;
+}
+.admin-select:focus-visible {
+  outline: 3px solid var(--sf-purple);
+  outline-offset: 3px;
+}
+
+.admin-card-heading h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-card-heading > button {
+  flex-shrink: 0;
+}
+.admin-create-action {
+  margin: 12px 0;
+}
+.admin-person-copy > span {
+  overflow-wrap: anywhere;
+}

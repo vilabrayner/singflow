@@ -1,0 +1,32 @@
+<app-surface-card labelledBy="participant-history-title">
+  <h2 id="participant-history-title">Meu histórico de palco</h2>
+  <div class="history-list">
+    @for (call of data().history; track call.id) {
+      <div>
+        <ng-container
+          [ngTemplateOutlet]="songRow"
+          [ngTemplateOutletContext]="{ $implicit: call }"
+        />
+      </div>
+    } @empty {
+      <p>Você ainda não teve uma convocação resolvida.</p>
+    }
+    @for (song of cancelled(); track song.id) {
+      <div>
+        <ng-container
+          [ngTemplateOutlet]="songRow"
+          [ngTemplateOutletContext]="{ $implicit: song }"
+        />
+      </div>
+    }
+  </div>
+  <ng-content />
+</app-surface-card>
+<ng-template #songRow let-song>
+  <app-history-item
+    [title]="song.title || 'Música a escolher'"
+    [subtitle]="song.artist"
+    [status]="status(song.status)"
+    [completed]="song.status === 'COMPLETED'"
+  />
+</ng-template>

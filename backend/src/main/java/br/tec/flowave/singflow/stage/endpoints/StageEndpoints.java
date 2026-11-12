@@ -4,6 +4,7 @@ import br.tec.flowave.singflow.stage.StageService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.security.Principal;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
 
@@ -15,7 +16,9 @@ class StageEndpoints {
       @NotNull UUID participantId,
       UUID expectedRequestId,
       @Size(max = 160) String title,
-      @Size(max = 160) String artist) {}
+      @Size(max = 160) String artist,
+      @Size(max = 36) String selectionToken,
+      boolean allowOutOfOrder) {}
 
   record Skip(@NotNull UUID operationId, @NotNull UUID participantId, UUID expectedRequestId) {}
 
@@ -28,6 +31,18 @@ class StageEndpoints {
         input.operationId(),
         input.participantId(),
         input.expectedRequestId());
+  }
+
+  record Reorder(
+      @NotNull UUID operationId,
+      @NotEmpty @Size(max = 500) List<@NotNull UUID> expectedOrder,
+      @NotEmpty @Size(max = 500) List<@NotNull UUID> order) {}
+
+  @PostMapping("/reorder")
+  StageService.StageView reorder(
+      @PathVariable UUID session, @Valid @RequestBody Reorder input, Principal actor) {
+    return stage.reorder(
+        session, actor.getName(), input.operationId(), input.expectedOrder(), input.order());
   }
 
   record Resolve(@NotBlank String outcome) {}
@@ -53,7 +68,9 @@ class StageEndpoints {
         input.participantId(),
         input.expectedRequestId(),
         input.title(),
-        input.artist());
+        input.artist(),
+        input.selectionToken(),
+        input.allowOutOfOrder());
   }
 
   @PostMapping("/calls/{call}/resolve")

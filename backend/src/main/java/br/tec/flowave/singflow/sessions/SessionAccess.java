@@ -1,6 +1,7 @@
 package br.tec.flowave.singflow.sessions;
 
 import br.tec.flowave.singflow.audit.AuditTrail;
+import br.tec.flowave.singflow.identity.AccountLifecycle;
 import br.tec.flowave.singflow.sessions.infrastructure.*;
 import java.time.Instant;
 import java.util.*;
@@ -15,14 +16,17 @@ public class SessionAccess {
 
   private final SessionRepository repository;
   private final AuditTrail audit;
+  private final AccountLifecycle accounts;
   private final org.springframework.context.ApplicationEventPublisher events;
 
   public SessionAccess(
       SessionRepository repository,
       AuditTrail audit,
+      AccountLifecycle accounts,
       org.springframework.context.ApplicationEventPublisher events) {
     this.repository = repository;
     this.audit = audit;
+    this.accounts = accounts;
     this.events = events;
   }
 
@@ -54,20 +58,27 @@ public class SessionAccess {
     return new AudienceContext(s.owner, view(s));
   }
 
+  // Keep the real actor throughout the operation, including audit records. Never impersonate owner.
+  private boolean administrator(String actor) {
+    return accounts.find(actor).map(a -> a.active() && a.administrator()).orElse(false);
+  }
+
   private SessionView view(KaraokeSession s) {
     return new SessionView(s.id, s.name, s.status, s.createdAt);
   }
 
   @Transactional(readOnly = true)
   public List<SessionView> list(String owner) {
-    return repository.findByOwnerOrderByCreatedAtDesc(owner).stream().map(this::view).toList();
+    return (administrator(owner)
+            ? repository.findAllByOrderByCreatedAtDesc()
+            : repository.findByOwnerOrderByCreatedAtDesc(owner))
+        .stream().map(this::view).toList();
   }
 
   @Transactional(readOnly = true)
   public SessionView requireOwned(UUID id, String owner) {
     return view(
-        repository
-            .findByIdAndOwner(id, owner)
+        (administrator(owner) ? repository.findById(id) : repository.findByIdAndOwner(id, owner))
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sessão não encontrada.")));
   }
@@ -75,8 +86,7 @@ public class SessionAccess {
   @Transactional
   public void lockOwned(UUID id, String owner, boolean requireOpen) {
     var s =
-        repository
-            .lockOwned(id, owner)
+        (administrator(owner) ? repository.lockById(id) : repository.lockOwned(id, owner))
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sessão não encontrada."));
     if (requireOpen && !s.status.equals("OPEN"))
@@ -99,8 +109,7 @@ public class SessionAccess {
   @Transactional
   public SessionView transition(UUID id, String owner, String target) {
     var s =
-        repository
-            .lockOwned(id, owner)
+        (administrator(owner) ? repository.lockById(id) : repository.lockOwned(id, owner))
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sessão não encontrada."));
     if (s.status.equals(target)) return view(s);

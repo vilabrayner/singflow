@@ -1,4 +1,4 @@
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { MenuItem } from 'primeng/api';
@@ -55,6 +55,7 @@ export class HostDashboard implements OnInit {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly auth = inject(HostAuth);
   private readonly api = inject(SessionApi);
+  private readonly route = inject(ActivatedRoute);
   readonly participantBusy = signal(false);
   readonly stageBusy = signal(false);
   readonly locked = computed(() => this.busy() || this.participantBusy() || this.stageBusy());
@@ -205,6 +206,16 @@ export class HostDashboard implements OnInit {
     afterNextRender(() => this.document.getElementById(id)?.focus(), { injector: this.injector });
   }
   private async selectInitialSession() {
+    const requested = this.route.snapshot.queryParamMap.get('sessao');
+    if (requested) {
+      const target = this.sessions().find((s) => s.id === requested);
+      if (!target) {
+        this.error.set('Sessão indisponível para esta conta.');
+        return;
+      }
+      await this.loadSession(target);
+      return;
+    }
     const session =
       this.sessions().find((s) => s.status === 'OPEN') ??
       this.sessions().find((s) => s.status === 'DRAFT');
@@ -311,6 +322,7 @@ export class HostDashboard implements OnInit {
       await this.loadSessions();
       const session = this.sessions().find((s) => s.id === id);
       if (session) await this.loadSession(session);
+      else this.clearSession();
     });
   }
   async transition(action: 'open' | 'close') {

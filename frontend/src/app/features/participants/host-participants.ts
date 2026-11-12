@@ -1,3 +1,4 @@
+import { CatalogSongPicker, PickedSong } from '../../shared/components/catalog-song-picker';
 import { SongSearch } from '../../shared/components/song-search';
 import { MenuItem } from 'primeng/api';
 import { OptionsMenu } from '../../shared/components/options-menu';
@@ -31,6 +32,7 @@ import { StageApi } from '../stage/stage-api';
 @Component({
   selector: 'app-host-participants',
   imports: [
+    CatalogSongPicker,
     SongSearch,
     ConfirmationDialog,
     DatePipe,
@@ -42,9 +44,7 @@ import { StageApi } from '../stage/stage-api';
     OptionsMenu,
     MenuPopover,
   ],
-  styles: [
-    '.sf-people-list > li:has(app-participant-mobile-access) { display: flex; align-items: center; gap: .5rem; }',
-  ],
+  styleUrls: ['../../shared/styles/song-panels.css', '../../shared/styles/host-panels.css'],
   templateUrl: './host-participants.html',
 })
 export class HostParticipants {
@@ -141,12 +141,14 @@ export class HostParticipants {
     this.requests().filter((s) => s.participantId === this.personId()),
   );
   readonly registrationForm = this.fb.group({
+    selectionToken: [''],
     name: ['', [Validators.required, Validators.maxLength(120)]],
     title: ['', [Validators.required, Validators.maxLength(160)]],
     tableLabel: ['', Validators.maxLength(40)],
     artist: ['', Validators.maxLength(160)],
   });
   readonly songForm = this.fb.group({
+    selectionToken: [''],
     title: ['', [Validators.required, Validators.maxLength(160)]],
     artist: ['', Validators.maxLength(160)],
   });
@@ -226,7 +228,20 @@ export class HostParticipants {
     }
     this.focus(`participant-${id}`);
   }
+  readonly manualSong = signal(false);
+  readonly existingSongs = computed(() =>
+    this.songs().filter((song) => ['PENDING', 'RESERVED'].includes(song.status)),
+  );
+  async pickSong(song: PickedSong) {
+    this.songForm.setValue({
+      title: song.title,
+      artist: song.artist ?? '',
+      selectionToken: song.selectionToken ?? '',
+    });
+    await this.addSong();
+  }
   startSong() {
+    this.manualSong.set(false);
     this.songForm.reset();
     this.songKey = createOperationId();
     this.addingSong.set(true);

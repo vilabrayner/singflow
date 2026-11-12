@@ -1,6 +1,7 @@
 package br.tec.flowave.singflow.requests;
 
 import br.tec.flowave.singflow.audit.AuditTrail;
+import br.tec.flowave.singflow.catalog.CatalogService;
 import br.tec.flowave.singflow.participants.Participation;
 import br.tec.flowave.singflow.requests.infrastructure.*;
 import br.tec.flowave.singflow.sessions.SessionAccess;
@@ -14,7 +15,13 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AssistedRequests {
   public record RequestView(
-      UUID id, UUID participantId, String title, String artist, String status, Instant createdAt) {}
+      UUID id,
+      UUID participantId,
+      String title,
+      String artist,
+      String status,
+      Instant createdAt,
+      UUID catalogSongId) {}
 
   public record Registration(Participation.ParticipantView participant, RequestView request) {}
 
@@ -22,26 +29,33 @@ public class AssistedRequests {
   private final SessionAccess sessions;
   private final Participation participation;
   private final AuditTrail audit;
+  private final CatalogService catalog;
+  private final org.springframework.jdbc.core.simple.JdbcClient jdbc;
 
   public AssistedRequests(
       SongRequestRepository repository,
       SessionAccess sessions,
       Participation participation,
-      AuditTrail audit) {
+      AuditTrail audit,
+      CatalogService catalog,
+      org.springframework.jdbc.core.simple.JdbcClient jdbc) {
     this.repository = repository;
     this.sessions = sessions;
     this.participation = participation;
     this.audit = audit;
+    this.catalog = catalog;
+    this.jdbc = jdbc;
   }
 
   private RequestView view(SongRequest r) {
-    return new RequestView(r.id, r.participantId, r.title, r.artist, r.status, r.createdAt);
+    return new RequestView(
+        r.id, r.participantId, r.title, r.artist, r.status, r.createdAt, r.catalogSongId);
   }
 
   @Transactional(readOnly = true)
   public List<RequestView> list(UUID session, String actor) {
     sessions.requireOwned(session, actor);
-    return repository.findBySessionIdOrderByCreatedAtAscIdAsc(session).stream()
+    return repository.findBySessionIdOrderByRequestOrderAscCreatedAtAscIdAsc(session).stream()
         .map(this::view)
         .toList();
   }
@@ -55,14 +69,41 @@ public class AssistedRequests {
       String table,
       String title,
       String artist) {
+    return register(session, actor, operation, name, table, title, artist, null);
+  }
+
+  @Transactional
+  public Registration register(
+      UUID session,
+      String actor,
+      UUID operation,
+      String name,
+      String table,
+      String title,
+      String artist,
+      String selectionToken) {
     var p = participation.register(session, actor, operation, name, table);
-    return new Registration(p, add(session, actor, p.id(), operation, title, artist));
+    return new Registration(
+        p, add(session, actor, p.id(), operation, title, artist, selectionToken));
   }
 
   @Transactional
   public RequestView add(
       UUID session, String actor, UUID participant, UUID operation, String title, String artist) {
-    return addAs(session, actor, participant, operation, title, artist, actor, "ASSISTED");
+    return add(session, actor, participant, operation, title, artist, null);
+  }
+
+  @Transactional
+  public RequestView add(
+      UUID session,
+      String actor,
+      UUID participant,
+      UUID operation,
+      String title,
+      String artist,
+      String selectionToken) {
+    return addAs(
+        session, actor, participant, operation, title, artist, actor, "ASSISTED", selectionToken);
   }
 
   @Transactional
@@ -74,13 +115,39 @@ public class AssistedRequests {
       String table,
       String title,
       String artist) {
+    return registerSelf(session, owner, participant, name, table, title, artist, null);
+  }
+
+  @Transactional
+  public Registration registerSelf(
+      UUID session,
+      String owner,
+      UUID participant,
+      String name,
+      String table,
+      String title,
+      String artist,
+      String selectionToken) {
     var p = participation.registerSelf(session, owner, participant, name, table);
-    return new Registration(p, addSelf(session, owner, participant, participant, title, artist));
+    return new Registration(
+        p, addSelf(session, owner, participant, participant, title, artist, selectionToken));
   }
 
   @Transactional
   public RequestView addSelf(
       UUID session, String owner, UUID participant, UUID operation, String title, String artist) {
+    return addSelf(session, owner, participant, operation, title, artist, null);
+  }
+
+  @Transactional
+  public RequestView addSelf(
+      UUID session,
+      String owner,
+      UUID participant,
+      UUID operation,
+      String title,
+      String artist,
+      String selectionToken) {
     return addAs(
         session,
         owner,
@@ -89,7 +156,8 @@ public class AssistedRequests {
         title,
         artist,
         "participant:" + participant,
-        "SELF");
+        "SELF",
+        selectionToken);
   }
 
   private RequestView addAs(
@@ -100,7 +168,8 @@ public class AssistedRequests {
       String title,
       String artist,
       String auditActor,
-      String origin) {
+      String origin,
+      String selectionToken) {
     participation.requireActive(session, actor, participant);
     String cleanArtist = artist == null || artist.isBlank() ? null : artist.strip();
     var previous = repository.findById(operation);
@@ -113,11 +182,74 @@ public class AssistedRequests {
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Identificador já utilizado.");
       return view(r);
     }
-    var r =
-        repository.saveAndFlush(
-            new SongRequest(operation, session, participant, title.strip(), cleanArtist));
+    var request = new SongRequest(operation, session, participant, title.strip(), cleanArtist);
+    request.catalogSongId = catalog.register(title, cleanArtist, auditActor, selectionToken);
+    var r = repository.saveAndFlush(request);
     audit.record(auditActor, session, origin + "_REQUEST_CREATED", operation);
     return view(r);
+  }
+
+  @Transactional
+  public void reorder(
+      UUID session,
+      String owner,
+      UUID participant,
+      UUID operation,
+      List<UUID> expected,
+      List<UUID> ordered) {
+    participation.requireActive(session, owner, participant);
+    if (expected == null
+        || ordered == null
+        || expected.isEmpty()
+        || expected.size() > 100
+        || !new HashSet<>(expected).equals(new HashSet<>(ordered))
+        || new HashSet<>(ordered).size() != ordered.size()
+        || expected.size() != ordered.size())
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Confira a lista de músicas para reordenar.");
+    var previous =
+        jdbc.sql(
+                "SELECT session_id,participant_id,expected_ids,ordered_ids FROM"
+                    + " singflow.request_reorders WHERE operation_id=?")
+            .param(operation)
+            .query(
+                (rs, n) ->
+                    List.of(
+                        rs.getObject(1, UUID.class),
+                        rs.getObject(2, UUID.class),
+                        List.of((UUID[]) rs.getArray(3).getArray()),
+                        List.of((UUID[]) rs.getArray(4).getArray())))
+            .optional();
+    if (previous.isPresent()) {
+      if (!previous.get().equals(List.of(session, participant, expected, ordered)))
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Identificador já utilizado.");
+      return;
+    }
+    var pending =
+        repository.findBySessionIdOrderByRequestOrderAscCreatedAtAscIdAsc(session).stream()
+            .filter(r -> r.participantId.equals(participant) && r.status.equals("PENDING"))
+            .toList();
+    if (!pending.stream().map(r -> r.id).toList().equals(expected))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "As músicas mudaram ou uma já foi convocada. A lista será atualizada.");
+    for (int i = 0; i < ordered.size(); i++)
+      jdbc.sql(
+              "UPDATE singflow.song_requests SET request_order=? WHERE id=? AND session_id=? AND"
+                  + " participant_id=? AND status='PENDING'")
+          .params(pending.get(i).requestOrder, ordered.get(i), session, participant)
+          .update();
+    jdbc.sql(
+            "INSERT INTO singflow.request_reorders VALUES(?,?,?,cast(? AS uuid[]),cast(? AS"
+                + " uuid[]))")
+        .params(
+            operation,
+            session,
+            participant,
+            "{" + String.join(",", expected.stream().map(UUID::toString).toList()) + "}",
+            "{" + String.join(",", ordered.stream().map(UUID::toString).toList()) + "}")
+        .update();
+    audit.record("participant:" + participant, session, "REQUESTS_REORDERED", operation);
   }
 
   @Transactional
@@ -141,7 +273,7 @@ public class AssistedRequests {
   }
 
   private void cancelOnExit(UUID session, UUID participant, String auditActor) {
-    repository.findBySessionIdOrderByCreatedAtAscIdAsc(session).stream()
+    repository.findBySessionIdOrderByRequestOrderAscCreatedAtAscIdAsc(session).stream()
         .filter(
             r ->
                 r.participantId.equals(participant)
@@ -152,6 +284,45 @@ public class AssistedRequests {
               audit.record(auditActor, session, "REQUEST_CANCELLED_ON_EXIT", r.id);
             });
     repository.flush();
+  }
+
+  @Transactional
+  public void editSelf(
+      UUID session,
+      String owner,
+      UUID participant,
+      UUID id,
+      String expectedTitle,
+      String expectedArtist,
+      String title,
+      String artist,
+      String selectionToken) {
+    participation.requireActive(session, owner, participant);
+    var r =
+        repository
+            .findById(id)
+            .filter(
+                item -> item.sessionId.equals(session) && item.participantId.equals(participant))
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não encontrado."));
+    if (!r.status.equals("PENDING"))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Somente pedidos pendentes podem ser alterados. Atualize a lista.");
+    String cleanTitle = title.strip();
+    String cleanArtist = artist == null || artist.isBlank() ? null : artist.strip();
+    if (r.title.equals(cleanTitle) && Objects.equals(r.artist, cleanArtist)) return;
+    String previousArtist =
+        expectedArtist == null || expectedArtist.isBlank() ? null : expectedArtist.strip();
+    if (!r.title.equals(expectedTitle.strip()) || !Objects.equals(r.artist, previousArtist))
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Este pedido foi alterado. Atualize a lista antes de tentar novamente.");
+    r.catalogSongId =
+        catalog.register(cleanTitle, cleanArtist, "participant:" + participant, selectionToken);
+    r.title = cleanTitle;
+    r.artist = cleanArtist;
+    repository.flush();
+    audit.record("participant:" + participant, session, "SELF_REQUEST_EDITED", id);
   }
 
   @Transactional

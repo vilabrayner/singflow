@@ -1,0 +1,380 @@
+@if (showingSync()) {
+  <app-catalog-sync (closed)="closeSync()" />
+} @else {
+  <app-surface-card labelledBy="admin-catalog-title">
+    <div class="admin-card-heading">
+      <h1 id="admin-catalog-title" tabindex="-1">Catálogo de músicas</h1>
+      <button
+        type="button"
+        class="sf-icon-button"
+        aria-label="Atualizar catálogo"
+        title="Atualizar catálogo"
+        [disabled]="loading() || busy()"
+        (click)="load(page())"
+      >
+        <i class="pi pi-refresh" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p class="admin-intro">
+      Organize as músicas do SingFlow. Cadastros provisórios não impedem ninguém de cantar.
+    </p>
+    @if (error() && !selected() && !creating()) {
+      <p role="alert" class="sf-dialog-error">{{ error() }}</p>
+    }
+    <form class="admin-search host-form" [formGroup]="filter" (ngSubmit)="load()">
+      <label for="admin-catalog-search">Buscar música ou artista</label>
+      <div class="admin-search-controls">
+        <input
+          id="admin-catalog-search"
+          pInputText
+          formControlName="q"
+          maxlength="160"
+          placeholder="Título ou artista"
+          [readOnly]="loading() || busy()"
+        />
+        <button
+          type="submit"
+          class="sf-icon-button"
+          aria-label="Buscar no catálogo"
+          title="Buscar no catálogo"
+          [disabled]="loading() || busy()"
+        >
+          <i class="pi pi-search" aria-hidden="true"></i>
+        </button>
+      </div>
+    </form>
+    <div class="admin-list-summary">
+      <p role="status" aria-live="polite">
+        {{
+          loading() ? 'Atualizando catálogo…' : total() + (total() === 1 ? ' música' : ' músicas')
+        }}
+      </p>
+      <button
+        type="button"
+        class="admin-filter-link"
+        [disabled]="loading() || busy()"
+        (click)="openFilters()"
+      >
+        <i class="pi pi-filter" aria-hidden="true"></i>{{ filterLabel() }}
+      </button>
+    </div>
+    <button
+      type="button"
+      class="sf-button sf-primary sf-full admin-create-action"
+      [disabled]="loading() || busy()"
+      (click)="create()"
+    >
+      <i class="pi pi-plus" aria-hidden="true"></i>Cadastrar música
+    </button>
+    <button
+      type="button"
+      class="sf-button sf-outline sf-full"
+      [disabled]="loading() || busy()"
+      (click)="showingSync.set(true)"
+    >
+      <i class="pi pi-sync" aria-hidden="true"></i>Sincronizar provisórias
+    </button>
+    <ul class="sf-people-list" aria-label="Músicas do catálogo" [attr.aria-busy]="loading()">
+      @for (song of rows(); track song.id) {
+        <li>
+          <button
+            type="button"
+            class="sf-person-row admin-collection-row"
+            [id]="'catalog-song-' + song.id"
+            (click)="open(song)"
+            [disabled]="loading() || busy()"
+          >
+            <i class="pi pi-headphones admin-avatar" aria-hidden="true"></i>
+            <span class="admin-person-copy"
+              ><strong>{{ song.title }}</strong
+              ><span>{{ song.artist || 'Artista não informado' }}</span
+              ><span class="admin-item-meta"
+                ><app-status-badge
+                  [tone]="
+                    song.status === 'APPROVED'
+                      ? 'positive'
+                      : song.status === 'PENDING'
+                        ? 'attention'
+                        : 'neutral'
+                  "
+                  >{{ status(song.status) }}</app-status-badge
+                ></span
+              ></span
+            ><i class="pi pi-chevron-right admin-row-arrow" aria-hidden="true"></i>
+          </button>
+        </li>
+      } @empty {
+        <li class="admin-empty-state">
+          <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-headphones"></i></span>
+          <h2>Nenhuma música nesta busca.</h2>
+          <p>Tente outro título, artista ou filtro.</p>
+        </li>
+      }
+    </ul>
+    <div class="admin-pagination">
+      <button
+        type="button"
+        class="sf-button sf-outline"
+        [disabled]="page() === 0 || loading() || busy()"
+        (click)="load(page() - 1)"
+      >
+        Anterior
+      </button>
+      <span>Página {{ page() + 1 }}</span
+      ><button
+        type="button"
+        class="sf-button sf-outline"
+        [disabled]="(page() + 1) * 25 >= total() || loading() || busy()"
+        (click)="load(page() + 1)"
+      >
+        Próxima
+      </button>
+    </div>
+  </app-surface-card>
+  @if (selected() || creating()) {
+    <app-confirmation-dialog
+      [title]="
+        creating()
+          ? 'Cadastrar música'
+          : action() === 'HISTORY'
+            ? 'Histórico da música'
+            : action() === 'MERGE'
+              ? 'Unificar duplicata'
+              : action() === 'APPROVED'
+                ? 'Aprovar música?'
+                : action() === 'REJECTED'
+                  ? 'Rejeitar música?'
+                  : 'Detalhes da música'
+      "
+      [busy]="busy()"
+      [error]="error()"
+      (dismissed)="close()"
+    >
+      @if (action()) {
+        <button
+          dialog-leading
+          type="button"
+          class="sf-button sf-icon sf-outline"
+          aria-label="Voltar aos detalhes da música"
+          [disabled]="busy()"
+          (click)="back()"
+        >
+          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+        </button>
+      } @else if (selected()) {
+        <div dialog-actions>
+          <app-options-menu
+            buttonId="catalog-song-options"
+            label="Opções da música"
+            [items]="detailMenu()"
+            [disabled]="busy()"
+          />
+        </div>
+      }
+      @if (action() === 'HISTORY') {
+        <p>Últimas 50 alterações de {{ selected()?.title }}.</p>
+        <ul class="catalog-list">
+          @for (event of history(); track $index) {
+            <li>
+              <strong>{{ this.event(event.action) }}</strong>
+              <p>{{ event.occurredAt | date: 'dd/MM/yyyy HH:mm' }} · {{ event.actor }}</p>
+              @if (event.reason) {
+                <p>{{ event.reason }}</p>
+              }
+            </li>
+          } @empty {
+            <li>{{ busy() ? 'Carregando histórico…' : 'Nenhuma alteração registrada.' }}</li>
+          }
+        </ul>
+        <div class="sf-dialog-actions">
+          <button type="button" class="sf-button sf-outline" [disabled]="busy()" (click)="back()">
+            Voltar aos detalhes
+          </button>
+        </div>
+      } @else if (action()) {
+        <p>
+          <strong>{{ selected()?.title }}</strong> ·
+          {{ selected()?.artist || 'Artista não informado' }}
+        </p>
+        @if (action() === 'APPROVED') {
+          <p>A música será oferecida na busca do catálogo SingFlow.</p>
+        }
+        @if (action() === 'REJECTED') {
+          <p>
+            A música deixa de ser oferecida pelo catálogo. Os pedidos e apresentações existentes são
+            preservados.
+          </p>
+        }
+        @if (action() === 'MERGE') {
+          <p>
+            Escolha o cadastro aprovado que deve representar esta música. Títulos e artistas dos
+            pedidos e apresentações não serão alterados.
+          </p>
+          <form class="host-form" (submit)="$event.preventDefault(); findTargets()">
+            <label
+              >Buscar música de destino<input
+                pInputText
+                [formControl]="mergeQuery"
+                maxlength="160"
+                [readOnly]="busy() || finding()"
+            /></label>
+            <button
+              type="submit"
+              class="sf-button sf-outline sf-full"
+              [disabled]="mergeQuery.value.trim().length < 3 || finding() || busy()"
+            >
+              Buscar destino
+            </button>
+          </form>
+          <div role="radiogroup" aria-label="Música de destino">
+            @for (song of targets(); track song.id) {
+              <label class="catalog-radio"
+                ><input
+                  type="radio"
+                  name="catalog-merge-target"
+                  [checked]="target()?.id === song.id"
+                  (change)="target.set(song)"
+                  [disabled]="busy()"
+                /><span
+                  >{{ song.title }} — {{ song.artist || 'Artista não informado' }}</span
+                ></label
+              >
+            }
+          </div>
+          <p role="status">
+            {{
+              finding()
+                ? 'Buscando…'
+                : targets().length +
+                  ' destino(s) encontrado(s). Busque por título ou artista (até 25 resultados).'
+            }}
+          </p>
+        }
+        <form class="host-form" (submit)="$event.preventDefault(); decide()">
+          <label
+            >{{ action() === 'APPROVED' ? 'Observação (opcional)' : 'Motivo'
+            }}<textarea
+              [formControl]="reason"
+              maxlength="500"
+              [readOnly]="busy()"
+              [required]="action() !== 'APPROVED'"
+            ></textarea>
+          </label>
+          <div class="sf-dialog-actions">
+            <button
+              type="submit"
+              class="sf-button"
+              [class.sf-danger]="action() === 'REJECTED'"
+              [class.sf-primary]="action() !== 'REJECTED'"
+              [disabled]="
+                busy() ||
+                finding() ||
+                (action() === 'MERGE' && !target()) ||
+                (action() !== 'APPROVED' && !reason.value.trim())
+              "
+            >
+              {{
+                action() === 'MERGE'
+                  ? 'Confirmar unificação'
+                  : action() === 'APPROVED'
+                    ? 'Confirmar aprovação'
+                    : 'Confirmar rejeição'
+              }}</button
+            ><button
+              type="button"
+              class="sf-button sf-outline"
+              [disabled]="busy()"
+              (click)="back()"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      } @else {
+        @if (selected(); as song) {
+          <div class="catalog-meta">
+            <app-status-badge [tone]="song.status === 'APPROVED' ? 'positive' : 'neutral'">{{
+              status(song.status)
+            }}</app-status-badge
+            ><span>{{ source(song.source) }}</span>
+          </div>
+        }
+        @if (!editable()) {
+          <p>
+            Esta entrada foi unificada a outra música. Os vínculos e nomes antigos continuam
+            preservados.
+          </p>
+          <div class="sf-dialog-actions">
+            <button type="button" class="sf-button sf-outline" (click)="close()">Fechar</button>
+          </div>
+        } @else {
+          <form [formGroup]="form" class="host-form" (ngSubmit)="save()">
+            <label
+              >Título da música<input
+                pInputText
+                formControlName="title"
+                maxlength="160"
+                required
+                [readOnly]="busy()"
+            /></label>
+            <label
+              >Artista<input
+                pInputText
+                formControlName="artist"
+                maxlength="160"
+                [readOnly]="busy()"
+            /></label>
+            <p>
+              {{
+                creating()
+                  ? 'O cadastro administrativo já será aprovado.'
+                  : 'Correções atualizam o catálogo e preservam o texto original dos pedidos e apresentações.'
+              }}
+            </p>
+            <div class="sf-dialog-actions">
+              <button
+                type="submit"
+                class="sf-button sf-primary"
+                [disabled]="busy() || form.invalid || !form.controls.title.value.trim()"
+              >
+                {{ creating() ? 'Cadastrar música' : 'Salvar alterações' }}</button
+              ><button
+                type="button"
+                class="sf-button sf-outline"
+                [disabled]="busy()"
+                (click)="close()"
+              >
+                {{ creating() ? 'Cancelar cadastro' : 'Fechar' }}
+              </button>
+            </div>
+          </form>
+        }
+      }
+    </app-confirmation-dialog>
+  }
+
+  @if (showingFilters()) {
+    <app-confirmation-dialog
+      title="Filtrar catálogo"
+      [busy]="loading() || busy()"
+      (dismissed)="showingFilters.set(false)"
+    >
+      <form class="host-form" (submit)="$event.preventDefault(); applyFilters()">
+        <label for="catalog-status-filter">Situação</label
+        ><select id="catalog-status-filter" class="admin-select" [formControl]="statusDraft">
+          <option value="">Todas</option>
+          <option value="PENDING">Provisórias</option>
+          <option value="APPROVED">Aprovadas</option>
+          <option value="REJECTED">Rejeitadas</option>
+          <option value="MERGED">Unificadas</option>
+        </select>
+        <div class="sf-dialog-actions">
+          <button type="submit" class="sf-button sf-primary">Aplicar filtros</button
+          ><button type="button" class="sf-button sf-outline" (click)="showingFilters.set(false)">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </app-confirmation-dialog>
+  }
+}

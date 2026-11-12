@@ -15,8 +15,7 @@ import { Component, inject, input, model } from '@angular/core';
       cdkOverlayOrigin
       #origin="cdkOverlayOrigin"
       type="button"
-      class="sf-icon-button"
-      [class.sf-menu-primary]="primary()"
+      class="sf-icon-button sf-menu-trigger"
       [id]="buttonId()"
       [attr.aria-label]="label()"
       [title]="label()"
@@ -24,7 +23,7 @@ import { Component, inject, input, model } from '@angular/core';
       [attr.aria-controls]="buttonId() + '-menu'"
       [attr.aria-expanded]="opened()"
       [disabled]="disabled()"
-      (click)="opened.set(!opened())"
+      (click)="toggle($event)"
     >
       <i [class]="icon()" aria-hidden="true"></i>
     </button>
@@ -50,7 +49,6 @@ export class MenuPopover {
   readonly buttonId = input.required<string>();
   readonly label = input.required<string>();
   readonly disabled = input(false);
-  readonly primary = input(true);
   readonly icon = input('pi pi-bars');
   readonly opened = model(false);
   readonly scrollStrategy = inject(Overlay).scrollStrategies.block();
@@ -58,6 +56,13 @@ export class MenuPopover {
     { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 8 },
     { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -8 },
   ];
+
+  toggle(event: Event) {
+    // Touch browsers may leave focus on an unrelated control at the top of the page.
+    // Capture this trigger before the trap saves the element to restore on close.
+    (event.currentTarget as HTMLElement).focus({ preventScroll: true });
+    this.opened.update((open) => !open);
+  }
 
   close() {
     this.opened.set(false);

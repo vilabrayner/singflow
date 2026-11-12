@@ -1,0 +1,184 @@
+/* Host layouts use the same song panel primitives as the participant. */
+.sf-queue-list {
+  display: grid;
+  gap: 12px;
+}
+.choice-panel.sf-host-queue-item {
+  grid-template-columns: 32px minmax(0, 1fr) 44px;
+  gap: 8px;
+  padding: 16px 12px;
+  border: 1px solid var(--sf-border);
+}
+.sf-host-queue-grip {
+  position: relative;
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  margin: -16px 0 -16px -12px;
+  background: #e7ebf2;
+  color: var(--sf-muted);
+  border-radius: 11px 0 0 11px;
+  min-height: 88px;
+  touch-action: none;
+  cursor: grab;
+}
+.sf-host-queue-grip[aria-disabled='true'] {
+  cursor: default;
+}
+.sf-host-queue-grip:focus-visible {
+  outline: 2px solid var(--sf-purple);
+  outline-offset: -5px;
+}
+.sf-host-queue-position {
+  position: absolute;
+  top: 25px;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 24px;
+}
+.sf-host-queue-copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sf-host-queue-copy .sf-queue-person {
+  width: 100%;
+  padding: 9px 0 4px;
+}
+.sf-host-queue-copy .sf-queue-person span {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.sf-host-queue-copy > app-status-badge {
+  display: block;
+  margin-top: 8px;
+}
+.sf-host-queue-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sf-host-queue-actions .sf-icon-button,
+.sf-host-paused-item > .sf-icon-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid var(--sf-border);
+  border-radius: 10px;
+}
+.sf-host-paused-list {
+  display: grid;
+  gap: 12px;
+}
+.sf-host-paused-item {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+.sf-host-queue-item.cdk-drag-preview {
+  box-shadow: 0 8px 24px #0b1e3f26;
+}
+.sf-host-queue-item.cdk-drag-placeholder {
+  opacity: 0.25;
+}
+@media (max-width: 480px) {
+  .choice-panel.sf-host-queue-item {
+    grid-template-columns: 34px minmax(0, 1fr) 44px;
+    padding: 12px 10px;
+    gap: 6px;
+  }
+  .sf-host-queue-grip {
+    margin: -12px 0 -12px -10px;
+  }
+  .sf-host-queue-position {
+    top: 21px;
+  }
+}
+.sf-host-history-card {
+  display: block;
+  margin-top: 16px;
+}
+.sf-host-history-card h2 {
+  margin: 0 0 16px;
+}
+.sf-host-history-card .stage-history {
+  max-height: none;
+  overflow: visible;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 0;
+  align-content: start;
+  grid-auto-rows: max-content;
+}
+.sf-host-people-list {
+  display: grid;
+  gap: 12px;
+  padding: 2px;
+}
+.sf-host-people-list > li.choice-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--sf-border);
+}
+.sf-host-person-item .sf-person-row {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+.sf-host-person-item .sf-person-row > app-status-badge {
+  flex-shrink: 0;
+  max-width: 110px;
+  text-align: right;
+}
+
+.sf-host-song-list {
+  display: grid;
+  gap: 12px;
+}
+.sf-participant-songs .sf-host-song-list > li.choice-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 16px 12px;
+  border: 1px solid var(--sf-border);
+}
+.sf-host-song-item > app-status-badge {
+  margin-top: 9px;
+  max-width: 150px;
+  text-align: right;
+}
+.sf-host-song-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #f4f6fa;
+  padding: 16px 20px;
+}
+.sf-host-song-scroll [hidden] {
+  display: none !important;
+}
+@media (max-width: 480px) {
+  .sf-queue-list > li.choice-panel,
+  .sf-participant-songs .sf-host-song-list > li.choice-panel {
+    padding: 12px 10px;
+  }
+  .sf-host-song-item > app-status-badge {
+    max-width: 120px;
+  }
+}
+
+.sf-host-queue-actions .sf-icon-button.sf-primary {
+  background: var(--sf-purple);
+  border-color: var(--sf-purple);
+  color: #fff;
+}
+.sf-host-queue-actions .sf-icon-button.sf-primary:hover:not(:disabled) {
+  background: #6925d3;
+  border-color: #6925d3;
+  color: #fff;
+}

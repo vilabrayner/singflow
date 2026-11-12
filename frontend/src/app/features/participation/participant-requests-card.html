@@ -1,0 +1,104 @@
+<app-surface-card labelledBy="participant-requests-title">
+  <h2 id="participant-requests-title">Meus pedidos</h2>
+  @if (editable()) {
+    <button
+      type="button"
+      class="sf-button sf-primary sf-full"
+      [disabled]="busy()"
+      aria-haspopup="dialog"
+      (click)="added.emit()"
+    >
+      <i class="pi pi-plus" aria-hidden="true"></i>Adicionar música
+    </button>
+  }
+  <p class="choices-help">
+    Arraste pelo ícone à esquerda para ordenar suas músicas. Sua posição na fila não muda.
+  </p>
+  @for (song of fixed(); track song.id) {
+    <article class="choice-panel choice-fixed">
+      <i class="pi pi-lock" aria-hidden="true"></i>
+      <div class="choice-copy">
+        <strong>{{ song.title }}</strong>
+        @if (song.artist) {
+          <p>{{ song.artist }}</p>
+        }
+        <app-status-badge tone="neutral">{{ status(song.status) }}</app-status-badge>
+      </div>
+    </article>
+  }
+  <div
+    cdkDropList
+    [cdkDropListData]="pending()"
+    [cdkDropListDisabled]="busy() || !editable()"
+    cdkDropListLockAxis="y"
+    (cdkDropListDropped)="drop($event)"
+    class="choices-list"
+    role="list"
+    aria-label="Músicas pendentes"
+  >
+    @for (song of pending(); track song.id; let index = $index) {
+      <article
+        cdkDrag
+        [cdkDragData]="song"
+        [cdkDragDisabled]="busy() || !editable()"
+        [cdkDragStartDelay]="{ touch: 180, mouse: 0 }"
+        (cdkDragStarted)="captureOrder()"
+        class="choice-panel"
+        [class.choice-reorderable]="editable()"
+        role="listitem"
+      >
+        <span
+          cdkDragHandle
+          class="choice-grip"
+          role="button"
+          [attr.tabindex]="editable() && !busy() ? 0 : -1"
+          [attr.aria-label]="
+            'Ordenar ' + song.title + '. Use as teclas de seta para subir ou descer.'
+          "
+          (keydown.arrowup)="$event.preventDefault(); nudge(index, -1)"
+          (keydown.arrowdown)="$event.preventDefault(); nudge(index, 1)"
+          [class.choice-grip-disabled]="busy() || !editable()"
+        >
+          <span class="choice-number" [attr.aria-label]="index + 1 + 'ª escolha'">{{
+            index + 1
+          }}</span>
+          <i class="pi pi-grip-vertical" aria-hidden="true"></i>
+        </span>
+        <div class="choice-copy">
+          <strong>{{ song.title }}</strong>
+          @if (song.artist) {
+            <p>{{ song.artist }}</p>
+          }
+          <app-status-badge tone="neutral">{{ status(song.status) }}</app-status-badge>
+        </div>
+        @if (editable()) {
+          <div class="choice-actions" role="group" [attr.aria-label]="'Ordem de ' + song.title">
+            <button
+              type="button"
+              class="sf-icon-button"
+              [attr.aria-label]="'Trocar música ' + song.title"
+              title="Trocar música"
+              [disabled]="busy()"
+              (click)="edited.emit(song)"
+            >
+              <i class="pi pi-pencil" aria-hidden="true"></i>
+            </button>
+            <button
+              type="button"
+              class="sf-icon-button choice-cancel"
+              [attr.aria-label]="'Cancelar pedido de ' + song.title"
+              title="Cancelar pedido"
+              [disabled]="busy()"
+              (click)="cancelled.emit(song)"
+            >
+              <i class="pi pi-trash" aria-hidden="true"></i>
+            </button>
+          </div>
+        }
+      </article>
+    }
+  </div>
+  @if (!songs().length) {
+    <p>Você não tem pedidos nesta lista.</p>
+  }
+</app-surface-card>

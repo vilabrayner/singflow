@@ -23,12 +23,14 @@ class AudienceEndpoints {
       @NotBlank @Size(max = 120) String name,
       @Size(max = 40) String tableLabel,
       @NotBlank @Size(max = 160) String title,
-      @Size(max = 160) String artist) {}
+      @Size(max = 160) String artist,
+      @Size(max = 36) String selectionToken) {}
 
   record Song(
       @NotNull UUID operationId,
       @NotBlank @Size(max = 160) String title,
-      @Size(max = 160) String artist) {}
+      @Size(max = 160) String artist,
+      @Size(max = 36) String selectionToken) {}
 
   private final AudienceService service;
   private final AudienceLimits limits;
@@ -202,7 +204,8 @@ class AudienceEndpoints {
         input.name(),
         input.tableLabel(),
         input.title(),
-        input.artist());
+        input.artist(),
+        input.selectionToken());
   }
 
   @GetMapping("/api/participation/{session}/me")
@@ -224,7 +227,48 @@ class AudienceEndpoints {
         credential(session, request, true),
         input.operationId(),
         input.title(),
-        input.artist());
+        input.artist(),
+        input.selectionToken());
+  }
+
+  record Reorder(
+      @NotNull UUID operationId,
+      @NotEmpty @Size(max = 100) List<@NotNull UUID> expectedOrder,
+      @NotEmpty @Size(max = 100) List<@NotNull UUID> order) {}
+
+  @PostMapping("/api/participation/{session}/requests/reorder")
+  AudienceService.OwnView reorder(
+      @PathVariable UUID session, @Valid @RequestBody Reorder input, HttpServletRequest request) {
+    return service.reorder(
+        session,
+        credential(session, request, true),
+        input.operationId(),
+        input.expectedOrder(),
+        input.order());
+  }
+
+  record EditSong(
+      @NotBlank @Size(max = 160) String expectedTitle,
+      @Size(max = 160) String expectedArtist,
+      @NotBlank @Size(max = 160) String title,
+      @Size(max = 160) String artist,
+      @Size(max = 36) String selectionToken) {}
+
+  @PostMapping("/api/participation/{session}/requests/{song}/edit")
+  AudienceService.OwnView edit(
+      @PathVariable UUID session,
+      @PathVariable UUID song,
+      @Valid @RequestBody EditSong input,
+      HttpServletRequest request) {
+    return service.edit(
+        session,
+        credential(session, request, true),
+        song,
+        input.expectedTitle(),
+        input.expectedArtist(),
+        input.title(),
+        input.artist(),
+        input.selectionToken());
   }
 
   @PostMapping("/api/participation/{session}/requests/{song}/cancel")
@@ -263,7 +307,8 @@ class AudienceEndpoints {
         credential(session, request, true),
         input.operationId(),
         input.title(),
-        input.artist());
+        input.artist(),
+        input.selectionToken());
   }
 
   @PostMapping("/api/participation/{session}/forget")

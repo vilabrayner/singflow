@@ -56,7 +56,7 @@ class SecurityConfiguration {
           access
               .requestMatchers("/api/auth/me", "/api/musicians/**")
               .hasAnyRole("HOST", "MUSICIAN");
-          access.requestMatchers("/api/sessions", "/api/sessions/**").hasRole("HOST");
+          access.requestMatchers("/api/sessions", "/api/sessions/**").hasAnyRole("HOST", "ADMIN");
           access.anyRequest().denyAll();
         });
     http.addFilterBefore(

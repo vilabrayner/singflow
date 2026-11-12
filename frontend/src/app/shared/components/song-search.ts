@@ -8,6 +8,9 @@ interface Song {
   title: string;
   artist: string;
   label: string;
+  id?: string | null;
+  source?: string;
+  selectionToken?: string | null;
 }
 let nextId = 0;
 
@@ -34,7 +37,18 @@ let nextId = 0;
       [showEmptyMessage]="true"
       emptyMessage="Nenhuma música encontrada. Use o texto digitado."
       [pt]="{ pcInputText: { root: { 'aria-describedby': id + '-help' } } }"
-    />
+    >
+      <ng-template #item let-song>
+        <div>
+          <span>{{ song.label }}</span>
+          @if (song.source) {
+            <small class="song-origin">{{
+              song.source === 'SINGFLOW' ? 'SingFlow' : 'Last.fm'
+            }}</small>
+          }
+        </div>
+      </ng-template>
+    </p-autocomplete>
     <small [id]="id + '-help'" aria-live="polite">{{ message() }}</small>
   `,
   styles: [
@@ -47,6 +61,10 @@ let nextId = 0;
       label {
         font-weight: 700;
       }
+      .song-origin {
+        display: block;
+        font-size: 0.75rem;
+      }
       small {
         color: var(--sf-muted, #52627c);
       }
@@ -56,6 +74,7 @@ let nextId = 0;
 export class SongSearch implements OnInit {
   readonly titleControl = input.required<FormControl<string>>();
   readonly artistControl = input.required<FormControl<string>>();
+  readonly selectionControl = input<FormControl<string>>();
   readonly label = input('Música');
   readonly locked = input(false);
   readonly id = `song-search-${++nextId}`;
@@ -81,6 +100,7 @@ export class SongSearch implements OnInit {
         if ((typeof current === 'string' ? current : current.title) !== title) {
           this.revision++;
           this.value.set(title);
+          this.selectionControl()?.setValue('');
           this.suggestions.set([]);
         }
       });
@@ -92,6 +112,7 @@ export class SongSearch implements OnInit {
     this.suggestions.set([]);
     this.titleControl().setValue(typeof value === 'string' ? value : (value?.title ?? ''));
     this.artistControl().setValue(typeof value === 'object' && value ? value.artist : '');
+    this.selectionControl()?.setValue(typeof value==='object' && value ? value.selectionToken ?? '' : '');
     this.titleControl().markAsDirty();
     this.artistControl().markAsDirty();
   }
@@ -105,9 +126,9 @@ export class SongSearch implements OnInit {
     }
     this.message.set('Buscando músicas…');
     try {
-      const songs = await this.api.get<{ title: string; artist: string }[]>(
-        `/public/songs/search?q=${encodeURIComponent(text)}`,
-      );
+      const songs = await this.api.get<
+        { title: string; artist: string; id?: string | null; selectionToken?: string | null; source?: string }[]
+      >(`/public/songs/search?q=${encodeURIComponent(text)}`);
       if (revision !== this.revision) return;
       this.suggestions.set(
         songs.slice(0, 10).map((song) => ({
@@ -117,7 +138,7 @@ export class SongSearch implements OnInit {
       );
       this.message.set(
         songs.length
-          ? 'Selecione uma sugestão ou mantenha o texto livre. Busca: Last.fm.'
+          ? 'Selecione uma sugestão ou mantenha o texto livre. SingFlow e Last.fm.'
           : 'Nenhuma música encontrada. Você pode usar o texto digitado.',
       );
     } catch {

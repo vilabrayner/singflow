@@ -15,6 +15,11 @@ public class SongRequest {
   @Column(nullable = false)
   public UUID participantId;
 
+  public UUID catalogSongId;
+
+  @Column(insertable = false, updatable = false)
+  public long requestOrder;
+
   @Column(nullable = false, length = 160)
   public String title;
 

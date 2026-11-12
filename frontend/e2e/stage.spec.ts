@@ -128,9 +128,9 @@ async function setup(page: Page) {
   return () => requestsCreated;
 }
 async function callNext(page: Page) {
-  await expect(page.getByRole('button', { name: 'Pular', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: 'Chamar', exact: true }).click();
-  const confirm = page.getByRole('button', { name: 'Confirmar convocação', exact: true });
+  await expect(page.getByRole('button', { name: 'Pausar Ana', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Chamar Ana', exact: true }).click();
+  const confirm = page.getByRole('button', { name: 'Confirmar', exact: true });
   await expect(confirm).toBeDisabled();
   await page.getByLabel('Música escolhida', { exact: true }).fill('Canção escolhida');
   await confirm.click();
@@ -152,15 +152,25 @@ test('concludes opportunity without request only after song is chosen', async ({
   await expect(page.getByRole('dialog').getByRole('textbox')).toHaveCount(0);
   await page.getByRole('button', { name: 'Confirmar resultado', exact: true }).click();
   await expect(page.locator('.current-call')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Opções da fila', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Histórico do palco', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: /Histórico do palco/ })).toBeVisible();
-  await expect(page.locator('.stage-history')).toContainText('Concluída');
-  await expect(page.locator('.stage-history')).toContainText('Canção escolhida');
-  await page.getByRole('dialog').getByRole('button', { name: 'Fechar', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Opções da fila', exact: true })).toBeFocused();
-  await expect(page.locator('.stage-history')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Chamar', exact: true })).toBeVisible();
+  const history = page.getByRole('region', { name: 'Histórico do palco', exact: true });
+  await expect(history).toBeVisible();
+  await expect(history).toContainText('Concluída');
+  await expect(history).toContainText('Canção escolhida');
+  await expect(page.getByRole('dialog', { name: /Histórico do palco/ })).toHaveCount(0);
+  await expect(history.locator('small')).toHaveCount(0);
+  const itemBox = await history.locator('article').first().boundingBox();
+  expect(itemBox!.height).toBeLessThan(110);
+  await page.screenshot({
+    path: testInfo.outputPath('host-history-card.png'),
+    fullPage: true,
+    scale: 'css',
+  });
+  const queueBox = await page
+    .getByRole('region', { name: 'Fila do karaokê', exact: true })
+    .boundingBox();
+  const historyBox = await history.boundingBox();
+  expect(historyBox!.y).toBeGreaterThanOrEqual(queueBox!.y + queueBox!.height);
+  await expect(page.getByRole('button', { name: 'Chamar Ana', exact: true })).toBeVisible();
   expect(requestsCreated()).toBe(0);
 });
 
@@ -173,8 +183,8 @@ test('first absence with no other participant requires host release', async ({ p
   await expect(
     page.getByRole('button', { name: 'Liberar segunda tentativa', exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Chamar', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Chamar Ana', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Liberar segunda tentativa', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Chamar', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Chamar Ana', exact: true })).toBeVisible();
   await expect(page.locator('.current-call')).toHaveCount(0);
 });
