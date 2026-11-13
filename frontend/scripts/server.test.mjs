@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, request } from 'node:http';
 import { once } from 'node:events';
+import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createFrontendServer, parseServerEnvironment } from '../server.js';
+import { createFrontendServer, parseServerEnvironment } from './frontend-server.mjs';
 import { loadBuildEnvironment } from './environment.mjs';
 import { prepareHosting } from './prepare-hosting.mjs';
 
@@ -286,12 +287,16 @@ test('packages a standalone Node entry point and removes stale Netlify artifacts
     readFileSync(resolve(source, 'scripts/environment.mjs')),
   );
   writeFileSync(resolve(directory, 'server.js'), readFileSync(resolve(source, 'server.js')));
+  writeFileSync(
+    resolve(directory, 'scripts/frontend-server.mjs'),
+    readFileSync(resolve(source, 'scripts/frontend-server.mjs')),
+  );
   for (const file of ['index.html', 'config.json'])
     writeFileSync(resolve(output, file), readFileSync(resolve(directory, file)));
   writeFileSync(resolve(output, '_redirects'), 'stale');
   writeFileSync(resolve(output, '_headers'), 'stale');
   prepareHosting(directory);
-  const packaged = await import(pathToFileURL(resolve(output, 'server.js')));
+  const packaged = await import(pathToFileURL(resolve(output, 'scripts/frontend-server.mjs')));
   const url = await listen(
     t,
     packaged.createFrontendServer({ backendUrl: 'http://127.0.0.1:8080', staticDirectory: output }),
@@ -321,4 +326,49 @@ test('switches upstreams using the same static artifact without changing fronten
     assert.deepEqual(await (await fetch(url + '/api/test')).json(), { name });
   }
   assert.equal(readFileSync(resolve(directory, 'config.json'), 'utf8'), configBefore);
+});
+
+test('Hostinger-style entry import calls listen and serves the SPA', async (t) => {
+  const directory = fixture(t);
+  const source = fileURLToPath(new URL('../', import.meta.url));
+  for (const file of ['server.js', 'scripts/frontend-server.mjs', 'scripts/environment.mjs'])
+    writeFileSync(resolve(directory, file), readFileSync(resolve(source, file)));
+  writeFileSync(resolve(directory, 'package.json'), JSON.stringify({ type: 'module' }));
+  const child = spawn(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import(${JSON.stringify(pathToFileURL(resolve(directory, 'server.js')).href)})`,
+    ],
+    {
+      env: { ...process.env, BACKEND_URL: 'http://127.0.0.1:8080', PORT: '34567' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  t.after(() => {
+    child.kill();
+  });
+  let stdout = '',
+    stderr = '';
+  child.stdout.on('data', (chunk) => (stdout += chunk));
+  child.stderr.on('data', (chunk) => (stderr += chunk));
+  await new Promise((done, reject) => {
+    const timer = setTimeout(() => reject(new Error('Entry did not listen: ' + stderr)), 3000);
+    child.stdout.on('data', () => {
+      if (stdout.includes('servidor frontend na porta')) {
+        clearTimeout(timer);
+        done();
+      }
+    });
+    child.on('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error('Entry exited ' + code + ': ' + stderr));
+    });
+  });
+  const response = await fetch('http://127.0.0.1:34567/anfitriao', {
+    headers: { Accept: 'text/html' },
+  });
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /SingFlow test/);
 });
