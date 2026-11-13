@@ -21,7 +21,7 @@ import { MenuItem } from 'primeng/api';
       [disabled]="disabled()"
       (click)="open()"
     >
-      <i class="pi pi-bars" aria-hidden="true"></i>
+      <i class="fa-solid fa-bars" aria-hidden="true"></i>
     </button>
     <ng-template
       cdkConnectedOverlay
@@ -74,7 +74,7 @@ import { MenuItem } from 'primeng/api';
               [attr.aria-label]="'Fechar ' + label()"
               (click)="close()"
             >
-              <i class="pi pi-times" aria-hidden="true"></i>
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
             </button>
           </ng-template>
           <ng-template #item let-item let-toggle="toggleCallback">
@@ -119,7 +119,7 @@ import { MenuItem } from 'primeng/api';
       font-weight: 750;
       cursor: pointer;
     }
-    .sf-speed-dial-action .pi {
+    .sf-speed-dial-action :is(.fa-solid, .fa-regular, .fa-brands) {
       font-size: 22px;
       color: var(--sf-purple);
     }
@@ -129,6 +129,10 @@ import { MenuItem } from 'primeng/api';
       overscroll-behavior: contain;
       padding: 4px;
       margin-right: -4px;
+    }
+    .sf-speed-dial-action:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     .sf-speed-dial-action:focus-visible {
       outline: 3px solid var(--sf-purple);

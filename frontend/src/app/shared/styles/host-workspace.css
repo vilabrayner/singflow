@@ -51,7 +51,7 @@
 }
 
 /* Host session context shares the existing header row without changing its height. */
-.sf-header-actions:has(.sf-host-header-session) {
+.sf-header-actions:has(:is(.sf-host-header-session, .sf-panel-context)) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -59,7 +59,8 @@
   min-width: 0;
   gap: 12px;
 }
-.sf-host-header-session {
+.sf-host-header-session,
+.sf-panel-context {
   flex: 1;
   min-width: 0;
   margin: 0;
@@ -73,7 +74,7 @@
   font-weight: 750;
   color: var(--sf-navy);
 }
-.sf-header-actions:has(.sf-host-header-session) app-menu-popover {
+.sf-header-actions:has(:is(.sf-host-header-session, .sf-panel-context)) app-menu-popover {
   flex: none;
 }
 .sf-account-current-session {
@@ -86,19 +87,19 @@
   overflow-wrap: anywhere;
 }
 
-#host-account-options {
+:is(#host-account-options, .sf-panel-menu) {
   text-align: left;
 }
-#host-account-options .sf-button {
+:is(#host-account-options, .sf-panel-menu) .sf-button {
   justify-content: flex-start;
   text-align: left;
 }
-#host-account-options button > .pi {
+:is(#host-account-options, .sf-panel-menu) button > :is(.fa-solid, .fa-regular, .fa-brands) {
   flex: none;
   width: 20px;
   text-align: center;
 }
-#host-account-options .session-list button {
+:is(#host-account-options, .sf-panel-menu) .session-list button {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -115,4 +116,29 @@
   border: 0;
   border-top: 1px solid var(--sf-border);
   margin: 16px 0 8px;
+}
+
+/* Safari touch forms use document flow: no fixed ancestor around editable fields. */
+.sf-host-shell.sf-has-bottom-nav.sf-host-touch-registration {
+  position: relative;
+  inset: auto;
+  height: auto;
+  min-height: calc(100svh - var(--sf-header-height, 73px));
+  display: block;
+  overflow: visible;
+  padding-bottom: calc(var(--host-dock-height, 64px) + 24px);
+}
+.sf-host-touch-registration .sf-host-scrollarea {
+  display: block;
+  height: auto !important;
+  overflow: visible !important;
+}
+.sf-host-touch-registration .sf-host-tab-viewport,
+.sf-host-touch-registration .sf-host-tab-content {
+  height: auto !important;
+  max-height: none;
+  overflow: visible !important;
+}
+.sf-host-touch-registration .p-scrollarea-scrollbar {
+  display: none;
 }

@@ -22,8 +22,7 @@ export interface BottomNavigationItem {
       <p-tablist>
         @for (item of items(); track item.value) {
           <p-tab [value]="item.value" [disabled]="disabled()"
-            ><i [class]="'pi ' + item.icon" aria-hidden="true"></i
-            ><span>{{ item.label }}</span></p-tab
+            ><i [class]="item.icon" aria-hidden="true"></i><span>{{ item.label }}</span></p-tab
           >
         }
       </p-tablist>

@@ -363,6 +363,9 @@ test('host bottom navigation handles empty and closed sessions and keyboard sele
   ]);
   const nav = page.getByRole('navigation', { name: 'Navegação do anfitrião', exact: true });
   await expect(nav).toBeVisible();
+  await expect(
+    nav.getByRole('tab', { name: 'Músicos', exact: true }).locator('.fa-guitar'),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Criar participante', exact: true })).toHaveCount(
     0,
   );

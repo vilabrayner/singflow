@@ -60,9 +60,9 @@ export class StagePanel {
   readonly entryRequested = output<void>();
   readonly working = output<boolean>();
   readonly stageActions = [
-    { outcome: 'ABSENT', label: 'Registrar falta', icon: 'pi pi-user-minus' },
-    { outcome: 'DECLINED', label: 'Agora não', icon: 'pi pi-pause' },
-    { outcome: 'CANCELLED', label: 'Cancelar', icon: 'pi pi-undo' },
+    { outcome: 'ABSENT', label: 'Registrar falta', icon: 'fa-solid fa-user-minus' },
+    { outcome: 'DECLINED', label: 'Agora não', icon: 'fa-solid fa-pause' },
+    { outcome: 'CANCELLED', label: 'Cancelar', icon: 'fa-solid fa-rotate-left' },
   ];
   readonly search = signal('');
   readonly dragging = signal(false);

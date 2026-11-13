@@ -1,30 +1,6 @@
 @let view = data();
 <app-surface-card labelledBy="participant-status-title">
-  <div class="sf-session-heading">
-    <div>
-      <h1 id="participant-status-title" tabindex="-1">Olá, {{ view.participant.name }}!</h1>
-    </div>
-    <div class="host-actions">
-      <button
-        type="button"
-        class="sf-icon-button"
-        aria-label="Atualizar"
-        title="Atualizar"
-        [disabled]="busy()"
-        (click)="refreshed.emit()"
-      >
-        <i class="pi pi-refresh" aria-hidden="true"></i>
-      </button>
-      @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
-        <app-options-menu
-          buttonId="participant-options"
-          label="Opções da participação"
-          [items]="options()"
-          [disabled]="busy()"
-        />
-      }
-    </div>
-  </div>
+  <h2 id="participant-status-title" tabindex="-1">Olá, {{ view.participant.name }}!</h2>
   @if (disconnected()) {
     <p role="status">
       Sem confirmação de atualização. Os dados exibidos podem estar desatualizados.
@@ -97,6 +73,25 @@
           }
         </div>
       }
+    </div>
+  }
+  @if (
+    view.session.status === 'OPEN' &&
+    !view.active &&
+    !view.participant.selfPaused &&
+    !['ACTIVE', 'LEFT'].includes(view.participant.status)
+  ) {
+    <div class="sf-participant-wait" role="status">
+      <h2>
+        {{
+          view.participant.status === 'PAUSED'
+            ? 'Sua participação está pausada'
+            : view.participant.status === 'SUSPENDED'
+              ? 'Aguardando a rodada dos demais'
+              : 'Sua participação está inativa'
+        }}
+      </h2>
+      <p>Fale com o anfitrião para retomar sua participação.</p>
     </div>
   }
   <ng-content />

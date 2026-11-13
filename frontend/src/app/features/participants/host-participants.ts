@@ -1,3 +1,4 @@
+import { InputInteraction } from '../../shared/input-interaction';
 import { CatalogSongPicker, PickedSong } from '../../shared/components/catalog-song-picker';
 import { SongSearch } from '../../shared/components/song-search';
 import { MenuItem } from 'primeng/api';
@@ -57,7 +58,10 @@ export class HostParticipants {
   readonly active = input(true);
   readonly directoryRequested = output<void>();
   readonly changed = output<void>();
+  readonly registered = output<void>();
   readonly working = output<boolean>();
+  readonly registeringChange = output<boolean>();
+  private readonly interaction = inject(InputInteraction);
   private readonly api = inject(SessionApi);
   private readonly stage = inject(StageApi);
   private readonly fb = inject(FormBuilder).nonNullable;
@@ -83,35 +87,35 @@ export class HostParticipants {
     if (person.origin === 'ASSISTED' && person.status !== 'LEFT') {
       items.push({
         label: 'Acesso pelo celular',
-        icon: 'pi pi-qrcode',
+        icon: 'fa-solid fa-qrcode',
         command: () => void this.detailAccess()?.open(),
       });
     }
     if (person.status === 'ACTIVE') {
       items.push({
         label: 'Pausar participação',
-        icon: 'pi pi-pause',
+        icon: 'fa-solid fa-pause',
         command: () => this.ask('pause'),
       });
     }
     if (person.status === 'PAUSED') {
       items.push({
         label: 'Retomar participação',
-        icon: 'pi pi-play',
+        icon: 'fa-solid fa-play',
         command: () => this.ask('resume'),
       });
     }
     if (person.status === 'LEFT' || person.status === 'INACTIVE') {
       items.push({
         label: 'Reativar participante',
-        icon: 'pi pi-user-plus',
+        icon: 'fa-solid fa-user-plus',
         command: () => this.ask('reactivate'),
       });
     }
     if (person.status !== 'LEFT') {
       items.push({
         label: 'Registrar saída',
-        icon: 'pi pi-sign-out',
+        icon: 'fa-solid fa-right-from-bracket',
         command: () => this.ask('leave'),
       });
     }
@@ -166,6 +170,7 @@ export class HostParticipants {
   private songKey = createOperationId();
   private context = '';
   constructor() {
+    effect(() => this.registeringChange.emit(this.registering()));
     effect(() => {
       const id = this.session().id;
       const open = this.session().status === 'OPEN';
@@ -193,7 +198,9 @@ export class HostParticipants {
     });
   }
   private focus(id: string) {
-    afterNextRender(() => this.document.getElementById(id)?.focus(), { injector: this.injector });
+    afterNextRender(() => this.interaction.focus(this.document.getElementById(id)), {
+      injector: this.injector,
+    });
   }
   beginRegistration() {
     this.registering.set(true);
@@ -287,17 +294,24 @@ export class HostParticipants {
   }
   async register() {
     if (this.registrationForm.invalid) return;
+    let saved = false;
     await this.run(async () => {
       await this.api.register(this.session().id, {
         ...this.registrationForm.getRawValue(),
         operationId: this.registrationKey,
       });
       this.registrationKey = createOperationId();
+      // Dismiss the software keyboard before restoring the fixed workspace.
+      const focused = this.document.activeElement;
+      if (focused instanceof HTMLElement && focused.closest('app-host-participants'))
+        focused.blur();
       this.registrationForm.reset();
       this.registering.set(false);
-      this.directoryOpen.set(true);
+      this.directoryOpen.set(!this.embedded());
+      saved = true;
       this.notifications.success('Participante inscrito com a primeira música.');
     });
+    if (saved) this.registered.emit();
   }
   async addSong() {
     const person = this.person();

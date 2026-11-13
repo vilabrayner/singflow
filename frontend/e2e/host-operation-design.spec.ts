@@ -167,6 +167,11 @@ test('assisted registration retains data and operation id after a failure', asyn
   await expect(page.getByLabel('Nome do participante', { exact: true })).toHaveValue('Fernanda');
   await expect(page.getByLabel('Primeira música', { exact: true })).toHaveValue('Equalize');
   await page.getByRole('button', { name: 'Inscrever com música' }).click();
+  await expect(page.getByRole('tab', { name: 'Fila', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await expect(
     page.locator('.sf-person-row').filter({ has: page.getByText('Fernanda', { exact: true }) }),
   ).toBeVisible();
@@ -243,6 +248,9 @@ test('host drags the active queue, calls outside the order and pauses or resumes
   page,
 }, testInfo) => {
   const api = await setup(page);
+  await expect(
+    page.getByRole('button', { name: 'Chamar Ana', exact: true }).locator('.fa-bullhorn'),
+  ).toBeVisible();
   let order = ['ana', 'bruno'];
   let active: any = null;
   const reorders: any[] = [];
@@ -499,7 +507,11 @@ test('PrimeNG host scroll area keeps the page fixed and remembers each tab', asy
   const headerBefore = await header.boundingBox(),
     navBefore = await nav.boundingBox();
   await viewport.hover();
-  await page.mouse.wheel(0, 350);
+  if (testInfo.project.use.browserName === 'webkit' && testInfo.project.use.hasTouch) {
+    await viewport.evaluate((el) => el.scrollTo(0, 350));
+  } else {
+    await page.mouse.wheel(0, 350);
+  }
   await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(100);
   const queueScroll = await viewport.evaluate((el) => el.scrollTop);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -530,8 +542,12 @@ test('PrimeNG host scroll area keeps the page fixed and remembers each tab', asy
     bounds = await viewport.boundingBox(),
     dock = await nav.boundingBox();
   expect(button!.y + button!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height + 1);
-  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(dock!.y + 1);
-  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  if (!testInfo.project.use.hasTouch) {
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(dock!.y + 1);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  } else {
+    await expect(page.locator('.sf-host-touch-registration')).toHaveCount(1);
+  }
   await page.screenshot({ path: testInfo.outputPath('host-internal-scroll.png'), scale: 'css' });
 });
 
@@ -769,4 +785,84 @@ test('host catalogue appends ten results, keeps scroll, and retries failed searc
   await expect(list.locator('li')).toContainText('Nova');
   finishOld!();
   await expect(list.locator('li')).not.toContainText('Antiga');
+});
+
+test('touch registration focuses the song field without opening optional table after name blur and viewport restoration', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch, 'Sequência específica de toque');
+  await setup(page);
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).tap();
+  await page.getByRole('button', { name: 'Criar participante', exact: true }).tap();
+  const name = page.getByLabel('Nome do participante', { exact: true });
+  await expect(name).not.toBeFocused();
+  await expect(page.locator('.sf-host-touch-registration')).toHaveCount(1);
+  expect(
+    await name.evaluate((el) => {
+      for (let node = el.parentElement; node; node = node.parentElement) {
+        if (getComputedStyle(node).position === 'fixed') return true;
+      }
+      return false;
+    }),
+  ).toBe(false);
+  await name.tap();
+  await page.keyboard.type('Pessoa no Safari');
+  const original = page.viewportSize()!;
+  await page.setViewportSize({ width: original.width, height: 420 });
+  await page.getByRole('heading', { name: 'Criar participante', exact: true }).tap();
+  await page.setViewportSize(original);
+  const song = page.getByRole('combobox', { name: 'Primeira música', exact: true });
+  await song.scrollIntoViewIfNeeded();
+  await song.tap();
+  await page.keyboard.type('Equalize');
+  await expect(song).toBeFocused();
+  await expect(song).toHaveValue('Equalize');
+  await expect(page.locator('.sf-disclosure')).not.toHaveAttribute('open', '');
+  await expect(name).toHaveValue('Pessoa no Safari');
+});
+
+test('registration preserves physical keyboard navigation on touch and desktop', async ({
+  page,
+}) => {
+  await setup(page);
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
+  const create = page.getByRole('button', { name: 'Criar participante', exact: true });
+  await create.focus();
+  await page.keyboard.press('Enter');
+  const name = page.getByLabel('Nome do participante', { exact: true });
+  await expect(name).toBeFocused();
+  await page.keyboard.type('Pessoa com teclado');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('combobox', { name: 'Primeira música', exact: true })).toBeFocused();
+  await page.getByRole('button', { name: 'Cancelar inscrição', exact: true }).click();
+  await expect(page.locator('.sf-host-touch-registration')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Criar participante', exact: true })).toBeVisible();
+});
+
+test('successful touch registration restores clickable host dock after scrolling the form', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch, 'Fluxo de toque');
+  await setup(page);
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).tap();
+  await page.getByRole('button', { name: 'Criar participante', exact: true }).tap();
+  await page.getByLabel('Nome do participante', { exact: true }).fill('Fernanda');
+  await page.getByLabel('Primeira música', { exact: true }).fill('Equalize');
+  const save = page.getByRole('button', { name: 'Inscrever com música', exact: true });
+  await save.scrollIntoViewIfNeeded();
+  await save.tap();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await save.tap();
+  await expect(page.getByRole('tab', { name: 'Fila', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await expect(page.locator('.sf-queue-person').filter({ hasText: 'Fernanda' })).toBeVisible();
+  await expect(page.locator('.sf-host-touch-registration')).toHaveCount(0);
+  for (const label of ['Fila', 'Histórico', 'Participantes']) {
+    const tab = page.getByRole('tab', { name: label, exact: true });
+    await expect(tab).toBeEnabled();
+    await tab.tap();
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+  }
 });

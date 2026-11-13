@@ -85,7 +85,7 @@ interface Detail extends Summary {
           [disabled]="loading()"
           (click)="load()"
         >
-          <i class="pi pi-refresh" aria-hidden="true"></i>
+          <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
         </button>
       </div>
       <p class="admin-intro">
@@ -113,7 +113,7 @@ interface Detail extends Summary {
             title="Buscar sessões"
             [disabled]="loading()"
           >
-            <i class="pi pi-search" aria-hidden="true"></i>
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
           </button>
         </div>
       </form>
@@ -136,7 +136,7 @@ interface Detail extends Summary {
               [id]="'admin-session-' + item.session.id"
               (click)="open(item)"
             >
-              <i class="pi pi-calendar admin-avatar" aria-hidden="true"></i>
+              <i class="fa-solid fa-calendar-days admin-avatar" aria-hidden="true"></i>
               <span class="admin-person-copy"
                 ><strong>{{ item.session.name }}</strong
                 ><span>Anfitrião: {{ item.host.name || item.host.email }}</span
@@ -144,12 +144,14 @@ interface Detail extends Summary {
                   ><app-status-badge tone="positive">Aberta</app-status-badge
                   ><span>{{ item.session.createdAt | date: 'dd/MM HH:mm' }}</span></span
                 ></span
-              ><i class="pi pi-chevron-right admin-row-arrow" aria-hidden="true"></i>
+              ><i class="fa-solid fa-chevron-right admin-row-arrow" aria-hidden="true"></i>
             </button>
           </li>
         } @empty {
           <li class="admin-empty-state">
-            <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-calendar"></i></span>
+            <span class="sf-card-icon" aria-hidden="true"
+              ><i class="fa-solid fa-calendar-days"></i
+            ></span>
             <h2>
               {{
                 search()
@@ -307,14 +309,18 @@ export class AdminSessions implements OnInit, OnDestroy {
   readonly detailMenu = [
     {
       label: 'Gerenciar como anfitrião',
-      icon: 'pi pi-microphone',
+      icon: 'fa-solid fa-bullhorn',
       command: () => {
         const session = this.selected()?.session;
         if (session)
           void this.router.navigate(['/anfitriao'], { queryParams: { sessao: session.id } });
       },
     },
-    { label: 'Atualizar consulta', icon: 'pi pi-refresh', command: () => void this.refresh() },
+    {
+      label: 'Atualizar consulta',
+      icon: 'fa-solid fa-rotate-right',
+      command: () => void this.refresh(),
+    },
   ];
   private timer?: ReturnType<typeof setInterval>;
   private generation = 0;

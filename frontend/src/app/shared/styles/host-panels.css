@@ -250,6 +250,6 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.sf-call-actions .pi {
+.sf-call-actions :is(.fa-solid, .fa-regular, .fa-brands) {
   font-size: 18px;
 }

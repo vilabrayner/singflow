@@ -66,7 +66,7 @@ interface Member extends Musician {
             [disabled]="busy()"
             (click)="load()"
           >
-            <i class="pi pi-refresh" aria-hidden="true"></i>
+            <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
           </button>
         </div>
         @if (error() && !revoking()) {
@@ -153,7 +153,7 @@ interface Member extends Musician {
               [disabled]="busy()"
               (click)="askRevoke(member)"
             >
-              <i class="pi pi-user-minus" aria-hidden="true"></i>
+              <i class="fa-solid fa-user-minus" aria-hidden="true"></i>
             </button>
           </li>
         } @empty {
@@ -217,7 +217,7 @@ export class SessionMusicians implements OnInit {
     ),
   );
   readonly listMenu: MenuItem[] = [
-    { label: 'Atualizar lista', icon: 'pi pi-refresh', command: () => void this.load() },
+    { label: 'Atualizar lista', icon: 'fa-solid fa-rotate-right', command: () => void this.load() },
   ];
   private operation: { musicianId: string; id: string } | null = null;
   private get path() {

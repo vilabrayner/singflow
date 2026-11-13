@@ -833,7 +833,7 @@
   padding: 0;
 }
 
-.sf-song-tabs .p-tab .pi {
+.sf-song-tabs .p-tab :is(.fa-solid, .fa-regular, .fa-brands) {
   font-size: 20px;
 }
 

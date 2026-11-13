@@ -1,13 +1,68 @@
-<app-panel-header />
-<section id="participant-content" tabindex="-1" class="participant-page">
+<app-panel-header>
+  @if (own() || entry(); as context) {
+    <h1 class="sf-panel-context" [title]="own()?.session?.name || entry()?.name || ''">
+      {{ own()?.session?.name || entry()?.name }}
+    </h1>
+  }
+  @if (own(); as view) {
+    <app-menu-popover
+      buttonId="participant-options"
+      label="Opções da participação"
+      icon="fa-solid fa-user"
+      [disabled]="busy()"
+      [(opened)]="headerMenu"
+    >
+      <div class="sf-account-panel sf-panel-menu">
+        <section class="sf-account-current-session" aria-label="Sua participação">
+          <h2>{{ view.participant.name }}</h2>
+          <p>{{ view.session.name }}</p>
+          <app-status-badge [tone]="view.session.status === 'OPEN' ? 'positive' : 'neutral'">{{
+            view.session.status === 'OPEN' ? 'Sessão aberta' : 'Sessão encerrada'
+          }}</app-status-badge>
+        </section>
+        <button
+          type="button"
+          class="sf-button sf-text sf-full"
+          [disabled]="busy()"
+          (click)="refreshFromMenu()"
+        >
+          <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Atualizar
+        </button>
+        <hr class="sf-account-logout-separator" />
+        @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
+          <button
+            type="button"
+            class="sf-button sf-text sf-full"
+            [disabled]="busy()"
+            (click)="askExit()"
+          >
+            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>Sair da fila
+          </button>
+        } @else {
+          <button
+            type="button"
+            class="sf-button sf-text sf-full"
+            [disabled]="busy()"
+            (click)="askForget()"
+          >
+            <i class="fa-solid fa-trash-can" aria-hidden="true"></i>Esquecer meu acesso neste
+            aparelho
+          </button>
+        }
+      </div>
+    </app-menu-popover>
+  }
+</app-panel-header>
+<section
+  id="participant-content"
+  tabindex="-1"
+  class="participant-page"
+  [class.sf-participant-workspace]="!!own()"
+  [style.--participant-dock-height]="dockHeight() + 'px'"
+>
   @if (
     error() &&
-    (!own() ||
-      (!addingSong() &&
-        !skippingCall() &&
-        !confirmingExit() &&
-        !confirmingForget() &&
-        !cancellingSong()))
+    (!own() || (!skippingCall() && !confirmingExit() && !confirmingForget() && !cancellingSong()))
   ) {
     <p role="alert" class="sf-dialog-error">{{ error() }}</p>
   }
@@ -26,7 +81,6 @@
     </app-surface-card>
   }
   @if (entry(); as info) {
-    <p class="sf-participant-event">{{ info.name }}</p>
     <app-surface-card labelledBy="participant-entry-title">
       @if (info.status === 'OPEN') {
         <h1 id="participant-entry-title">Sua vez de soltar a voz</h1>
@@ -79,263 +133,268 @@
     </app-surface-card>
   }
   @if (own(); as view) {
-    <p class="sf-participant-event">{{ view.session.name }}</p>
-    <app-participant-status-card
-      [data]="view"
-      [busy]="busy()"
-      [disconnected]="disconnected()"
-      [updatedAt]="lastUpdated()"
-      [options]="participationOptions"
-      (refreshed)="refresh()"
-      (accepted)="respondToCall($event, 'accept')"
-      (skipped)="skippingCall.set($event)"
-      (resumed)="resume()"
-    >
-      @if (view.participant.status === 'LEFT') {
-        <div class="participant-return">
-          <h2>Você está fora da fila</h2>
-          @if (view.canReturn) {
-            <p>
-              Quer cantar de novo? Escolha uma nova música. Você mantém suas apresentações e recebe
-              uma nova chegada. Pedidos cancelados continuam cancelados.
-            </p>
-            <form [formGroup]="returnForm" (ngSubmit)="returnToQueue()" class="host-form">
-              <app-song-search
-                label="Música para voltar"
-                [titleControl]="returnForm.controls.title"
-                [artistControl]="returnForm.controls.artist"
-                [selectionControl]="returnForm.controls.selectionToken"
-                [locked]="busy()"
-              />
-
-              <p-button
-                label="Voltar com esta música"
-                type="submit"
-                [loading]="busy()"
-                [disabled]="busy() || returnForm.invalid"
-              />
-            </form>
-          } @else if (view.session.status === 'OPEN') {
-            <p>
-              Seu retorno precisa ser liberado pelo anfitrião. Pausas e ausências continuam sob
-              responsabilidade dele.
-            </p>
-          } @else {
-            <p>A sessão está encerrada. Você pode consultar seu histórico.</p>
-          }
-        </div>
-      }
-    </app-participant-status-card>
-    <app-participant-requests-card
-      [songs]="currentRequests()"
-      [editable]="view.session.status === 'OPEN' && view.participant.status === 'ACTIVE'"
-      [busy]="busy()"
-      (added)="openSongForm()"
-      (edited)="openSongEdit($event)"
-      (reordered)="reorderSongs($event)"
-      (cancelled)="cancellingSong.set($event)"
-    />
-    @if (skippingCall(); as call) {
-      <app-confirmation-dialog
-        title="Pular esta vez?"
-        [busy]="busy()"
-        [error]="error()"
-        (dismissed)="skippingCall.set(null)"
+    @if (view.active && activeTab() !== 'requests') {
+      <button
+        type="button"
+        class="sf-button sf-primary sf-participant-call-alert"
+        (click)="changeTab('requests')"
       >
-        <p>
-          Sua participação ficará pausada, sem registrar falta. Seus pedidos serão mantidos e você
-          pode voltar à fila quando estiver pronto.
-        </p>
-        <div class="sf-dialog-actions">
-          <button
-            type="button"
-            class="sf-button sf-primary"
-            [disabled]="busy()"
-            (click)="respondToCall(call, 'skip')"
-          >
-            Confirmar que vou pular
-          </button>
-          <button
-            type="button"
-            class="sf-button sf-outline"
-            [disabled]="busy()"
-            (click)="skippingCall.set(null)"
-          >
-            Voltar
-          </button>
-        </div>
-      </app-confirmation-dialog>
+        <i class="fa-solid fa-bullhorn" aria-hidden="true"></i>Você foi chamado — ver convocação
+      </button>
     }
-    @if (addingSong()) {
-      <app-confirmation-dialog
-        [title]="editingSong() ? 'Trocar música' : 'Adicionar música'"
-        [fullscreen]="true"
-        [busy]="busy()"
-        [error]="error()"
-        (dismissed)="closeSongForm()"
+    <p-scrollarea variant="scroll" class="sf-participant-scrollarea">
+      <p-scrollarea-viewport
+        #participantViewport
+        cdkScrollable
+        role="region"
+        [attr.aria-label]="tabLabel()"
+        class="sf-participant-viewport"
       >
-        @if (editingSong(); as original) {
-          <p>Substituir “{{ original.title }}” mantendo a ordem deste pedido.</p>
-        }
-        <app-song-choice-tabs
-          #choices
-          [actionIcon]="editingSong() ? 'pi-arrow-right-arrow-left' : 'pi-plus'"
-          [actionLabel]="editingSong() ? 'Trocar por' : 'Adicionar'"
-          [addedSongs]="chosenSongs()"
-          [disabled]="busy()"
-          (picked)="pickSong($event)"
-          (manual)="songForm.reset()"
+        <p-scrollarea-content
+          class="sf-participant-tab-content"
+          [class.sf-catalog-workspace]="activeTab() === 'catalog'"
         >
-          <form
-            id="participant-song-form"
-            [formGroup]="songForm"
-            (ngSubmit)="add()"
-            class="host-form"
-          >
-            <label
-              >Música<input
-                pInputText
-                formControlName="title"
-                maxlength="160"
-                required
-                [readOnly]="busy()" /></label
-            ><label
-              >Artista (opcional)<input
-                pInputText
-                formControlName="artist"
-                maxlength="160"
-                [readOnly]="busy()"
-            /></label>
-          </form>
-        </app-song-choice-tabs>
-        <div dialog-footer class="sf-dialog-actions">
-          @if (choices.manualMode() && choices.activeTab() === 'catalog') {
-            <button
-              type="submit"
-              form="participant-song-form"
-              class="sf-button sf-primary"
-              [disabled]="busy() || songForm.invalid"
+          <div [hidden]="activeTab() !== 'requests'">
+            <app-participant-status-card
+              [data]="view"
+              [busy]="busy()"
+              [disconnected]="disconnected()"
+              [updatedAt]="lastUpdated()"
+              (accepted)="respondToCall($event, 'accept')"
+              (skipped)="skippingCall.set($event)"
+              (resumed)="resume()"
             >
-              {{ busy() ? 'Enviando…' : editingSong() ? 'Salvar alteração' : 'Pedir música' }}
-            </button>
+              @if (view.participant.status === 'LEFT') {
+                <div class="participant-return">
+                  <h2>Você está fora da fila</h2>
+                  @if (view.canReturn) {
+                    <p>
+                      Quer cantar de novo? Escolha uma nova música. Você mantém suas apresentações e
+                      recebe uma nova chegada. Pedidos cancelados continuam cancelados.
+                    </p>
+                    <form [formGroup]="returnForm" (ngSubmit)="returnToQueue()" class="host-form">
+                      <app-song-search
+                        label="Música para voltar"
+                        [titleControl]="returnForm.controls.title"
+                        [artistControl]="returnForm.controls.artist"
+                        [selectionControl]="returnForm.controls.selectionToken"
+                        [locked]="busy()"
+                      />
+
+                      <p-button
+                        label="Voltar com esta música"
+                        type="submit"
+                        [loading]="busy()"
+                        [disabled]="busy() || returnForm.invalid"
+                      />
+                    </form>
+                  } @else if (view.session.status === 'OPEN') {
+                    <p>
+                      Seu retorno precisa ser liberado pelo anfitrião. Pausas e ausências continuam
+                      sob responsabilidade dele.
+                    </p>
+                  } @else {
+                    <p>A sessão está encerrada. Você pode consultar seu histórico.</p>
+                  }
+                </div>
+              }
+            </app-participant-status-card>
+            <app-participant-requests-card
+              [songs]="currentRequests()"
+              [editable]="view.session.status === 'OPEN' && view.participant.status === 'ACTIVE'"
+              [busy]="busy()"
+              (edited)="openSongEdit($event)"
+              (reordered)="reorderSongs($event)"
+              (cancelled)="cancellingSong.set($event)"
+            />
+          </div>
+          @if (catalogVisited()) {
+            <app-surface-card
+              label="Catálogo"
+              class="sf-participant-catalog-card"
+              [hidden]="activeTab() !== 'catalog'"
+            >
+              @if (view.session.status === 'OPEN' && view.participant.status === 'ACTIVE') {
+                @if (editingSong(); as original) {
+                  <div class="sf-catalog-edit-context" role="status">
+                    <span>Trocar “{{ original.title }}”</span>
+                    <button
+                      type="button"
+                      class="sf-button sf-text"
+                      [disabled]="busy()"
+                      (click)="cancelSongEdit()"
+                    >
+                      Cancelar troca
+                    </button>
+                  </div>
+                }
+                <app-song-choice-tabs
+                  [actionIcon]="editingSong() ? 'fa-solid fa-right-left' : 'fa-solid fa-plus'"
+                  [actionLabel]="editingSong() ? 'Trocar por' : 'Adicionar'"
+                  [contained]="true"
+                  [modern]="true"
+                  [addedSongs]="chosenSongs()"
+                  [disabled]="busy()"
+                  (picked)="pickSong($event)"
+                />
+              } @else {
+                <p>
+                  Novos pedidos ficam disponíveis enquanto você estiver participando de uma sessão
+                  aberta.
+                </p>
+              }
+            </app-surface-card>
           }
-          <button
-            type="button"
-            class="sf-button sf-outline"
-            [disabled]="busy()"
-            (click)="closeSongForm()"
+          @if (skippingCall(); as call) {
+            <app-confirmation-dialog
+              title="Pular esta vez?"
+              [busy]="busy()"
+              [error]="error()"
+              (dismissed)="skippingCall.set(null)"
+            >
+              <p>
+                Sua participação ficará pausada, sem registrar falta. Seus pedidos serão mantidos e
+                você pode voltar à fila quando estiver pronto.
+              </p>
+              <div class="sf-dialog-actions">
+                <button
+                  type="button"
+                  class="sf-button sf-primary"
+                  [disabled]="busy()"
+                  (click)="respondToCall(call, 'skip')"
+                >
+                  Confirmar que vou pular
+                </button>
+                <button
+                  type="button"
+                  class="sf-button sf-outline"
+                  [disabled]="busy()"
+                  (click)="skippingCall.set(null)"
+                >
+                  Voltar
+                </button>
+              </div>
+            </app-confirmation-dialog>
+          }
+          @if (cancellingSong(); as song) {
+            <app-confirmation-dialog
+              title="Cancelar pedido?"
+              [busy]="busy()"
+              [error]="error()"
+              (dismissed)="cancellingSong.set(null)"
+            >
+              <p>
+                Cancelar o pedido de “{{ song.title }}”? Sua participação e os outros pedidos serão
+                mantidos.
+              </p>
+              <div class="sf-dialog-actions">
+                <button
+                  type="button"
+                  class="sf-button sf-danger"
+                  [disabled]="busy()"
+                  (click)="cancel(song.id)"
+                >
+                  Confirmar cancelamento do pedido
+                </button>
+                <button
+                  type="button"
+                  class="sf-button sf-outline"
+                  [disabled]="busy()"
+                  (click)="cancellingSong.set(null)"
+                >
+                  Manter pedido
+                </button>
+              </div>
+            </app-confirmation-dialog>
+          }
+          <app-participant-history-card
+            [data]="view"
+            [cancelled]="cancelledRequests()"
+            [hidden]="activeTab() !== 'history'"
           >
-            Cancelar
-          </button>
-        </div>
-      </app-confirmation-dialog>
-    }
-    @if (cancellingSong(); as song) {
-      <app-confirmation-dialog
-        title="Cancelar pedido?"
-        [busy]="busy()"
-        [error]="error()"
-        (dismissed)="cancellingSong.set(null)"
-      >
-        <p>
-          Cancelar o pedido de “{{ song.title }}”? Sua participação e os outros pedidos serão
-          mantidos.
-        </p>
-        <div class="sf-dialog-actions">
-          <button
-            type="button"
-            class="sf-button sf-danger"
-            [disabled]="busy()"
-            (click)="cancel(song.id)"
-          >
-            Confirmar cancelamento do pedido
-          </button>
-          <button
-            type="button"
-            class="sf-button sf-outline"
-            [disabled]="busy()"
-            (click)="cancellingSong.set(null)"
-          >
-            Manter pedido
-          </button>
-        </div>
-      </app-confirmation-dialog>
-    }
-    <app-participant-history-card [data]="view" [cancelled]="cancelledRequests()">
-      @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
-        @if (confirmingExit()) {
-          <app-confirmation-dialog
-            title="Sair da fila?"
-            returnFocus="participant-options"
-            [busy]="busy()"
-            [error]="error()"
-            (dismissed)="confirmingExit.set(false)"
-          >
-            <p>
-              Sair retira você da fila, cancela pedidos não atendidos e registra desistência se
-              estiver convocado. Seu acesso e histórico serão mantidos. Se estiver pausado ou
-              suspenso, o retorno continuará dependendo do anfitrião.
-            </p>
-            <div class="sf-dialog-actions">
-              <button
-                type="button"
-                class="sf-button sf-danger"
-                [disabled]="busy()"
-                (click)="leave()"
-              >
-                {{ busy() ? 'Saindo…' : 'Confirmar saída da fila' }}
-              </button>
-              <button
-                type="button"
-                class="sf-button sf-outline"
-                [disabled]="busy()"
-                (click)="confirmingExit.set(false)"
-              >
-                Continuar participando
-              </button>
-            </div>
-          </app-confirmation-dialog>
-        }
-      }
-      @if (view.participant.status === 'LEFT' || view.session.status !== 'OPEN') {
-        @if (confirmingForget()) {
-          <app-confirmation-dialog
-            title="Esquecer acesso neste aparelho?"
-            [busy]="busy()"
-            [error]="error()"
-            (dismissed)="confirmingForget.set(false)"
-          >
-            <p>
-              Este navegador perderá o acesso à sua participação, inclusive nas outras abas. Para
-              voltar ao mesmo cadastro, você precisará do anfitrião. Seu histórico não será apagado.
-            </p>
-            <div class="sf-dialog-actions">
-              <button
-                type="button"
-                class="sf-button sf-danger"
-                [disabled]="busy()"
-                (click)="forget()"
-              >
-                Confirmar esquecimento do acesso
-              </button>
-              <button
-                type="button"
-                class="sf-button sf-outline"
-                [disabled]="busy()"
-                (click)="confirmingForget.set(false)"
-              >
-                Manter meu acesso
-              </button>
-            </div>
-          </app-confirmation-dialog>
-        }
-        <p-button
-          label="Esquecer meu acesso neste aparelho"
-          [outlined]="true"
-          [disabled]="busy()"
-          (onClick)="confirmingForget.set(true)"
-        />
-      }
-    </app-participant-history-card>
+            @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
+              @if (confirmingExit()) {
+                <app-confirmation-dialog
+                  title="Sair da fila?"
+                  returnFocus="participant-options"
+                  [busy]="busy()"
+                  [error]="error()"
+                  (dismissed)="confirmingExit.set(false)"
+                >
+                  <p>
+                    Sair retira você da fila, cancela pedidos não atendidos e registra desistência
+                    se estiver convocado. Seu acesso e histórico serão mantidos. Se estiver pausado
+                    ou suspenso, o retorno continuará dependendo do anfitrião.
+                  </p>
+                  <div class="sf-dialog-actions">
+                    <button
+                      type="button"
+                      class="sf-button sf-danger"
+                      [disabled]="busy()"
+                      (click)="leave()"
+                    >
+                      {{ busy() ? 'Saindo…' : 'Confirmar saída da fila' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="sf-button sf-outline"
+                      [disabled]="busy()"
+                      (click)="confirmingExit.set(false)"
+                    >
+                      Continuar participando
+                    </button>
+                  </div>
+                </app-confirmation-dialog>
+              }
+            }
+            @if (view.participant.status === 'LEFT' || view.session.status !== 'OPEN') {
+              @if (confirmingForget()) {
+                <app-confirmation-dialog
+                  title="Esquecer acesso neste aparelho?"
+                  [busy]="busy()"
+                  [error]="error()"
+                  (dismissed)="confirmingForget.set(false)"
+                >
+                  <p>
+                    Este navegador perderá o acesso à sua participação, inclusive nas outras abas.
+                    Para voltar ao mesmo cadastro, você precisará do anfitrião. Seu histórico não
+                    será apagado.
+                  </p>
+                  <div class="sf-dialog-actions">
+                    <button
+                      type="button"
+                      class="sf-button sf-danger"
+                      [disabled]="busy()"
+                      (click)="forget()"
+                    >
+                      Confirmar esquecimento do acesso
+                    </button>
+                    <button
+                      type="button"
+                      class="sf-button sf-outline"
+                      [disabled]="busy()"
+                      (click)="confirmingForget.set(false)"
+                    >
+                      Manter meu acesso
+                    </button>
+                  </div>
+                </app-confirmation-dialog>
+              }
+            }
+          </app-participant-history-card>
+        </p-scrollarea-content>
+      </p-scrollarea-viewport>
+      <p-scrollarea-scrollbar orientation="vertical"
+        ><p-scrollarea-handle
+      /></p-scrollarea-scrollbar>
+    </p-scrollarea>
+    <app-bottom-navigation
+      [items]="navigationItems"
+      [value]="activeTab()"
+      [disabled]="busy()"
+      label="Navegação do participante"
+      (valueChange)="changeTab($event)"
+      (heightChange)="dockHeight.set($event)"
+    />
   }
 </section>

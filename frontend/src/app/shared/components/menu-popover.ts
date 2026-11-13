@@ -49,7 +49,7 @@ export class MenuPopover {
   readonly buttonId = input.required<string>();
   readonly label = input.required<string>();
   readonly disabled = input(false);
-  readonly icon = input('pi pi-bars');
+  readonly icon = input('fa-solid fa-bars');
   readonly opened = model(false);
   readonly scrollStrategy = inject(Overlay).scrollStrategies.block();
   readonly positions: ConnectedPosition[] = [

@@ -26,7 +26,7 @@ interface MobileAccess {
         [disabled]="disabled()"
         (click)="open()"
       >
-        <i class="pi pi-qrcode" aria-hidden="true"></i>
+        <i class="fa-solid fa-qrcode" aria-hidden="true"></i>
       </button>
     }
     @if (showing()) {
@@ -82,7 +82,7 @@ interface MobileAccess {
               [disabled]="busy()"
               (click)="copy()"
             >
-              <i class="pi pi-copy" aria-hidden="true"></i>Copiar link
+              <i class="fa-solid fa-copy" aria-hidden="true"></i>Copiar link
             </button>
           } @else if (!access()?.linked && !busy()) {
             <button type="button" class="sf-button sf-primary sf-full" (click)="open()">
@@ -119,7 +119,7 @@ export class ParticipantMobileAccess implements OnDestroy {
   readonly url = signal('');
   readonly expiresAt = signal('');
   readonly accessMenu: MenuItem[] = [
-    { label: 'Trocar celular', icon: 'pi pi-refresh', command: () => this.issue() },
+    { label: 'Trocar celular', icon: 'fa-solid fa-rotate-right', command: () => this.issue() },
   ];
   private generation = 0;
   private timer?: ReturnType<typeof setTimeout>;

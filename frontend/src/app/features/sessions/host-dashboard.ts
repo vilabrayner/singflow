@@ -1,3 +1,4 @@
+import { InputInteraction } from '../../shared/input-interaction';
 import { ScrollArea, ScrollAreaModule } from 'primeng/scrollarea';
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { BottomNavigation, BottomNavigationItem } from '../../shared/components/bottom-navigation';
@@ -62,6 +63,8 @@ export class HostDashboard implements OnInit {
   private readonly auth = inject(HostAuth);
   private readonly api = inject(SessionApi);
   private readonly route = inject(ActivatedRoute);
+  readonly interaction = inject(InputInteraction);
+  readonly registeringParticipant = signal(false);
   readonly activeTab = signal('queue');
   readonly dockHeight = signal(64);
   private readonly tabViewport = viewChild('tabViewport', {
@@ -80,10 +83,10 @@ export class HostDashboard implements OnInit {
   );
 
   readonly navigationItems: BottomNavigationItem[] = [
-    { value: 'queue', label: 'Fila', icon: 'pi-list' },
-    { value: 'participants', label: 'Participantes', icon: 'pi-users' },
-    { value: 'history', label: 'Histórico', icon: 'pi-history' },
-    { value: 'musicians', label: 'Músicos', icon: 'pi-headphones' },
+    { value: 'queue', label: 'Fila', icon: 'fa-solid fa-list-ol' },
+    { value: 'participants', label: 'Participantes', icon: 'fa-solid fa-users' },
+    { value: 'history', label: 'Histórico', icon: 'fa-solid fa-clock-rotate-left' },
+    { value: 'musicians', label: 'Músicos', icon: 'fa-solid fa-guitar' },
   ];
   changeTab(value: string) {
     if (this.locked() || !this.navigationItems.some((item) => item.value === value)) return;
@@ -98,6 +101,22 @@ export class HostDashboard implements OnInit {
           top: this.tabScroll[value] ?? 0,
           behavior: 'instant',
         });
+      },
+      { injector: this.injector },
+    );
+  }
+  participantRegistered() {
+    // A successful save may still be refreshing data; navigation must not be
+    // rejected by that temporary busy state.
+    this.registeringParticipant.set(false);
+    this.activeTab.set('queue');
+    this.tabScroll['queue'] = 0;
+    afterNextRender(
+      () => {
+        this.document.defaultView?.scrollTo({ top: 0, behavior: 'instant' });
+        this.scrollArea()?.refresh();
+        this.tabViewport()?.nativeElement.scrollTo({ top: 0, behavior: 'instant' });
+        this.interaction.focus(this.document.getElementById('host-content'));
       },
       { injector: this.injector },
     );
@@ -222,7 +241,7 @@ export class HostDashboard implements OnInit {
     this.sessions.set(await this.api.list());
   }
   private focus(id: string) {
-    afterNextRender(() => this.document.getElementById(id)?.focus({ preventScroll: true }), {
+    afterNextRender(() => this.interaction.focus(this.document.getElementById(id)), {
       injector: this.injector,
     });
   }

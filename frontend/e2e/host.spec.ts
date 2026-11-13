@@ -120,6 +120,11 @@ test('host registers and adds songs without duplicating participation', async ({
     .evaluate((header) => header.offsetHeight);
   await expect(page.locator('p-toast')).toHaveCSS('top', `${headerHeight + 12}px`);
   await expect(enrollmentNotice).toHaveCount(0, { timeout: 6500 });
+  await expect(page.getByRole('tab', { name: 'Fila', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.getByRole('button', { name: /Ana.*apresentações/ }).click();
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();

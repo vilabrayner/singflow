@@ -1,6 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import {
   Component,
+  ElementRef,
   OnInit,
   OnDestroy,
   inject,
@@ -12,6 +13,7 @@ import {
 } from '@angular/core';
 import { ScrollAreaModule } from 'primeng/scrollarea';
 import { InputTextModule } from 'primeng/inputtext';
+import { ButtonModule } from 'primeng/button';
 import { ApiClient } from '../../core/http/api-client';
 
 export interface PickedSong {
@@ -22,21 +24,37 @@ export interface PickedSong {
 }
 @Component({
   selector: 'app-catalog-song-picker',
-  imports: [InputTextModule, NgTemplateOutlet, ScrollAreaModule],
+  imports: [InputTextModule, NgTemplateOutlet, ScrollAreaModule, ButtonModule],
   host: { '[class.picker-scroll-results]': 'scrollResults()' },
   template: `
     <ng-template #searchField>
       <div class="picker-search">
-        <input
-          id="participant-catalog-search"
-          aria-label="Buscar música ou artista"
-          pInputText
-          [value]="query()"
-          (input)="search($any($event.target).value)"
-          placeholder="Digite a música para buscar"
-          maxlength="160"
-          [readOnly]="disabled()"
-        />
+        <div class="picker-search-control">
+          <input
+            #queryInput
+            id="participant-catalog-search"
+            aria-label="Buscar música ou artista"
+            pInputText
+            [value]="query()"
+            (input)="search($any($event.target).value)"
+            placeholder="Digite a música para buscar"
+            maxlength="160"
+            [readOnly]="disabled()"
+          />
+          @if (query().length) {
+            <button
+              type="button"
+              class="picker-clear-search"
+              aria-label="Limpar busca"
+              title="Limpar busca"
+              [disabled]="disabled()"
+              (pointerdown)="$event.preventDefault()"
+              (click)="clearSearch()"
+            >
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          }
+        </div>
       </div>
       <p class="picker-hint" role="status" aria-live="polite">
         {{ loading() ? 'Buscando músicas…' : message() }}
@@ -62,7 +80,7 @@ export interface PickedSong {
                   'Já adicionada: ' + song.title + ' — ' + (song.artist || 'Artista não informado')
                 "
                 title="Música já adicionada aos seus pedidos"
-                ><i class="pi pi-check" aria-hidden="true"></i
+                ><i class="fa-solid fa-check" aria-hidden="true"></i
               ></span>
             } @else {
               <button
@@ -79,7 +97,7 @@ export interface PickedSong {
                 [disabled]="disabled() || loading()"
                 (click)="choose(song)"
               >
-                <i [class]="'pi ' + actionIcon()" aria-hidden="true"></i>
+                <i [class]="actionIcon()" aria-hidden="true"></i>
               </button>
             }
           </li>
@@ -88,11 +106,23 @@ export interface PickedSong {
       @if (incremental() && hasMore()) {
         <button
           type="button"
-          class="sf-button sf-outline sf-full"
+          pButton
+          severity="secondary"
+          class="sf-button sf-full"
           [disabled]="loading() || disabled()"
           (click)="loadMore()"
         >
           {{ loading() ? 'Carregando…' : 'Carregar mais' }}
+        </button>
+      }
+      @if (incremental() && catalogLoaded() && !query().trim() && !loading() && !hasMore()) {
+        <button
+          type="button"
+          class="sf-button sf-text sf-full picker-end-hint"
+          [disabled]="disabled()"
+          (click)="focusSearch()"
+        >
+          Para mais músicas use a busca <i class="fa-solid fa-arrow-turn-up" aria-hidden="true"></i>
         </button>
       }
       @if (!incremental() && !query().trim() && total() > 20) {
@@ -145,7 +175,7 @@ export interface PickedSong {
               "
               (click)="chooseManual()"
             >
-              Adicionar música
+              {{ actionLabel() === 'Trocar por' ? 'Trocar música' : 'Adicionar música' }}
             </button>
           }
         </section>
@@ -182,6 +212,12 @@ export interface PickedSong {
     }
     .picker-results {
       display: contents;
+    }
+    .picker-end-hint {
+      margin: 16px 0 4px;
+      color: var(--sf-muted);
+      text-align: center;
+      font-size: 0.875rem;
     }
     :host.picker-scroll-results {
       display: flex;
@@ -239,8 +275,33 @@ export interface PickedSong {
       display: grid;
       gap: 8px;
     }
+    .picker-search-control {
+      position: relative;
+      min-width: 0;
+    }
     .picker-search input {
       width: 100%;
+      padding-right: 48px;
+    }
+    .picker-clear-search {
+      position: absolute;
+      right: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--sf-muted);
+      cursor: pointer;
+    }
+    .picker-clear-search:hover:not(:disabled) {
+      color: var(--sf-purple);
+      background: #f0eafb;
     }
     .picker-hint {
       margin: 8px 0 0;
@@ -286,7 +347,7 @@ export interface PickedSong {
       padding: 0;
       flex-shrink: 0;
     }
-    .picker-list .picker-add .pi {
+    .picker-list .picker-add :is(.fa-solid, .fa-regular, .fa-brands) {
       font-size: 18px;
     }
     .picker-list li.picker-already-added {
@@ -302,7 +363,7 @@ export interface PickedSong {
       height: 48px;
       color: var(--sf-purple);
     }
-    .picker-added-check .pi {
+    .picker-added-check :is(.fa-solid, .fa-regular, .fa-brands) {
       font-size: 22px;
     }
     .picker-list button span {
@@ -328,7 +389,11 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
   private nextSource = 'catalog';
   private nextPage = 0;
   chooseManual() {
-    this.choose({ title: this.query().trim(), artist: this.manualArtist().trim() });
+    this.choose({
+      title: this.query().trim(),
+      artist: this.manualArtist().trim(),
+      source: 'MANUAL',
+    });
   }
   loadMore() {
     if (this.loading() || this.disabled() || !this.hasMore()) return;
@@ -344,7 +409,7 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
     this.songs.set([...unique.values()]);
   }
   readonly disabled = input(false);
-  readonly actionIcon = input('pi-plus');
+  readonly actionIcon = input('fa-solid fa-plus');
   readonly actionLabel = input('Adicionar');
   readonly addedSongs = input<ReadonlyArray<{ title: string; artist: string | null }>>([]);
   private songKey(song: { title: string; artist: string | null }) {
@@ -361,11 +426,22 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
   readonly picked = output<PickedSong>();
   readonly manual = output<void>();
   private readonly api = inject(ApiClient);
+  private readonly queryInput = viewChild<ElementRef<HTMLInputElement>>('queryInput');
+  focusSearch() {
+    // Keep this synchronous with the user's tap so iOS can open the keyboard.
+    if (!this.disabled()) this.queryInput()?.nativeElement.focus({ preventScroll: true });
+  }
+  clearSearch() {
+    if (this.disabled()) return;
+    this.search('');
+    this.focusSearch();
+  }
   readonly query = signal('');
   readonly songs = signal<PickedSong[]>([]);
   readonly loading = signal(false);
   readonly message = signal('Escolha uma música do catálogo.');
   readonly total = signal(0);
+  readonly catalogLoaded = signal(false);
   readonly page = signal(0);
   private generation = 0;
   private destroyed = false;
@@ -401,6 +477,7 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
     this.timer = setTimeout(() => void this.lookup(text), 400);
   }
   async browse(page: number, append = false) {
+    this.catalogLoaded.set(false);
     const generation = ++this.generation;
     this.loading.set(true);
     try {
@@ -415,6 +492,7 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
       );
       this.hasMore.set((page + 1) * (this.incremental() ? 10 : 20) < result.total);
       this.total.set(result.total);
+      this.catalogLoaded.set(true);
       this.page.set(page);
       this.message.set(
         result.total

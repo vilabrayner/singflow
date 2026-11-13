@@ -1,3 +1,4 @@
+import { InputInteraction } from '../input-interaction';
 import { Component, DestroyRef, inject, input, OnInit, signal } from '@angular/core';
 import { FormControl, FormsModule } from '@angular/forms';
 import { AutoCompleteModule } from 'primeng/autocomplete';
@@ -31,6 +32,10 @@ let nextId = 0;
       [minQueryLength]="3"
       [delay]="400"
       [forceSelection]="false"
+      [autoHighlight]="false"
+      [autoOptionFocus]="false"
+      [selectOnFocus]="false"
+      [focusOnHover]="!interaction.touchPrimary()"
       [readonly]="locked()"
       [maxlength]="160"
       [fluid]="true"
@@ -72,6 +77,7 @@ let nextId = 0;
   ],
 })
 export class SongSearch implements OnInit {
+  readonly interaction = inject(InputInteraction);
   readonly titleControl = input.required<FormControl<string>>();
   readonly artistControl = input.required<FormControl<string>>();
   readonly selectionControl = input<FormControl<string>>();
@@ -112,7 +118,9 @@ export class SongSearch implements OnInit {
     this.suggestions.set([]);
     this.titleControl().setValue(typeof value === 'string' ? value : (value?.title ?? ''));
     this.artistControl().setValue(typeof value === 'object' && value ? value.artist : '');
-    this.selectionControl()?.setValue(typeof value==='object' && value ? value.selectionToken ?? '' : '');
+    this.selectionControl()?.setValue(
+      typeof value === 'object' && value ? (value.selectionToken ?? '') : '',
+    );
     this.titleControl().markAsDirty();
     this.artistControl().markAsDirty();
   }
@@ -127,7 +135,13 @@ export class SongSearch implements OnInit {
     this.message.set('Buscando músicas…');
     try {
       const songs = await this.api.get<
-        { title: string; artist: string; id?: string | null; selectionToken?: string | null; source?: string }[]
+        {
+          title: string;
+          artist: string;
+          id?: string | null;
+          selectionToken?: string | null;
+          source?: string;
+        }[]
       >(`/public/songs/search?q=${encodeURIComponent(text)}`);
       if (revision !== this.revision) return;
       this.suggestions.set(

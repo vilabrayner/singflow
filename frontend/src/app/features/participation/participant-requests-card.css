@@ -45,6 +45,7 @@ h2 {
 .choice-actions {
   display: flex;
   gap: 8px;
+  flex-direction: column;
 }
 .choice-actions .sf-icon-button {
   width: 44px;
@@ -106,7 +107,7 @@ h2 {
 
 /* Full-height drag rail on pending choices that can be reordered. */
 .choice-panel.choice-reorderable {
-  grid-template-columns: 32px minmax(0, 1fr) auto;
+  grid-template-columns: 32px minmax(0, 1fr) 44px;
 }
 .choice-reorderable .choice-grip {
   align-self: stretch;
@@ -121,7 +122,7 @@ h2 {
 }
 @media (max-width: 480px) {
   .choice-panel.choice-reorderable {
-    grid-template-columns: 34px minmax(0, 1fr) 44px;
+    grid-template-columns: 32px minmax(0, 1fr) 44px;
   }
   .choice-reorderable .choice-grip {
     margin: -12px 0 -12px -10px;

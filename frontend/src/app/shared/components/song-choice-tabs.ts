@@ -1,4 +1,4 @@
-import { Component, input, output, signal } from '@angular/core';
+import { Component, input, output, signal, viewChild, computed } from '@angular/core';
 import { TabsModule } from 'primeng/tabs';
 import { InputTextModule } from 'primeng/inputtext';
 import { CatalogSongPicker, PickedSong } from './catalog-song-picker';
@@ -6,16 +6,21 @@ import { CatalogSongPicker, PickedSong } from './catalog-song-picker';
   selector: 'app-song-choice-tabs',
   imports: [TabsModule, InputTextModule, CatalogSongPicker],
   template: `
-    <p-tabs [value]="activeTab()" (valueChange)="activeTab.set($event)" class="sf-song-tabs">
+    <p-tabs
+      [value]="activeTab()"
+      (valueChange)="activeTab.set($event)"
+      class="sf-song-tabs"
+      [class.sf-song-tabs-contained]="modern() && (externalSearch() || contained())"
+    >
       <p-tablist>
         <p-tab value="catalog" aria-label="Catálogo" title="Catálogo"
-          ><i class="pi pi-book" aria-hidden="true"></i
+          ><i class="fa-solid fa-book" aria-hidden="true"></i
         ></p-tab>
         <p-tab value="favorites" aria-label="Músicas favoritas" title="Músicas favoritas"
-          ><i class="pi pi-star" aria-hidden="true"></i
+          ><i class="fa-regular fa-star" aria-hidden="true"></i
         ></p-tab>
         <p-tab value="most-sung" aria-label="Mais cantadas" title="Mais cantadas"
-          ><i class="pi pi-angle-double-up" aria-hidden="true"></i
+          ><i class="fa-solid fa-ranking-star" aria-hidden="true"></i
         ></p-tab>
       </p-tablist>
       <p-tabpanels>
@@ -49,10 +54,22 @@ import { CatalogSongPicker, PickedSong } from './catalog-song-picker';
             <p>Mais cantadas disponíveis após o cadastro de participantes.</p>
           </div>
         </p-tabpanel>
-        <p-tabpanel value="catalog">
-          <h3>Catálogo</h3>
-          <div [hidden]="manualMode()">
+        <p-tabpanel
+          value="catalog"
+          [class.sf-modern-catalog-panel]="modern() && (externalSearch() || contained())"
+        >
+          @if (!modern()) {
+            <h3>Catálogo</h3>
+          }
+          <div
+            [class.sf-modern-picker-pane]="modern() && (externalSearch() || contained())"
+            [hidden]="manualMode()"
+          >
             <app-catalog-song-picker
+              [incremental]="modern()"
+              [inlineManual]="modern()"
+              [scrollResults]="modern() && (externalSearch() || contained())"
+              [externalSearch]="externalSearch()"
               [disabled]="disabled()"
               [addedSongs]="addedSongs()"
               [actionIcon]="actionIcon()"
@@ -68,7 +85,7 @@ import { CatalogSongPicker, PickedSong } from './catalog-song-picker';
               [disabled]="disabled()"
               (click)="manualMode.set(false)"
             >
-              <i class="pi pi-arrow-left" aria-hidden="true"></i>Voltar à busca no catálogo
+              <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Voltar à busca no catálogo
             </button>
             <ng-content />
           </div>
@@ -115,8 +132,13 @@ import { CatalogSongPicker, PickedSong } from './catalog-song-picker';
   `,
 })
 export class SongChoiceTabs {
+  readonly contained = input(false);
+  readonly modern = input(false);
+  readonly externalSearch = input(false);
+  private readonly picker = viewChild(CatalogSongPicker);
+  readonly searchField = computed(() => this.picker()?.searchField());
   readonly disabled = input(false);
-  readonly actionIcon = input('pi-plus');
+  readonly actionIcon = input('fa-solid fa-plus');
   readonly actionLabel = input('Adicionar');
   readonly addedSongs = input<ReadonlyArray<{ title: string; artist: string | null }>>([]);
   readonly picked = output<PickedSong>();

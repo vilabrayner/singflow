@@ -180,3 +180,7 @@ Implementadas abas Fila, Participantes e Histórico com barra fixa e estado pres
 ## Rolagem interna do anfitrião — 13/11/2026
 
 Integrado PrimeNG ScrollArea com estado de rolagem por aba e CdkScrollable para arraste nas bordas. Header e dock fixos; card da sessão acompanha o conteúdo rolável conforme orientação do responsável. Sem mudança de backend. [Ensaio 017](acceptance/017-host-scrollarea.md).
+
+## Padronização do participante — 13/11/2026
+
+Anfitrião aceito como referência visual; participante adaptado para header com contexto/menu, dock Pedidos/Catálogo/Histórico, ScrollArea e itens compartilhados. Catálogo direto, modais com busca fixa e histórico com faixa lateral. Fluxos de convocação, saída/retorno e pedidos preservados. O [padrão de telas](ui/screen-pattern.md) registra a referência para futuras implementações. Font Awesome Free 7.3.1 adotado para todos os ícones explícitos da aplicação, conforme tabela aprovada; PrimeIcons removido como dependência direta. Build e 172 testes de navegador em desktop/celular aprovados. [Roteiro de aceite](acceptance/022-participant-workspace.md); aceite manual deste redesenho aguarda o responsável.

@@ -52,7 +52,7 @@ interface Event {
           [disabled]="busy()"
           (click)="logout()"
         >
-          <i class="pi pi-sign-out" aria-hidden="true"></i>
+          <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
         </button>
       }
     </app-panel-header>
@@ -65,7 +65,9 @@ interface Event {
       } @else if (!authorized()) {
         <div class="sf-centered-state">
           <app-surface-card labelledBy="admin-login-title">
-            <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-shield"></i></span>
+            <span class="sf-card-icon" aria-hidden="true"
+              ><i class="fa-solid fa-shield-halved"></i
+            ></span>
             <h1 id="admin-login-title" tabindex="-1">Entrar como administrador</h1>
             @if (forbidden()) {
               <p role="alert">Esta conta não possui acesso administrativo.</p>
@@ -117,7 +119,7 @@ interface Event {
                     (click)="showPassword.set(!showPassword())"
                   >
                     <i
-                      [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'"
+                      [class]="showPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"
                       aria-hidden="true"
                     ></i>
                   </button>
@@ -128,7 +130,7 @@ interface Event {
                   [disabled]="busy() || loginForm.invalid"
                 >
                   @if (busy()) {
-                    <i class="pi pi-spinner" aria-hidden="true"></i>
+                    <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
                   }
                   Entrar
                 </button>
@@ -188,7 +190,7 @@ interface Event {
                 [disabled]="busy()"
                 (click)="load(page())"
               >
-                <i class="pi pi-refresh" aria-hidden="true"></i>
+                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
               </button>
             </div>
             <p class="admin-intro">Acompanhe e libere os acessos ao SingFlow.</p>
@@ -210,7 +212,7 @@ interface Event {
                   title="Buscar cadastros"
                   [disabled]="busy()"
                 >
-                  <i class="pi pi-search" aria-hidden="true"></i>
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                 </button>
               </div>
             </form>
@@ -228,7 +230,7 @@ interface Event {
                 [disabled]="busy()"
                 (click)="openFilters()"
               >
-                <i class="pi pi-filter" aria-hidden="true"></i>{{ filterSummary() }}
+                <i class="fa-solid fa-filter" aria-hidden="true"></i>{{ filterSummary() }}
               </button>
             </div>
             <ul
@@ -245,9 +247,9 @@ interface Event {
                     (click)="open(a)"
                   >
                     <i
-                      [class.pi-microphone]="a.role === 'HOST'"
-                      [class.pi-headphones]="a.role === 'MUSICIAN'"
-                      class="pi admin-avatar"
+                      [class.fa-bullhorn]="a.role === 'HOST'"
+                      [class.fa-guitar]="a.role === 'MUSICIAN'"
+                      class="fa-solid admin-avatar"
                       aria-hidden="true"
                     ></i>
                     <span class="admin-person-copy">
@@ -269,12 +271,14 @@ interface Event {
                         >
                       </span>
                     </span>
-                    <i class="pi pi-chevron-right admin-row-arrow" aria-hidden="true"></i>
+                    <i class="fa-solid fa-chevron-right admin-row-arrow" aria-hidden="true"></i>
                   </button>
                 </li>
               } @empty {
                 <li class="admin-empty-state">
-                  <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-users"></i></span>
+                  <span class="sf-card-icon" aria-hidden="true"
+                    ><i class="fa-solid fa-users"></i
+                  ></span>
                   <h2>
                     Nenhum cadastro
                     {{ filters.controls.status.value === 'PENDING' ? 'pendente' : 'encontrado' }}
@@ -300,7 +304,7 @@ interface Event {
                   [disabled]="busy() || page() === 0"
                   (click)="load(page() - 1)"
                 >
-                  <i class="pi pi-arrow-left" aria-hidden="true"></i>
+                  <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
                 </button>
                 <span>Página {{ page() + 1 }}</span>
                 <button
@@ -310,7 +314,7 @@ interface Event {
                   [disabled]="busy() || (page() + 1) * 25 >= total()"
                   (click)="load(page() + 1)"
                 >
-                  <i class="pi pi-arrow-right" aria-hidden="true"></i>
+                  <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
                 </button>
               </nav>
             }
@@ -634,19 +638,19 @@ export class AdminPage implements OnInit {
     return [
       {
         label: a.status === 'SUSPENDED' ? 'Reativar cadastro' : 'Aprovar cadastro',
-        icon: 'pi pi-check',
+        icon: 'fa-solid fa-check',
         disabled: !a.emailVerified || a.status === 'APPROVED',
         command: () => this.ask('APPROVED'),
       },
       {
         label: 'Rejeitar cadastro',
-        icon: 'pi pi-times',
+        icon: 'fa-solid fa-xmark',
         disabled: a.status !== 'PENDING',
         command: () => this.ask('REJECTED'),
       },
       {
         label: 'Suspender acesso',
-        icon: 'pi pi-pause',
+        icon: 'fa-solid fa-pause',
         disabled: a.status !== 'APPROVED',
         command: () => this.ask('SUSPENDED'),
       },

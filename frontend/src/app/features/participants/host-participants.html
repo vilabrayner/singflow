@@ -70,7 +70,7 @@
         [disabled]="locked()"
         (click)="beginRegistration()"
       >
-        <i class="pi pi-user-plus" aria-hidden="true"></i>Criar participante
+        <i class="fa-solid fa-user-plus" aria-hidden="true"></i>Criar participante
       </button>
     }
     <ng-container [ngTemplateOutlet]="participantDirectory" />
@@ -95,7 +95,7 @@
           [disabled]="locked()"
           (click)="back()"
         >
-          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
         </button>
       }
     </div>
@@ -136,7 +136,7 @@
             class="sf-origin-badge"
             buttonId="participant-origin"
             label="Origem da inscrição"
-            icon="pi pi-user-edit"
+            icon="fa-solid fa-user-pen"
           >
             <div class="sf-participant-origin" tabindex="0">
               <p>Participante criado pelo anfitrião.</p>
@@ -172,7 +172,7 @@
               [disabled]="locked()"
               (click)="startSong()"
             >
-              <i class="pi pi-plus" aria-hidden="true"></i>Adicionar música
+              <i class="fa-solid fa-plus" aria-hidden="true"></i>Adicionar música
             </button>
           }
           @if (addingSong()) {

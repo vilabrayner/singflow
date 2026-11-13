@@ -160,9 +160,21 @@ export class AdminCatalog implements OnInit, OnDestroy {
     this.selected()?.status === 'MERGED'
       ? [this.historyItem()]
       : [
-          { label: 'Aprovar música', icon: 'pi pi-check', command: () => this.ask('APPROVED') },
-          { label: 'Rejeitar música', icon: 'pi pi-ban', command: () => this.ask('REJECTED') },
-          { label: 'Unificar duplicata', icon: 'pi pi-clone', command: () => this.ask('MERGE') },
+          {
+            label: 'Aprovar música',
+            icon: 'fa-solid fa-check',
+            command: () => this.ask('APPROVED'),
+          },
+          {
+            label: 'Rejeitar música',
+            icon: 'fa-solid fa-ban',
+            command: () => this.ask('REJECTED'),
+          },
+          {
+            label: 'Unificar duplicata',
+            icon: 'fa-solid fa-object-group',
+            command: () => this.ask('MERGE'),
+          },
           this.historyItem(),
         ],
   );
@@ -181,7 +193,7 @@ export class AdminCatalog implements OnInit, OnDestroy {
   private historyItem() {
     return {
       label: 'Histórico de alterações',
-      icon: 'pi pi-history',
+      icon: 'fa-solid fa-clock-rotate-left',
       command: () => void this.showHistory(),
     };
   }

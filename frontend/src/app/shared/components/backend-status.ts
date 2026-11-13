@@ -10,7 +10,7 @@ import { ButtonModule } from 'primeng/button';
     <span role="status">{{ message() }}</span
     ><p-button
       label="Verificar conexão"
-      icon="pi pi-refresh"
+      icon="fa-solid fa-rotate-right"
       size="small"
       [outlined]="true"
       [loading]="checking()"

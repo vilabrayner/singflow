@@ -54,7 +54,10 @@
               [disabled]="busy()"
               (click)="showPassword.set(!showPassword())"
             >
-              <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
+              <i
+                [class]="showPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"
+                aria-hidden="true"
+              ></i>
             </button>
           </div>
           <button
@@ -199,7 +202,7 @@
           title="Voltar às sessões"
           (click)="backToSessions()"
         >
-          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
         </button>
       }
     </div>
@@ -283,7 +286,7 @@
                 <span
                   ><strong>{{ session.name }}</strong
                   ><span>Aberta</span></span
-                ><i class="pi pi-chevron-right" aria-hidden="true"></i>
+                ><i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
               </button>
             </li>
           }
@@ -304,7 +307,7 @@
                 <span
                   ><strong>{{ session.name }}</strong
                   ><span>Encerrada · {{ session.createdAt | date: 'dd/MM/yyyy' }}</span></span
-                ><i class="pi pi-chevron-right" aria-hidden="true"></i>
+                ><i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
               </button>
             </li>
           }

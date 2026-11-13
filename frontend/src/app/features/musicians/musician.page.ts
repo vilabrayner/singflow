@@ -78,7 +78,11 @@ export class MusicianPage implements OnInit, OnDestroy {
   readonly archiveError = signal('');
   readonly chooserReturnFocus = signal('musician-options');
   readonly archiveMenu: MenuItem[] = [
-    { label: 'Atualizar consulta', icon: 'pi pi-refresh', command: () => void this.loadArchive() },
+    {
+      label: 'Atualizar consulta',
+      icon: 'fa-solid fa-rotate-right',
+      command: () => void this.loadArchive(),
+    },
   ];
   private archiveGeneration = 0;
   readonly showingHistory = signal(false);
@@ -93,15 +97,19 @@ export class MusicianPage implements OnInit, OnDestroy {
     );
   });
   readonly menu = computed<MenuItem[]>(() => [
-    { label: 'Atualizar', icon: 'pi pi-refresh', command: () => void this.load() },
-    { label: 'Trocar sessão', icon: 'pi pi-list', command: () => this.openChooser() },
+    { label: 'Atualizar', icon: 'fa-solid fa-rotate-right', command: () => void this.load() },
+    { label: 'Trocar sessão', icon: 'fa-solid fa-list-ol', command: () => this.openChooser() },
     {
       label: 'Histórico do palco',
-      icon: 'pi pi-history',
+      icon: 'fa-solid fa-clock-rotate-left',
       disabled: !this.performance(),
       command: () => this.showingHistory.set(true),
     },
-    { label: 'Sair da conta', icon: 'pi pi-sign-out', command: () => void this.logout() },
+    {
+      label: 'Sair da conta',
+      icon: 'fa-solid fa-right-from-bracket',
+      command: () => void this.logout(),
+    },
   ]);
   private timer?: ReturnType<typeof setInterval>;
   private generation = 0;
