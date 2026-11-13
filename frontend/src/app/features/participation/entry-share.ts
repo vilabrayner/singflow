@@ -1,3 +1,4 @@
+import { LinkClipboard } from '../../shared/link-clipboard';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { NgTemplateOutlet } from '@angular/common';
@@ -227,12 +228,12 @@ export class EntryShare implements OnInit {
       this.busy.set(false);
     }
   }
+  private readonly clipboard = inject(LinkClipboard);
   async copy() {
     this.error.set('');
-    try {
-      await navigator.clipboard.writeText(this.url());
+    if (await this.clipboard.copy(this.url())) {
       this.notifications.success('Link copiado.');
-    } catch {
+    } else {
       this.error.set('Selecione o link acima e copie manualmente.');
     }
   }

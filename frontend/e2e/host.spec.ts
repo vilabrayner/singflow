@@ -104,6 +104,7 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.getByLabel('Nome da sessão').fill('Ensaio assistido');
   await page.getByRole('button', { name: 'Criar sessão', exact: true }).click();
   await page.getByRole('button', { name: 'Abrir sessão', exact: true }).click();
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.getByRole('button', { name: 'Criar participante', exact: true }).click();
   await page.getByLabel('Nome do participante', { exact: true }).fill('Ana');
   await page.getByText('Informações opcionais', { exact: true }).click();
@@ -122,7 +123,7 @@ test('host registers and adds songs without duplicating participation', async ({
   await page.getByRole('button', { name: /Ana.*apresentações/ }).click();
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
-  const chooser = page.getByRole('dialog', { name: 'Adicionar música', exact: true });
+  const chooser = page.getByRole('dialog', { name: 'Ana - Adicionar música', exact: true });
   await expect(
     chooser.getByRole('img', {
       name: 'Já adicionada: Evidências — Artista não informado',
@@ -133,15 +134,22 @@ test('host registers and adds songs without duplicating participation', async ({
   await expect(chooser).toHaveCount(0);
   await expect(page.getByText('Equalize', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
-  await page.getByRole('button', { name: 'Não encontrei minha música', exact: true }).click();
-  await page.getByLabel('Nova música', { exact: true }).fill('Outra canção');
-  await page.getByRole('button', { name: 'Salvar música', exact: true }).click();
+  const manualChooser = page.getByRole('dialog', { name: 'Ana - Adicionar música', exact: true });
+  await manualChooser
+    .getByRole('textbox', { name: 'Buscar música ou artista', exact: true })
+    .fill('Outra canção');
+  await manualChooser
+    .getByRole('button', { name: 'Adicionar “Outra canção” manualmente', exact: true })
+    .click();
+  await manualChooser.getByRole('button', { name: 'Adicionar música', exact: true }).click();
   await expect(page.getByText('Outra canção', { exact: false })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toHaveCount(1);
   await page.getByRole('button', { name: 'Opções do participante' }).click();
   await page.getByRole('menuitem', { name: 'Registrar saída', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar saída', exact: true }).click();
-  await expect(page.getByText('Saiu', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('dialog', { name: 'Ana', exact: true }).getByText('Saiu', { exact: true }),
+  ).toBeVisible();
   expect(participants).toHaveLength(1);
   expect(songs).toHaveLength(3);
 });

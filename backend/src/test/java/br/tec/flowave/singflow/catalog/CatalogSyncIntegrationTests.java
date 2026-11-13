@@ -524,4 +524,44 @@ class CatalogSyncIntegrationTests {
     catalog.review(admin, source.id(), 1, "APPROVED", "");
     assertThat(sync.progress(admin, run.id()).pendingReview()).isZero();
   }
+
+  @Test
+  void publicCatalogSupportsTenItemPagesAndIncrementalLocalThenProviderSearch() throws Exception {
+    for (int i = 0; i < 25; i++)
+      catalog.create(admin, UUID.randomUUID(), String.format("Paging Song %02d", i), "Artist");
+    mvc.perform(get("/api/public/songs/catalog").param("size", "10").param("page", "1"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(10))
+        .andExpect(jsonPath("$.items[0].title").value("Paging Song 10"))
+        .andExpect(jsonPath("$.size").value(10));
+    mvc.perform(get("/api/public/songs/catalog"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(20));
+    mvc.perform(get("/api/public/songs/search-page").param("q", "Paging Song"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(10))
+        .andExpect(jsonPath("$.nextSource").value("catalog"))
+        .andExpect(jsonPath("$.nextPage").value(1));
+    mvc.perform(get("/api/public/songs/search-page").param("q", "Paging Song").param("page", "2"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(5))
+        .andExpect(jsonPath("$.nextSource").value("internet"))
+        .andExpect(jsonPath("$.nextPage").value(0));
+    when(search.searchPage("Paging Song", 1))
+        .thenReturn(
+            new SongSearch.SearchPage(
+                List.of(new SongSearch.Song("Paging Song Internet", "External")), false));
+    mvc.perform(
+            get("/api/public/songs/search-page")
+                .param("q", "Paging Song")
+                .param("source", "internet"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].source").value("LASTFM"))
+        .andExpect(jsonPath("$.items[0].selectionToken").isNotEmpty())
+        .andExpect(jsonPath("$.hasMore").value(false));
+    mvc.perform(get("/api/public/songs/search-page").param("page", "-1"))
+        .andExpect(status().isBadRequest());
+    mvc.perform(get("/api/public/songs/catalog").param("size", "1000"))
+        .andExpect(status().isBadRequest());
+  }
 }

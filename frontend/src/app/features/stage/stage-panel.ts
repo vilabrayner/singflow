@@ -9,8 +9,6 @@ import { HistoryItem } from '../../shared/components/history-item';
 import { SongSearch } from '../../shared/components/song-search';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
-import { MenuItem } from 'primeng/api';
-import { OptionsMenu } from '../../shared/components/options-menu';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import {
   afterNextRender,
@@ -43,7 +41,6 @@ type CallSelection = Pick<Suggestion, 'participantId' | 'name' | 'requestId' | '
     HistoryItem,
     SongSearch,
     ConfirmationDialog,
-    OptionsMenu,
     ReactiveFormsModule,
     InputTextModule,
     SurfaceCard,
@@ -54,47 +51,19 @@ type CallSelection = Pick<Suggestion, 'participantId' | 'name' | 'requestId' | '
 })
 export class StagePanel {
   readonly sessionId = input.required<string>();
+  readonly section = input<'all' | 'queue' | 'history' | 'hidden'>('all');
   readonly open = input.required<boolean>();
   readonly disabled = input(false);
   readonly revision = input(0);
   readonly changed = output<void>();
   readonly personSelected = output<string>();
-  readonly participantsRequested = output<void>();
   readonly entryRequested = output<void>();
-  readonly queueMenuItems = computed<MenuItem[]>(() => [
-    {
-      label: 'Compartilhar link e QR Code',
-      icon: 'pi pi-qrcode',
-      disabled: !this.open(),
-      command: () => this.entryRequested.emit(),
-    },
-    {
-      label: 'Participantes',
-      icon: 'pi pi-users',
-      command: () => this.participantsRequested.emit(),
-    },
-  ]);
   readonly working = output<boolean>();
-  readonly stageMenuItems = computed<MenuItem[]>(() => [
-    {
-      label: 'Registrar falta',
-      icon: 'pi pi-user-minus',
-      disabled: this.locked() || !this.open(),
-      command: () => this.chooseOutcome('ABSENT'),
-    },
-    {
-      label: 'Agora não quer cantar',
-      icon: 'pi pi-pause',
-      disabled: this.locked() || !this.open(),
-      command: () => this.chooseOutcome('DECLINED'),
-    },
-    {
-      label: 'Cancelar por engano',
-      icon: 'pi pi-undo',
-      disabled: this.locked() || !this.open(),
-      command: () => this.chooseOutcome('CANCELLED'),
-    },
-  ]);
+  readonly stageActions = [
+    { outcome: 'ABSENT', label: 'Registrar falta', icon: 'pi pi-user-minus' },
+    { outcome: 'DECLINED', label: 'Agora não', icon: 'pi pi-pause' },
+    { outcome: 'CANCELLED', label: 'Cancelar', icon: 'pi pi-undo' },
+  ];
   readonly search = signal('');
   readonly dragging = signal(false);
   readonly availabilityChoice = signal<{ person: Suggestion; action: 'pause' | 'resume' } | null>(

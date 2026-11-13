@@ -23,8 +23,21 @@ class SongSearchEndpoints {
     return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(search.search(q));
   }
 
+  @GetMapping("/api/public/songs/search-page")
+  ResponseEntity<CatalogLookup.Page> searchPage(
+      @RequestParam(defaultValue = "") String q,
+      @RequestParam(defaultValue = "catalog") String source,
+      @RequestParam(defaultValue = "0") int page) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(search.searchPage(q, source, page));
+  }
+
   @GetMapping("/api/public/songs/catalog")
-  ResponseEntity<CatalogService.PublicPage> browse(@RequestParam(defaultValue = "0") int page) {
-    return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(catalog.browse(page));
+  ResponseEntity<CatalogService.PublicPage> browse(
+      @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noStore())
+        .body(catalog.browse(page, size));
   }
 }

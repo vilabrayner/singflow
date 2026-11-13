@@ -19,7 +19,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { DatePipe, DOCUMENT } from '@angular/common';
+import { DatePipe, DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { InputTextModule } from 'primeng/inputtext';
 import { SurfaceCard } from '../../shared/components/surface-card';
@@ -32,6 +32,7 @@ import { StageApi } from '../stage/stage-api';
 @Component({
   selector: 'app-host-participants',
   imports: [
+    NgTemplateOutlet,
     CatalogSongPicker,
     SongSearch,
     ConfirmationDialog,
@@ -52,6 +53,9 @@ export class HostParticipants {
   readonly people = input.required<Participant[]>();
   readonly requests = input.required<SongRequest[]>();
   readonly disabled = input(false);
+  readonly embedded = input(false);
+  readonly active = input(true);
+  readonly directoryRequested = output<void>();
   readonly changed = output<void>();
   readonly working = output<boolean>();
   private readonly api = inject(SessionApi);
@@ -66,6 +70,12 @@ export class HostParticipants {
   readonly registering = signal(false);
   readonly personId = signal<string | null>(null);
   readonly person = computed(() => this.people().find((p) => p.id === this.personId()) ?? null);
+  readonly songDialogTitle = computed(() => {
+    const parts = (this.person()?.name ?? '').trim().split(/\s+/).filter(Boolean);
+    const shortName =
+      parts.length > 1 ? `${parts[0]} ${Array.from(parts.at(-1)!.normalize('NFC'))[0]}.` : parts[0];
+    return shortName ? `${shortName} - Adicionar música` : 'Adicionar música';
+  });
   readonly participantMenu = computed<MenuItem[]>(() => {
     const person = this.person();
     if (!person || this.session().status !== 'OPEN') return [];
@@ -195,6 +205,10 @@ export class HostParticipants {
     this.focus('create-participant-button');
   }
   openDirectory() {
+    if (this.embedded()) {
+      this.directoryRequested.emit();
+      return;
+    }
     this.personId.set(null);
     this.directoryOpen.set(true);
   }
@@ -221,14 +235,14 @@ export class HostParticipants {
     this.personId.set(null);
     this.confirmation.set(null);
     this.addingSong.set(false);
-    this.directoryOpen.set(true);
+    this.directoryOpen.set(!this.embedded());
+    if (this.embedded()) this.directoryRequested.emit();
     if (!this.visiblePeople().some((person) => person.id === id)) {
       this.search.set('');
       this.filter.set('all');
     }
     this.focus(`participant-${id}`);
   }
-  readonly manualSong = signal(false);
   readonly existingSongs = computed(() =>
     this.songs().filter((song) => ['PENDING', 'RESERVED'].includes(song.status)),
   );
@@ -241,7 +255,6 @@ export class HostParticipants {
     await this.addSong();
   }
   startSong() {
-    this.manualSong.set(false);
     this.songForm.reset();
     this.songKey = createOperationId();
     this.addingSong.set(true);

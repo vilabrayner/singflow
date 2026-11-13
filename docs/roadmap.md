@@ -172,3 +172,11 @@ Implementados catálogo aprovado, busca complementar Last.fm, texto livre, sele�
 ## Intervenções do anfitrião — 12/11/2026
 
 Implementadas ordem manual persistente por oportunidade, convocação explícita fora da vez e botões de pausa/retomada com preservação dos pedidos. V17 validada pelo responsável com BUILD SUCCESS. [Ensaio 015](acceptance/015-host-queue-interventions.md). Músico e participante consultam a ordem efetiva. Benefícios de assiduidade continuam sem interferir na prioridade.
+
+## Navegação inferior do anfitrião — 12/11/2026
+
+Implementadas abas Fila, Participantes e Histórico com barra fixa e estado preservado. Criar participante passa a existir somente em Participantes; diretório é exibido na tela e detalhes continuam em modal. Sem mudança de backend. [Ensaio 016](acceptance/016-host-bottom-navigation.md). Navegação inferior do participante e do músico segue em etapas posteriores.
+
+## Rolagem interna do anfitrião — 13/11/2026
+
+Integrado PrimeNG ScrollArea com estado de rolagem por aba e CdkScrollable para arraste nas bordas. Header e dock fixos; card da sessão acompanha o conteúdo rolável conforme orientação do responsável. Sem mudança de backend. [Ensaio 017](acceptance/017-host-scrollarea.md).

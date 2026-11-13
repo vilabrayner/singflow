@@ -5,7 +5,10 @@ import { StatusBadge } from './status-badge';
   imports: [StatusBadge],
   host: { style: 'display:block;min-width:0;' },
   styleUrls: ['../styles/song-panels.css', '../styles/history-items.css'],
-  template: `<article class="choice-panel">
+  template: `<article class="choice-panel" [class.history-numbered]="order() !== null">
+    @if (order() !== null) {
+      <div class="history-order" [attr.aria-label]="'Participação ' + order()">{{ order() }}</div>
+    }
     <div class="history-row">
       <div class="choice-copy">
         <strong>{{ title() }}</strong>
@@ -20,6 +23,7 @@ import { StatusBadge } from './status-badge';
   </article>`,
 })
 export class HistoryItem {
+  readonly order = input<number | null>(null);
   readonly title = input.required<string>();
   readonly subtitle = input<string | null>(null);
   readonly status = input.required<string>();

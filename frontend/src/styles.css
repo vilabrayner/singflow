@@ -5,6 +5,8 @@
 @import 'tailwindcss';
 @import 'tailwindcss-primeui';
 @import './app/shared/styles/panels.css';
+@import './app/shared/styles/bottom-navigation.css';
+@import './app/shared/styles/host-workspace.css';
 @theme {
   --color-navy: #0b1e3f;
   --color-singflow-purple: #7c3aed;

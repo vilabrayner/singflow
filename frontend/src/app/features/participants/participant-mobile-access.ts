@@ -1,3 +1,4 @@
+import { LinkClipboard } from '../../shared/link-clipboard';
 import { MenuItem } from 'primeng/api';
 import { OptionsMenu } from '../../shared/components/options-menu';
 import { DatePipe } from '@angular/common';
@@ -198,12 +199,12 @@ export class ParticipantMobileAccess implements OnDestroy {
     }, 2500);
   }
 
+  private readonly clipboard = inject(LinkClipboard);
   async copy() {
     this.error.set('');
-    try {
-      await navigator.clipboard.writeText(this.url());
+    if (await this.clipboard.copy(this.url())) {
       this.notifications.success('Link copiado.');
-    } catch {
+    } else {
       this.error.set('Selecione o link acima e copie manualmente.');
     }
   }

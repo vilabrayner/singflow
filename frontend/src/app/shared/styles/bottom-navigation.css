@@ -1,0 +1,54 @@
+/* Dedicated bottom dock styles, independent from content tabs. */
+.sf-bottom-navigation {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 30;
+  background: #fff;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-top: 1px solid var(--sf-border);
+  box-shadow: 0 -3px 12px #0b1e3f08;
+}
+.sf-bottom-tabs {
+  display: block;
+  max-width: 920px;
+  margin: auto;
+}
+.sf-bottom-tabs .p-tablist-tab-list {
+  display: flex;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+}
+.sf-bottom-tabs .p-tab {
+  align-items: center;
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--sf-muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+.sf-bottom-tabs .p-tab .pi {
+  font-size: 22px;
+}
+.sf-bottom-tabs .p-tab[aria-selected='true'] {
+  background: #f0eaff;
+  color: var(--sf-purple);
+}
+.sf-bottom-tabs .p-tablist-active-bar {
+  display: none;
+}
+.sf-bottom-tabs .p-tab:focus-visible {
+  outline: 2px solid var(--sf-purple);
+  outline-offset: -3px;
+}

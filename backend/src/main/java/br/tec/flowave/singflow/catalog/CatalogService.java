@@ -176,6 +176,12 @@ public class CatalogService {
 
   @Transactional(readOnly = true)
   public PublicPage browse(int page) {
+    return browse(page, 20);
+  }
+
+  @Transactional(readOnly = true)
+  public PublicPage browse(int page, int size) {
+    if (size != 10 && size != 20) throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
     if (page < 0 || page > 100000) throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
     long total =
         jdbc.sql("SELECT count(*) FROM singflow.catalog_songs WHERE status='APPROVED'")
@@ -184,13 +190,14 @@ public class CatalogService {
     var list =
         jdbc.sql(
                 "SELECT id,title,artist FROM singflow.catalog_songs WHERE status='APPROVED' ORDER"
-                    + " BY lower(title),lower(artist),id LIMIT 20 OFFSET ?")
-            .param(page * 20)
+                    + " BY lower(title),lower(artist),id LIMIT ? OFFSET ?")
+            .param(size)
+            .param(page * size)
             .query(
                 (rs, n) ->
                     new PublicSong(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3)))
             .list();
-    return new PublicPage(list, total, page, 20);
+    return new PublicPage(list, total, page, size);
   }
 
   private UUID createProvisional(String title, String artist, String actor) {
@@ -199,6 +206,13 @@ public class CatalogService {
 
   @Transactional(readOnly = true)
   public List<Song> approved(String query) {
+    return approved(query, 0, 10);
+  }
+
+  @Transactional(readOnly = true)
+  public List<Song> approved(String query, int page, int size) {
+    if (page < 0 || page > 1000 || size < 1 || size > 11)
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
     String q = clean(query, false);
     if (q.length() < 3) return List.of();
     return jdbc.sql(
@@ -207,8 +221,10 @@ public class CatalogService {
                 + " '||s.artist),singflow.catalog_key(:q))>0 OR EXISTS(SELECT 1 FROM"
                 + " singflow.catalog_aliases a WHERE singflow.catalog_root(a.song_id)=s.id AND"
                 + " strpos(a.title_key||' '||a.artist_key,singflow.catalog_key(:q))>0)) ORDER BY"
-                + " lower(s.title),lower(s.artist),s.id LIMIT 10")
+                + " lower(s.title),lower(s.artist),s.id LIMIT :size OFFSET :offset")
         .param("q", q)
+        .param("size", size)
+        .param("offset", page * 10)
         .query(this::map)
         .list();
   }

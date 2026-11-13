@@ -1,0 +1,118 @@
+/* Only the host session workspace uses an internal PrimeNG scroll viewport. */
+.sf-host-shell.sf-has-bottom-nav {
+  position: fixed;
+  inset: var(--sf-header-height, 73px) 0 auto;
+  height: calc(100dvh - var(--sf-header-height, 73px) - var(--host-dock-height, 64px));
+  min-height: 0;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 16px 16px 0;
+  overflow: clip;
+}
+.sf-host-shell.sf-has-bottom-nav > .host-error {
+  flex: none;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+}
+.sf-host-scrollarea {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.sf-host-tab-viewport {
+  padding: 0;
+  overscroll-behavior-y: contain;
+  overflow-x: hidden !important;
+  scroll-padding: 12px;
+}
+.sf-host-tab-content {
+  min-width: 0 !important;
+  width: 100%;
+  padding: 0 6px 20px 0;
+}
+.sf-host-scrollarea > .p-scrollarea-scrollbar {
+  width: 6px;
+}
+.sf-host-scrollarea .p-scrollarea-handle {
+  background: #b8c2d1;
+}
+.sf-host-scrollarea .sf-host-history-card {
+  margin-top: 0;
+}
+.sf-host-scrollarea [hidden] {
+  display: none !important;
+}
+
+/* Host session context shares the existing header row without changing its height. */
+.sf-header-actions:has(.sf-host-header-session) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+  gap: 12px;
+}
+.sf-host-header-session {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: right;
+  font-size: 14px;
+  letter-spacing: normal;
+  line-height: 1.4;
+  font-weight: 750;
+  color: var(--sf-navy);
+}
+.sf-header-actions:has(.sf-host-header-session) app-menu-popover {
+  flex: none;
+}
+.sf-account-current-session {
+  border-bottom: 1px solid var(--sf-border);
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+.sf-account-current-session h2 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+#host-account-options {
+  text-align: left;
+}
+#host-account-options .sf-button {
+  justify-content: flex-start;
+  text-align: left;
+}
+#host-account-options button > .pi {
+  flex: none;
+  width: 20px;
+  text-align: center;
+}
+#host-account-options .session-list button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  text-align: left;
+}
+.sf-account-session-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sf-account-logout-separator {
+  border: 0;
+  border-top: 1px solid var(--sf-border);
+  margin: 16px 0 8px;
+}

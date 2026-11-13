@@ -154,7 +154,7 @@
 .sf-host-song-scroll {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   background: #f4f6fa;
   padding: 16px 20px;
@@ -181,4 +181,75 @@
   background: #6925d3;
   border-color: #6925d3;
   color: #fff;
+}
+
+.sf-host-song-scroll.manual-song {
+  overflow-y: auto;
+}
+.sf-host-catalog-pane {
+  height: 100%;
+  min-height: 0;
+}
+
+.sf-host-song-search {
+  flex: none;
+  padding: 0 20px 16px;
+  background: var(--sf-surface, #fff);
+  border-bottom: 1px solid var(--sf-border);
+}
+
+.sf-call-person {
+  padding: 0;
+  margin: 0;
+  min-height: 44px;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+}
+.sf-call-person:focus-visible {
+  outline: 2px solid var(--sf-purple);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.sf-call-person:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.sf-current-call .sf-call-song {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sf-call-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.sf-call-actions .sf-button {
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  padding: 10px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sf-call-actions .pi {
+  font-size: 18px;
 }

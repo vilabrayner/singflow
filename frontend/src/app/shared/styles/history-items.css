@@ -18,3 +18,26 @@
   text-align: right;
   overflow-wrap: anywhere;
 }
+
+.choice-panel.history-numbered {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 8px;
+}
+.history-order {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -16px 0 -16px -12px;
+  border-radius: 11px 0 0 11px;
+  background: #e7ebf2;
+  color: var(--sf-muted);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+  .history-order {
+    margin: -12px 0 -12px -10px;
+  }
+}

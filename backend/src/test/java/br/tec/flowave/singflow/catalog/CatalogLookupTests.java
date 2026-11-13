@@ -73,4 +73,47 @@ class CatalogLookupTests {
                 .toList());
     assertThat(lookup.search("Song")).hasSize(10);
   }
+
+  @Test
+  void incrementalSearchFinishesLocalPagesBeforeOfferingInternet() {
+    var local =
+        java.util.stream.IntStream.range(0, 11).mapToObj(i -> song("Song " + i, "Artist")).toList();
+    when(catalog.approved("Song", 0, 11)).thenReturn(local);
+    var first = lookup.searchPage("Song", "catalog", 0);
+    assertThat(first.items()).hasSize(10);
+    assertThat(first.nextSource()).isEqualTo("catalog");
+    assertThat(first.nextPage()).isEqualTo(1);
+    assertThat(first.hasMore()).isTrue();
+    verifyNoInteractions(provider);
+    when(provider.configured()).thenReturn(true);
+    when(catalog.approved("Song", 1, 11)).thenReturn(List.of(local.getLast()));
+    var second = lookup.searchPage("Song", "catalog", 1);
+    assertThat(second.items()).hasSize(1);
+    assertThat(second.nextSource()).isEqualTo("internet");
+    assertThat(second.nextPage()).isZero();
+    when(provider.searchPage("Song", 1))
+        .thenReturn(
+            new SongSearch.SearchPage(List.of(new SongSearch.Song("External", "Artist")), false));
+    assertThat(
+            lookup
+                .searchPage("Song", second.nextSource(), second.nextPage())
+                .items()
+                .getFirst()
+                .source())
+        .isEqualTo("LASTFM");
+  }
+
+  @Test
+  void incrementalFailureCanRetryTheSamePageAndInvalidPagesAreRejected() {
+    when(provider.searchPage("Song", 2))
+        .thenThrow(new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE))
+        .thenReturn(new SongSearch.SearchPage(List.of(), false));
+    assertThatThrownBy(() -> lookup.searchPage("Song", "internet", 1))
+        .isInstanceOf(ResponseStatusException.class);
+    assertThat(lookup.searchPage("Song", "internet", 1).hasMore()).isFalse();
+    assertThatThrownBy(() -> lookup.searchPage("Song", "internet", -1))
+        .isInstanceOf(ResponseStatusException.class);
+    assertThatThrownBy(() -> lookup.searchPage("Song", "other", 0))
+        .isInstanceOf(ResponseStatusException.class);
+  }
 }

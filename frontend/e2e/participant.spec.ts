@@ -279,11 +279,10 @@ test('host displays a local QR and confirms link rotation', async ({ page }) => 
     /^data:image\/png/,
   );
   joinedQueue = true;
-  const share = page.getByRole('button', { name: 'Opções da fila', exact: true });
+  const share = page.getByRole('button', { name: 'Compartilhar link e QR Code', exact: true });
   await expect(share).toBeVisible({ timeout: 10000 });
   await expect(page.getByAltText('QR Code para entrar nesta sessão')).toHaveCount(0);
   await share.click();
-  await page.getByRole('menuitem', { name: 'Compartilhar link e QR Code', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Compartilhar link e QR Code' });
   await expect(dialog.getByAltText('QR Code para entrar nesta sessão')).toBeVisible();
   await dialog.getByRole('button', { name: 'Opções do link e QR Code' }).click();
@@ -472,8 +471,7 @@ test('host grants individual QR access and the phone confirms a replacement expl
     return route.fulfill({ json: [] });
   });
   await page.goto('/anfitriao');
-  await page.getByRole('button', { name: 'Opções da fila', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Participantes', exact: true }).click();
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.locator('.sf-person-row').filter({ hasText: 'Ana' }).click();
   await page.getByRole('button', { name: 'Opções do participante' }).click();
   await page.getByRole('menuitem', { name: 'Acesso pelo celular', exact: true }).click();
@@ -509,8 +507,7 @@ test('host grants individual QR access and the phone confirms a replacement expl
   ).toBeVisible();
 
   await page.goto('/anfitriao');
-  await page.getByRole('button', { name: 'Opções da fila', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Participantes', exact: true }).click();
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.getByRole('button', { name: 'Acesso pelo celular de Ana' }).click();
   await expect(page.getByText('Celular vinculado', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Opções do acesso pelo celular' })).toBeVisible();

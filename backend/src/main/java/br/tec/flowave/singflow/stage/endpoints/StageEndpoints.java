@@ -18,7 +18,7 @@ class StageEndpoints {
       @Size(max = 160) String title,
       @Size(max = 160) String artist,
       @Size(max = 36) String selectionToken,
-      boolean allowOutOfOrder) {}
+      Boolean allowOutOfOrder) {}
 
   record Skip(@NotNull UUID operationId, @NotNull UUID participantId, UUID expectedRequestId) {}
 
@@ -70,7 +70,7 @@ class StageEndpoints {
         input.title(),
         input.artist(),
         input.selectionToken(),
-        input.allowOutOfOrder());
+        Boolean.TRUE.equals(input.allowOutOfOrder()));
   }
 
   @PostMapping("/calls/{call}/resolve")

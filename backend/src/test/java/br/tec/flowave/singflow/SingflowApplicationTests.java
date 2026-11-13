@@ -2560,4 +2560,28 @@ class SingflowApplicationTests {
     assertThatThrownBy(() -> stage.reorder(session, owner, UUID.randomUUID(), order, expected))
         .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
   }
+
+  @Test
+  void malformedStageCallReturnsBadRequestAndCsrfStillProtectsMutations() throws Exception {
+    var owner = host();
+    String path = "/api/sessions/" + UUID.randomUUID() + "/stage/calls";
+    mvc.perform(
+            post(path)
+                .with(user(owner).roles("HOST"))
+                .with(csrf())
+                .contentType("application/json")
+                .content("{\"operationId\":\"not-a-uuid\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(
+            jsonPath("$.detail")
+                .value(
+                    "Não foi possível ler os dados enviados. Confira os campos e tente"
+                        + " novamente."));
+    mvc.perform(
+            post(path)
+                .with(user(owner).roles("HOST"))
+                .contentType("application/json")
+                .content("{}"))
+        .andExpect(status().isForbidden());
+  }
 }

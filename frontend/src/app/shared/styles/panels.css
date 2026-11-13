@@ -947,3 +947,21 @@
   outline: 2px solid var(--sf-purple);
   outline-offset: -4px;
 }
+
+/* Mobile-first bottom section navigation. */
+.sf-has-bottom-nav {
+  padding-bottom: calc(120px + env(safe-area-inset-bottom));
+}
+.sf-host-shell app-stage-panel [hidden] {
+  display: none !important;
+}
+.sf-host-directory-card {
+  display: block;
+}
+.sf-host-directory-card h2 {
+  margin: 0 0 16px;
+}
+.sf-host-directory-card .sf-people-list {
+  max-height: none;
+  overflow: visible;
+}

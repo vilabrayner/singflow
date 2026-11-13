@@ -1,10 +1,11 @@
+import { ScrollArea, ScrollAreaModule } from 'primeng/scrollarea';
+import { CdkScrollable } from '@angular/cdk/scrolling';
+import { BottomNavigation, BottomNavigationItem } from '../../shared/components/bottom-navigation';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
-import { MenuItem } from 'primeng/api';
 import { SessionMusicians } from '../musicians/session-musicians';
 import { MenuPopover } from '../../shared/components/menu-popover';
-import { OptionsMenu } from '../../shared/components/options-menu';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import {
   afterNextRender,
@@ -14,12 +15,14 @@ import {
   inject,
   Injector,
   OnInit,
+  ElementRef,
+  viewChild,
   signal,
 } from '@angular/core';
 import { EntryShare } from '../participation/entry-share';
 import { StagePanel } from '../stage/stage-panel';
 import { HostParticipants } from '../participants/host-participants';
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, NgTemplateOutlet } from '@angular/common';
 import { PanelHeader } from '../../shared/components/panel-header';
 import { SurfaceCard } from '../../shared/components/surface-card';
 import { StatusBadge } from '../../shared/components/status-badge';
@@ -33,9 +36,12 @@ import { apiError } from '../../core/http/api-client';
 @Component({
   selector: 'app-host-dashboard',
   imports: [
+    NgTemplateOutlet,
+    ScrollAreaModule,
+    CdkScrollable,
+    BottomNavigation,
     RouterLink,
     ConfirmationDialog,
-    OptionsMenu,
     MenuPopover,
     SessionMusicians,
     ReactiveFormsModule,
@@ -56,12 +62,53 @@ export class HostDashboard implements OnInit {
   private readonly auth = inject(HostAuth);
   private readonly api = inject(SessionApi);
   private readonly route = inject(ActivatedRoute);
+  readonly activeTab = signal('queue');
+  readonly dockHeight = signal(64);
+  private readonly tabViewport = viewChild('tabViewport', {
+    read: ElementRef,
+  });
+  private readonly scrollArea = viewChild(ScrollArea);
+  private tabScroll: Record<string, number> = {};
+  readonly tabContentLabel = computed(
+    () =>
+      ({
+        queue: 'Conteúdo da fila',
+        participants: 'Conteúdo dos participantes',
+        history: 'Conteúdo do histórico',
+        musicians: 'Conteúdo dos músicos',
+      })[this.activeTab() as 'queue' | 'participants' | 'history' | 'musicians'],
+  );
+
+  readonly navigationItems: BottomNavigationItem[] = [
+    { value: 'queue', label: 'Fila', icon: 'pi-list' },
+    { value: 'participants', label: 'Participantes', icon: 'pi-users' },
+    { value: 'history', label: 'Histórico', icon: 'pi-history' },
+    { value: 'musicians', label: 'Músicos', icon: 'pi-headphones' },
+  ];
+  changeTab(value: string) {
+    if (this.locked() || !this.navigationItems.some((item) => item.value === value)) return;
+    if (value === this.activeTab()) return;
+    const viewport = this.tabViewport()?.nativeElement;
+    if (viewport) this.tabScroll[this.activeTab()] = viewport.scrollTop;
+    this.activeTab.set(value);
+    afterNextRender(
+      () => {
+        this.scrollArea()?.refresh();
+        this.tabViewport()?.nativeElement.scrollTo({
+          top: this.tabScroll[value] ?? 0,
+          behavior: 'instant',
+        });
+      },
+      { injector: this.injector },
+    );
+  }
   readonly participantBusy = signal(false);
   readonly stageBusy = signal(false);
   readonly locked = computed(() => this.busy() || this.participantBusy() || this.stageBusy());
   readonly creatingSession = signal(false);
   readonly showPassword = signal(false);
   readonly accountOptions = signal(false);
+  readonly choosingSession = signal(false);
   readonly accountSessionStatus = signal<KaraokeSession['status']>('OPEN');
   private previousSession: KaraokeSession | null = null;
   readonly stageRevision = signal(0);
@@ -92,35 +139,6 @@ export class HostDashboard implements OnInit {
   readonly participants = signal<Participant[]>([]);
   readonly requests = signal<import('./session-api').SongRequest[]>([]);
   readonly confirmingClose = signal(false);
-  readonly showingMusicians = signal(false);
-  readonly sessionMenuItems = computed<MenuItem[]>(() => [
-    {
-      label: 'Atualizar',
-      icon: 'pi pi-refresh',
-      disabled: this.locked(),
-      command: () => void this.refresh(),
-    },
-    ...(this.selected()?.status === 'OPEN'
-      ? [
-          {
-            label: 'Músicos',
-            icon: 'pi pi-headphones',
-            disabled: this.locked(),
-            command: () => this.showingMusicians.set(true),
-          },
-        ]
-      : []),
-    ...(this.selected()?.status !== 'CLOSED'
-      ? [
-          {
-            label: 'Encerrar sessão',
-            icon: 'pi pi-stop-circle',
-            disabled: this.locked(),
-            command: () => this.askClose(),
-          },
-        ]
-      : []),
-  ]);
   readonly loginForm = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required],
@@ -187,7 +205,8 @@ export class HostDashboard implements OnInit {
     }
   }
   private clearSession() {
-    this.showingMusicians.set(false);
+    this.tabScroll = {};
+    this.activeTab.set('queue');
     this.participantBusy.set(false);
     this.stageBusy.set(false);
     this.selected.set(null);
@@ -203,7 +222,9 @@ export class HostDashboard implements OnInit {
     this.sessions.set(await this.api.list());
   }
   private focus(id: string) {
-    afterNextRender(() => this.document.getElementById(id)?.focus(), { injector: this.injector });
+    afterNextRender(() => this.document.getElementById(id)?.focus({ preventScroll: true }), {
+      injector: this.injector,
+    });
   }
   private async selectInitialSession() {
     const requested = this.route.snapshot.queryParamMap.get('sessao');
@@ -225,11 +246,13 @@ export class HostDashboard implements OnInit {
     if (this.accountOptions()) {
       this.accountOptions.set(false);
     } else {
+      this.choosingSession.set(false);
       this.accountSessionStatus.set('OPEN');
       this.accountOptions.set(true);
     }
   }
   showAccountSessions(status: KaraokeSession['status']) {
+    this.choosingSession.set(true);
     this.accountSessionStatus.set(status);
     this.accountOptions.set(true);
     this.focus('account-session-title');
@@ -238,15 +261,19 @@ export class HostDashboard implements OnInit {
     this.accountOptions.set(false);
     this.focus('account-options-button');
   }
+  refreshFromMenu() {
+    this.accountOptions.set(false);
+    void this.refresh();
+  }
   askClose() {
+    this.accountOptions.set(false);
     this.confirmingClose.set(true);
   }
   cancelClose() {
     this.confirmingClose.set(false);
-    this.focus('session-options-button');
+    this.focus('account-options-button');
   }
   beginCreate() {
-    this.showingMusicians.set(false);
     this.previousSession = this.selected();
     this.creatingSession.set(true);
     this.accountOptions.set(false);
@@ -297,7 +324,14 @@ export class HostDashboard implements OnInit {
     });
   }
   private async loadSession(session: KaraokeSession) {
-    if (session.id !== this.selected()?.id) this.showingMusicians.set(false);
+    if (session.id !== this.selected()?.id) {
+      this.activeTab.set('queue');
+      this.tabScroll = {};
+      afterNextRender(
+        () => this.tabViewport()?.nativeElement.scrollTo({ top: 0, behavior: 'instant' }),
+        { injector: this.injector },
+      );
+    }
     const [participants, requests] = await Promise.all([
       this.api.participants(session.id),
       this.api.requests(session.id),
@@ -310,6 +344,7 @@ export class HostDashboard implements OnInit {
   }
   async select(session: KaraokeSession) {
     await this.run(async () => {
+      if (this.selected()?.id !== session.id) this.activeTab.set('queue');
       await this.loadSession(session);
       this.creatingSession.set(false);
       this.accountOptions.set(false);
