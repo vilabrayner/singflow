@@ -53,7 +53,7 @@ export class StageApi {
       participantId: suggestion.participantId,
       expectedRequestId: suggestion.requestId,
       ...song,
-      ...(allowOutOfOrder ? { allowOutOfOrder: true } : {}),
+      allowOutOfOrder: allowOutOfOrder === true,
     });
   }
   reorder(session: string, operationId: string, expectedOrder: string[], order: string[]) {

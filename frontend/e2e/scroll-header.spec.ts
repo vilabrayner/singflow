@@ -43,6 +43,8 @@ test('reload returns content below the fixed header and polling keeps the readin
   const header = await page.locator('.sf-panel-header').boundingBox();
   const card = await page.locator('app-surface-card').first().boundingBox();
   expect(card!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
+  await page.bringToFront();
+  await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
   const previousReads = reads;
   await page.evaluate(() => window.scrollTo(0, 240));
   await expect.poll(() => reads, { timeout: 10000 }).toBeGreaterThan(previousReads);

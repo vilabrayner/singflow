@@ -172,3 +172,15 @@ Implementados catálogo aprovado, busca complementar Last.fm, texto livre, sele�
 ## Intervenções do anfitrião — 12/11/2026
 
 Implementadas ordem manual persistente por oportunidade, convocação explícita fora da vez e botões de pausa/retomada com preservação dos pedidos. V17 validada pelo responsável com BUILD SUCCESS. [Ensaio 015](acceptance/015-host-queue-interventions.md). Músico e participante consultam a ordem efetiva. Benefícios de assiduidade continuam sem interferir na prioridade.
+
+## Navegação inferior do anfitrião — 12/11/2026
+
+Implementadas abas Fila, Participantes e Histórico com barra fixa e estado preservado. Criar participante passa a existir somente em Participantes; diretório é exibido na tela e detalhes continuam em modal. Sem mudança de backend. [Ensaio 016](acceptance/016-host-bottom-navigation.md). Navegação inferior do participante e do músico segue em etapas posteriores.
+
+## Rolagem interna do anfitrião — 13/11/2026
+
+Integrado PrimeNG ScrollArea com estado de rolagem por aba e CdkScrollable para arraste nas bordas. Header e dock fixos; card da sessão acompanha o conteúdo rolável conforme orientação do responsável. Sem mudança de backend. [Ensaio 017](acceptance/017-host-scrollarea.md).
+
+## Padronização do participante — 13/11/2026
+
+Anfitrião aceito como referência visual; participante adaptado para header com contexto/menu, dock Pedidos/Catálogo/Histórico, ScrollArea e itens compartilhados. Catálogo direto, modais com busca fixa e histórico com faixa lateral. Fluxos de convocação, saída/retorno e pedidos preservados. O [padrão de telas](ui/screen-pattern.md) registra a referência para futuras implementações. Font Awesome Free 7.3.1 adotado para todos os ícones explícitos da aplicação, conforme tabela aprovada; PrimeIcons removido como dependência direta. Build e 172 testes de navegador em desktop/celular aprovados. [Roteiro de aceite](acceptance/022-participant-workspace.md); aceite manual deste redesenho aguarda o responsável.

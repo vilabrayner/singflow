@@ -128,4 +128,33 @@ class SongSearchTests {
     }
     server.verify();
   }
+
+  @Test
+  void providerPaginationUsesIndependentCacheEntriesAndTotalMetadata() {
+    var builder = RestClient.builder().baseUrl("https://example.test/");
+    var server = MockRestServiceServer.bindTo(builder).build();
+    server
+        .expect(queryParam("page", "1"))
+        .andExpect(queryParam("limit", "10"))
+        .andRespond(
+            withSuccess(
+                "{\"results\":{\"opensearch:totalResults\":\"11\",\"trackmatches\":{\"track\":[{\"name\":\"First\",\"artist\":\"Artist\"}]}}}",
+                MediaType.APPLICATION_JSON));
+    server
+        .expect(queryParam("page", "2"))
+        .andRespond(
+            withSuccess(
+                "{\"results\":{\"opensearch:totalResults\":\"11\",\"trackmatches\":{\"track\":[{\"name\":\"Second\",\"artist\":\"Artist\"}]}}}",
+                MediaType.APPLICATION_JSON));
+    var search = new SongSearch(builder.build(), "test-key");
+    assertThat(search.searchPage("Song", 1).hasMore()).isTrue();
+    assertThat(search.searchPage("Song", 2))
+        .isEqualTo(
+            new SongSearch.SearchPage(
+                java.util.List.of(new SongSearch.Song("Second", "Artist")), false));
+    assertThat(search.searchPage("song", 1).songs().getFirst().title()).isEqualTo("First");
+    assertThatThrownBy(() -> search.searchPage("Song", 0))
+        .isInstanceOf(ResponseStatusException.class);
+    server.verify();
+  }
 }

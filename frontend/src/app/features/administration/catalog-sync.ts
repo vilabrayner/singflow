@@ -149,9 +149,19 @@ export class CatalogSync implements OnInit, OnDestroy {
     ['REVIEW', 'FAILED'].includes(this.detail()?.item.state ?? ''),
   );
   readonly reviewMenu = computed(() => [
-    { label: 'Atualizar revisão', icon: 'pi pi-refresh', command: () => void this.reloadDetail() },
+    {
+      label: 'Atualizar revisão',
+      icon: 'fa-solid fa-rotate-right',
+      command: () => void this.reloadDetail(),
+    },
     ...(['REVIEW', 'FAILED', 'SKIPPED'].includes(this.detail()?.item.state ?? '')
-      ? [{ label: 'Consultar dados salvos', icon: 'pi pi-sync', command: () => void this.retry() }]
+      ? [
+          {
+            label: 'Consultar dados salvos',
+            icon: 'fa-solid fa-rotate',
+            command: () => void this.retry(),
+          },
+        ]
       : []),
   ]);
   private operation = createOperationId();

@@ -18,7 +18,7 @@ import { BackendStatus } from '../../shared/components/backend-status';
           organiza e quem faz o som acontecer.
         </p>
         <div class="hero-note">
-          <i class="pi pi-sparkles" aria-hidden="true"></i
+          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i
           ><span
             >Estamos preparando o próximo show.<br /><strong
               >Conheça as três experiências.</strong
@@ -30,7 +30,7 @@ import { BackendStatus } from '../../shared/components/backend-status';
         <div class="orbit orbit-one"></div>
         <div class="orbit orbit-two"></div>
         <span class="art-spark spark-one">✦</span><span class="art-spark spark-two">✦</span>
-        <div class="mic-circle"><i class="pi pi-microphone"></i></div>
+        <div class="mic-circle"><i class="fa-solid fa-bullhorn"></i></div>
         <div class="sound-bars">
           @for (bar of bars; track $index) {
             <span [style.height.px]="bar"></span>
@@ -51,12 +51,12 @@ import { BackendStatus } from '../../shared/components/backend-status';
         @for (role of roles; track role.path) {
           <a class="experience-card" [routerLink]="role.path">
             <span class="role-icon" [class]="'role-icon ' + role.color"
-              ><i [class]="'pi ' + role.icon" aria-hidden="true"></i
+              ><i [class]="role.icon" aria-hidden="true"></i
             ></span>
             <h3>{{ role.title }}</h3>
             <p>{{ role.description }}</p>
             <span class="card-link"
-              >Conhecer experiência <i class="pi pi-arrow-up-right" aria-hidden="true"></i
+              >Conhecer experiência <i class="fa-solid fa-arrow-right" aria-hidden="true"></i
             ></span>
           </a>
         }
@@ -82,7 +82,7 @@ export class HomePage {
       title: 'Quero cantar',
       description:
         'Seu próximo momento no palco começa por aqui. Check-in, músicas e acompanhamento da sua vez.',
-      icon: 'pi-microphone',
+      icon: 'fa-solid fa-bullhorn',
       color: 'purple',
     },
     {
@@ -90,7 +90,7 @@ export class HomePage {
       title: 'Vou organizar',
       description:
         'Tudo para conduzir uma noite especial. Sessão, solicitações e convocações em um só lugar.',
-      icon: 'pi-users',
+      icon: 'fa-solid fa-users',
       color: 'navy',
     },
     {
@@ -98,7 +98,7 @@ export class HomePage {
       title: 'Vou fazer o som',
       description:
         'Conexão com o que acontece no palco. Repertório e convocações para acompanhar cada voz.',
-      icon: 'pi-headphones',
+      icon: 'fa-solid fa-guitar',
       color: 'yellow',
     },
   ];

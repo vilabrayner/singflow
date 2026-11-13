@@ -18,6 +18,13 @@ class ApiErrors {
                 error.getReason() == null ? "Operação indisponível." : error.getReason()));
   }
 
+  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  ProblemDetail unreadable() {
+    return ProblemDetail.forStatusAndDetail(
+        HttpStatus.BAD_REQUEST,
+        "Não foi possível ler os dados enviados. Confira os campos e tente novamente.");
+  }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
   ProblemDetail validation() {
     return ProblemDetail.forStatusAndDetail(

@@ -1,11 +1,11 @@
 <app-surface-card labelledBy="participant-history-title">
   <h2 id="participant-history-title">Meu histórico de palco</h2>
   <div class="history-list">
-    @for (call of data().history; track call.id) {
+    @for (call of data().history; track call.id; let index = $index) {
       <div>
         <ng-container
           [ngTemplateOutlet]="songRow"
-          [ngTemplateOutletContext]="{ $implicit: call }"
+          [ngTemplateOutletContext]="{ $implicit: call, order: data().history.length - index }"
         />
       </div>
     } @empty {
@@ -22,8 +22,10 @@
   </div>
   <ng-content />
 </app-surface-card>
-<ng-template #songRow let-song>
+<ng-template #songRow let-song let-order="order">
   <app-history-item
+    [order]="order ?? null"
+    [railIcon]="order ? null : 'fa-solid fa-ban'"
     [title]="song.title || 'Música a escolher'"
     [subtitle]="song.artist"
     [status]="status(song.status)"

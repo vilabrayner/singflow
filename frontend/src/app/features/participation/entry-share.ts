@@ -1,3 +1,4 @@
+import { LinkClipboard } from '../../shared/link-clipboard';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
 import { NgTemplateOutlet } from '@angular/common';
@@ -38,7 +39,7 @@ import { ApiClient, apiError } from '../../core/http/api-client';
         aria-haspopup="dialog"
         (click)="open()"
       >
-        <i class="pi pi-qrcode" aria-hidden="true"></i>
+        <i class="fa-solid fa-qrcode" aria-hidden="true"></i>
       </button>
     }
 
@@ -109,7 +110,7 @@ import { ApiClient, apiError } from '../../core/http/api-client';
           [disabled]="busy()"
           (click)="copy()"
         >
-          <i class="pi pi-copy" aria-hidden="true"></i>Copiar link
+          <i class="fa-solid fa-copy" aria-hidden="true"></i>Copiar link
         </button>
       }
     </ng-template>
@@ -169,7 +170,7 @@ export class EntryShare implements OnInit {
   private readonly notifications = inject(Notifications);
   readonly confirming = signal(false);
   readonly shareMenu: MenuItem[] = [
-    { label: 'Trocar link', icon: 'pi pi-refresh', command: () => this.askRotation() },
+    { label: 'Trocar link', icon: 'fa-solid fa-rotate-right', command: () => this.askRotation() },
   ];
   private rotation = createOperationId();
   ngOnInit() {
@@ -227,12 +228,12 @@ export class EntryShare implements OnInit {
       this.busy.set(false);
     }
   }
+  private readonly clipboard = inject(LinkClipboard);
   async copy() {
     this.error.set('');
-    try {
-      await navigator.clipboard.writeText(this.url());
+    if (await this.clipboard.copy(this.url())) {
       this.notifications.success('Link copiado.');
-    } catch {
+    } else {
       this.error.set('Selecione o link acima e copie manualmente.');
     }
   }

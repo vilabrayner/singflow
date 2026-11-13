@@ -1,7 +1,7 @@
-@if (error() && !confirmation() && !directoryOpen()) {
+@if (active() && error() && !confirmation() && !directoryOpen()) {
   <p class="host-error" role="alert">{{ error() }}</p>
 }
-@if (registering()) {
+@if (active() && registering()) {
   <app-surface-card labelledBy="register-participant-title">
     <h2 id="register-participant-title">Criar participante</h2>
     <p>
@@ -59,45 +59,30 @@
     </form>
   </app-surface-card>
 }
-<div [hidden]="registering()">
-  <ng-content select="[session-entry]" />
-  @if (session().status === 'OPEN') {
-    @if (people().length === 0) {
-      <app-surface-card labelledBy="empty-participants-title">
-        <h2 id="empty-participants-title">Participantes</h2>
-        <p>Ainda não há ninguém por aqui.</p>
-        <button
-          id="create-participant-button"
-          type="button"
-          class="sf-button sf-primary sf-full"
-          [disabled]="locked()"
-          (click)="beginRegistration()"
-        >
-          <i class="pi pi-user-plus" aria-hidden="true"></i>Criar participante
-        </button>
-        <p class="sf-centered-copy">Inscreva quem precisa de ajuda.</p>
-      </app-surface-card>
-    } @else {
+@if (active() && !registering()) {
+  <app-surface-card labelledBy="host-participants-tab-title" class="sf-host-directory-card">
+    <h2 id="host-participants-tab-title" tabindex="-1">Participantes</h2>
+    @if (session().status === 'OPEN') {
       <button
         id="create-participant-button"
         type="button"
-        class="sf-button sf-outline sf-full sf-create-person"
+        class="sf-button sf-primary sf-full"
         [disabled]="locked()"
         (click)="beginRegistration()"
       >
-        <i class="pi pi-user-plus" aria-hidden="true"></i>Criar participante
+        <i class="fa-solid fa-user-plus" aria-hidden="true"></i>Criar participante
       </button>
     }
-  }
-  <ng-content />
-</div>
-@if (directoryOpen()) {
+    <ng-container [ngTemplateOutlet]="participantDirectory" />
+  </app-surface-card>
+}
+@if (directoryOpen() && (person() || !embedded())) {
   <app-confirmation-dialog
     #directoryDialog
     [title]="person()?.name ?? 'Participantes (' + people().length + ')'"
     [busy]="locked()"
     [error]="confirmation() || addingSong() ? '' : error()"
-    returnFocus="queue-options-button"
+    [returnFocus]="embedded() ? 'participant-' + personId() : 'queue-options-button'"
     (dismissed)="closeDirectory()"
   >
     <div dialog-leading [hidden]="!person()">
@@ -110,7 +95,7 @@
           [disabled]="locked()"
           (click)="back()"
         >
-          <i class="pi pi-arrow-left" aria-hidden="true"></i>
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
         </button>
       }
     </div>
@@ -151,7 +136,7 @@
             class="sf-origin-badge"
             buttonId="participant-origin"
             label="Origem da inscrição"
-            icon="pi pi-user-edit"
+            icon="fa-solid fa-user-pen"
           >
             <div class="sf-participant-origin" tabindex="0">
               <p>Participante criado pelo anfitrião.</p>
@@ -187,72 +172,36 @@
               [disabled]="locked()"
               (click)="startSong()"
             >
-              <i class="pi pi-plus" aria-hidden="true"></i>Adicionar música
+              <i class="fa-solid fa-plus" aria-hidden="true"></i>Adicionar música
             </button>
           }
           @if (addingSong()) {
             <app-confirmation-dialog
-              title="Adicionar música"
+              [title]="songDialogTitle()"
               [fullscreen]="true"
               [busy]="locked()"
               [error]="error()"
               returnFocus="add-participant-song"
               (dismissed)="cancelSong()"
             >
-              <p>Músicas de {{ person.name }}</p>
+              <div dialog-subheader class="sf-host-song-search">
+                <ng-container [ngTemplateOutlet]="songPicker.searchField() ?? null" />
+              </div>
               <div class="sf-host-song-scroll">
-                <div [hidden]="manualSong()">
+                <div class="sf-host-catalog-pane">
                   <app-catalog-song-picker
+                    #songPicker
+                    [scrollResults]="true"
+                    [externalSearch]="true"
+                    [incremental]="true"
+                    [inlineManual]="true"
                     [disabled]="locked()"
                     [addedSongs]="existingSongs()"
                     (picked)="pickSong($event)"
-                    (manual)="manualSong.set(true); songForm.reset()"
                   />
-                </div>
-                <div [hidden]="!manualSong()">
-                  <button
-                    type="button"
-                    class="sf-button sf-text sf-full"
-                    [disabled]="locked()"
-                    (click)="manualSong.set(false)"
-                  >
-                    <i class="pi pi-arrow-left" aria-hidden="true"></i>Voltar ao catálogo
-                  </button>
-                  <form
-                    id="host-song-form"
-                    class="host-form"
-                    [formGroup]="songForm"
-                    (ngSubmit)="addSong()"
-                  >
-                    <label
-                      >Nova música<input
-                        pInputText
-                        formControlName="title"
-                        maxlength="160"
-                        required
-                        [readOnly]="locked()"
-                    /></label>
-                    <label
-                      >Artista (opcional)<input
-                        pInputText
-                        formControlName="artist"
-                        maxlength="160"
-                        [readOnly]="locked()"
-                    /></label>
-                  </form>
                 </div>
               </div>
               <div dialog-footer class="sf-dialog-actions">
-                @if (manualSong()) {
-                  <button
-                    type="submit"
-                    form="host-song-form"
-                    class="sf-button sf-primary"
-                    [disabled]="locked() || songForm.invalid"
-                  >
-                    Salvar música
-                  </button>
-                }
                 <button
                   type="button"
                   class="sf-button sf-outline"
@@ -330,78 +279,7 @@
         }
       }
     } @else {
-      <p>Cadastros por ordem de chegada. A fila sugerida aparece no palco.</p>
-      <label class="host-search"
-        >Buscar por nome ou mesa<input
-          pInputText
-          type="search"
-          [value]="search()"
-          (input)="search.set($any($event.target).value)"
-      /></label>
-      <div class="sf-filter-group" role="group" aria-label="Filtrar participantes">
-        <button
-          type="button"
-          class="sf-button sf-text"
-          [attr.aria-pressed]="filter() === 'all'"
-          (click)="filter.set('all')"
-        >
-          Todos
-        </button>
-        <button
-          type="button"
-          class="sf-button sf-text"
-          [attr.aria-pressed]="filter() === 'active'"
-          (click)="filter.set('active')"
-        >
-          Participando
-        </button>
-        <button
-          type="button"
-          class="sf-button sf-text"
-          [attr.aria-pressed]="filter() === 'outside'"
-          (click)="filter.set('outside')"
-        >
-          Fora da fila
-        </button>
-      </div>
-      <ul class="sf-people-list sf-dialog-list sf-host-people-list">
-        @for (person of visiblePeople(); track person.id) {
-          <li class="choice-panel sf-host-person-item">
-            <button
-              [id]="'participant-' + person.id"
-              type="button"
-              class="sf-person-row"
-              [disabled]="locked()"
-              (click)="showPerson(person.id)"
-            >
-              <span
-                ><strong>{{ person.name }}</strong
-                ><span
-                  >{{ person.tableLabel ? 'Mesa ' + person.tableLabel + ' · ' : ''
-                  }}{{ person.completedPerformances }} apresentações</span
-                ></span
-              >
-              <app-status-badge [tone]="person.status === 'ACTIVE' ? 'positive' : 'neutral'">{{
-                status(person.status)
-              }}</app-status-badge>
-            </button>
-            @if (
-              session().status === 'OPEN' &&
-              person.origin === 'ASSISTED' &&
-              person.status !== 'LEFT'
-            ) {
-              <app-participant-mobile-access
-                [session]="session().id"
-                [participant]="person.id"
-                [name]="person.name"
-                [disabled]="locked()"
-              />
-            }
-          </li>
-        } @empty {
-          <li>Nenhum participante encontrado.</li>
-        }
-      </ul>
+      <ng-container [ngTemplateOutlet]="participantDirectory" />
     }
     <div class="sf-dialog-actions">
       <button
@@ -415,3 +293,75 @@
     </div>
   </app-confirmation-dialog>
 }
+
+<ng-template #participantDirectory>
+  <label class="host-search"
+    >Buscar por nome ou mesa<input
+      pInputText
+      type="search"
+      [value]="search()"
+      (input)="search.set($any($event.target).value)"
+  /></label>
+  <div class="sf-filter-group" role="group" aria-label="Filtrar participantes">
+    <button
+      type="button"
+      class="sf-button sf-text"
+      [attr.aria-pressed]="filter() === 'all'"
+      (click)="filter.set('all')"
+    >
+      Todos
+    </button>
+    <button
+      type="button"
+      class="sf-button sf-text"
+      [attr.aria-pressed]="filter() === 'active'"
+      (click)="filter.set('active')"
+    >
+      Participando
+    </button>
+    <button
+      type="button"
+      class="sf-button sf-text"
+      [attr.aria-pressed]="filter() === 'outside'"
+      (click)="filter.set('outside')"
+    >
+      Fora da fila
+    </button>
+  </div>
+  <ul class="sf-people-list sf-host-people-list">
+    @for (person of visiblePeople(); track person.id) {
+      <li class="choice-panel sf-host-person-item">
+        <button
+          [id]="'participant-' + person.id"
+          type="button"
+          class="sf-person-row"
+          [disabled]="locked()"
+          (click)="showPerson(person.id)"
+        >
+          <span
+            ><strong>{{ person.name }}</strong
+            ><span
+              >{{ person.tableLabel ? 'Mesa ' + person.tableLabel + ' · ' : ''
+              }}{{ person.completedPerformances }} apresentações</span
+            ></span
+          >
+          <app-status-badge [tone]="person.status === 'ACTIVE' ? 'positive' : 'neutral'">{{
+            status(person.status)
+          }}</app-status-badge>
+        </button>
+        @if (
+          session().status === 'OPEN' && person.origin === 'ASSISTED' && person.status !== 'LEFT'
+        ) {
+          <app-participant-mobile-access
+            [session]="session().id"
+            [participant]="person.id"
+            [name]="person.name"
+            [disabled]="locked()"
+          />
+        }
+      </li>
+    } @empty {
+      <li>Nenhum participante encontrado.</li>
+    }
+  </ul>
+</ng-template>

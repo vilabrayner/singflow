@@ -36,6 +36,7 @@ import { DialogModule } from 'primeng/dialog';
             </h2>
             <ng-content select="[dialog-actions]" />
           </div>
+          <ng-content select="[dialog-subheader]" />
           <div class="p-dialog-content">
             @if (error()) {
               <p class="sf-dialog-error" role="alert">{{ error() }}</p>

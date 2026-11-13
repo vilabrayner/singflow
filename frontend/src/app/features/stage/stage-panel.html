@@ -1,12 +1,20 @@
-<app-surface-card labelledBy="stage-title" class="sf-stage-card">
+<app-surface-card
+  labelledBy="stage-title"
+  class="sf-stage-card"
+  [hidden]="section() !== 'all' && section() !== 'queue'"
+>
   <div class="sf-session-heading">
     <h2 id="stage-title" tabindex="-1">Fila do karaokê</h2>
-    <app-options-menu
-      buttonId="queue-options-button"
-      label="Opções da fila"
-      [items]="queueMenuItems()"
-      [disabled]="locked()"
-    />
+    <button
+      id="queue-options-button"
+      type="button"
+      class="sf-icon-button sf-menu-trigger"
+      aria-label="Compartilhar link e QR Code"
+      [disabled]="locked() || !open()"
+      (click)="entryRequested.emit()"
+    >
+      <i class="fa-solid fa-qrcode" aria-hidden="true"></i>
+    </button>
   </div>
   @if (error() && !pendingOutcome() && !choosingNext() && !availabilityChoice()) {
     <p class="host-error" role="alert">{{ error() }}</p>
@@ -17,19 +25,22 @@
         <app-status-badge [tone]="call.acceptedAt ? 'positive' : 'attention'">
           {{ call.acceptedAt ? 'Ida confirmada pelo participante' : 'Convocação confirmada' }}
         </app-status-badge>
-        <h3 id="active-call-title" tabindex="-1">{{ call.participantName }}</h3>
-        <p class="sf-call-song">{{ call.title || 'Música a escolher' }}</p>
-        @if (call.artist) {
-          <p>{{ call.artist }}</p>
-        }
-        <button
-          type="button"
-          class="sf-button sf-text"
-          [disabled]="locked()"
-          (click)="personSelected.emit(call.participantId)"
+        <h3 id="active-call-title" tabindex="-1">
+          <button
+            type="button"
+            class="sf-call-person"
+            [disabled]="locked()"
+            (click)="personSelected.emit(call.participantId)"
+          >
+            {{ call.participantName }}
+          </button>
+        </h3>
+        <p
+          class="sf-call-song"
+          [title]="(call.title || 'Música a escolher') + (call.artist ? ' - ' + call.artist : '')"
         >
-          Ver participante
-        </button>
+          {{ call.title || 'Música a escolher' }}{{ call.artist ? ' - ' + call.artist : '' }}
+        </p>
         @if (open()) {
           @if (call.title) {
             <button
@@ -52,13 +63,18 @@
               Definir música
             </button>
           }
-          <div class="sf-stage-options">
-            <app-options-menu
-              buttonId="stage-options-button"
-              label="Outras ações"
-              [items]="stageMenuItems()"
-              [disabled]="locked()"
-            />
+          <div class="sf-call-actions" role="group" aria-label="Outras ações da convocação">
+            @for (action of stageActions; track action.outcome) {
+              <button
+                type="button"
+                class="sf-button sf-outline"
+                [id]="'stage-outcome-' + action.outcome"
+                [disabled]="locked()"
+                (click)="chooseOutcome(action.outcome)"
+              >
+                <i [class]="action.icon" aria-hidden="true"></i><span>{{ action.label }}</span>
+              </button>
+            }
           </div>
           @if (pendingOutcome(); as outcome) {
             <app-confirmation-dialog
@@ -66,7 +82,7 @@
               [busy]="locked()"
               [error]="error()"
               [returnFocus]="
-                outcome === 'COMPLETED' ? 'complete-performance' : 'stage-options-button'
+                outcome === 'COMPLETED' ? 'complete-performance' : 'stage-outcome-' + outcome
               "
               (dismissed)="cancelOutcome()"
             >
@@ -150,7 +166,7 @@
               <span class="sf-host-queue-position">{{
                 queuePosition(suggestion.participantId)
               }}</span
-              ><i class="pi pi-grip-vertical" aria-hidden="true"></i>
+              ><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i>
             </span>
             <div class="sf-host-queue-copy">
               <button
@@ -190,7 +206,7 @@
                 [disabled]="locked() || !!state.active"
                 (click)="choose(suggestion)"
               >
-                <i class="pi pi-microphone" aria-hidden="true"></i>
+                <i class="fa-solid fa-bullhorn" aria-hidden="true"></i>
               </button>
               <button
                 type="button"
@@ -200,7 +216,7 @@
                 [disabled]="locked()"
                 (click)="availabilityChoice.set({ person: suggestion, action: 'pause' })"
               >
-                <i class="pi pi-pause" aria-hidden="true"></i>
+                <i class="fa-solid fa-pause" aria-hidden="true"></i>
               </button>
             </div>
           </li>
@@ -237,7 +253,7 @@
                 [disabled]="locked()"
                 (click)="availabilityChoice.set({ person, action: 'resume' })"
               >
-                <i class="pi pi-play" aria-hidden="true"></i>
+                <i class="fa-solid fa-play" aria-hidden="true"></i>
               </button>
             </div>
           }
@@ -358,11 +374,16 @@
 </app-surface-card>
 
 @if (state(); as view) {
-  <app-surface-card labelledBy="host-stage-history-title" class="sf-host-history-card">
+  <app-surface-card
+    labelledBy="host-stage-history-title"
+    class="sf-host-history-card"
+    [hidden]="section() !== 'all' && section() !== 'history'"
+  >
     <h2 id="host-stage-history-title">Histórico do palco</h2>
     <div class="stage-history" role="region" aria-label="Registros do palco">
-      @for (call of view.history; track call.id) {
+      @for (call of view.history; track call.id; let index = $index) {
         <app-history-item
+          [order]="view.history.length - index"
           [title]="call.participantName"
           [subtitle]="
             (call.title || 'Música não definida') + (call.artist ? ' · ' + call.artist : '')
@@ -374,5 +395,16 @@
         <p>Nenhuma convocação resolvida.</p>
       }
     </div>
+  </app-surface-card>
+}
+
+@if (section() === 'history' && !state()) {
+  <app-surface-card labelledBy="host-stage-history-title">
+    <h2 id="host-stage-history-title">Histórico do palco</h2>
+    @if (error()) {
+      <p role="alert" class="host-error">{{ error() }}</p>
+    } @else {
+      <p role="status">Carregando histórico…</p>
+    }
   </app-surface-card>
 }

@@ -62,6 +62,7 @@ test('administrator opens the chosen session as host even with a musician profil
   expect(reads).toContain('/api/sessions/target-session/participants');
   expect(reads).not.toContain('/api/sessions/first-session/participants');
   await page.getByRole('button', { name: 'Opções da conta', exact: true }).click();
+  await page.getByRole('button', { name: 'Trocar sessão', exact: true }).click();
   await expect(page.getByRole('button', { name: /Outra sessão/ })).toBeVisible();
 });
 

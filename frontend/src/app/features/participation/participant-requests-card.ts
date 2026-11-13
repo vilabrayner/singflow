@@ -6,13 +6,15 @@ import {
   CdkDragDrop,
   moveItemInArray,
 } from '@angular/cdk/drag-drop';
+import { ActionsSpeedDial } from '../../shared/components/actions-speed-dial';
+import { MenuItem } from 'primeng/api';
 import { SurfaceCard } from '../../shared/components/surface-card';
 import { StatusBadge } from '../../shared/components/status-badge';
 import { SongRequest } from '../sessions/session-api';
 import { participantStatus } from './participant-view';
 @Component({
   selector: 'app-participant-requests-card',
-  imports: [SurfaceCard, StatusBadge, CdkDrag, CdkDragHandle, CdkDropList],
+  imports: [ActionsSpeedDial, SurfaceCard, StatusBadge, CdkDrag, CdkDragHandle, CdkDropList],
   templateUrl: './participant-requests-card.html',
   styleUrls: ['../../shared/styles/song-panels.css', './participant-requests-card.css'],
   host: { class: 'participant-card' },
@@ -23,11 +25,22 @@ export class ParticipantRequestsCard {
   readonly busy = input(false);
   readonly pending = computed(() => this.songs().filter((s) => s.status === 'PENDING'));
   readonly fixed = computed(() => this.songs().filter((s) => s.status !== 'PENDING'));
-  readonly added = output<void>();
   readonly edited = output<SongRequest>();
   readonly cancelled = output<SongRequest>();
   readonly reordered = output<{ expectedOrder: string[]; order: string[] }>();
   readonly status = participantStatus;
+  actions(song: SongRequest): MenuItem[] {
+    return [
+      {
+        label: 'Trocar',
+        icon: 'fa-solid fa-right-left',
+        command: () => {
+          if (this.editable() && !this.busy()) this.edited.emit(song);
+        },
+      },
+      { label: 'Configurar', icon: 'fa-solid fa-gear', disabled: true },
+    ];
+  }
   private dragOrder: string[] = [];
   nudge(index: number, direction: number) {
     if (!this.editable() || this.busy()) return;

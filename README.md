@@ -4,6 +4,8 @@ Sua voz no palco, na ordem certa.
 
 Plataforma de gestão de karaokê ao vivo para participantes, anfitriões e músicos, com check-in, solicitações musicais, catálogo híbrido, fila justa e convocações confirmadas.
 
+Consulte o [padrão atual de telas](docs/ui/screen-pattern.md) antes de implementar ou alterar os painéis.
+
 ## Estado do projeto
 
 Fundação e primeiro incremento assistido implementados: acesso do anfitrião, sessões, inscrição com primeira música, novos pedidos no mesmo cadastro, busca e saída com auditoria. Fila sugerida e operação do palco também estão implementadas, com testes aprovados e aceite manual confirmado nos dois modos. A verificação backend retornou `BUILD SUCCESS`, e o responsável concluiu o roteiro com serviços independentes e Docker, incluindo persistência após reinício.
@@ -23,7 +25,7 @@ Consulte [Teste local do primeiro incremento](docs/local-mvp-testing.md) para ac
 | Segurança | Spring Security |
 | Integração | REST/OpenAPI e WebSocket/STOMP |
 | Frontend | Angular SPA, TypeScript estrito, componentes standalone |
-| Interface | PrimeNG, Tailwind CSS, PrimeIcons e Manrope |
+| Interface | PrimeNG, Tailwind CSS, Font Awesome Free e Manrope |
 | Estado e formulários | Signals, serviços por feature, RxJS e Reactive Forms tipados |
 | PWA | Manifesto e service worker do Angular |
 
@@ -101,7 +103,7 @@ npm start
 
 Abra `http://127.0.0.1:4200`. O servidor de desenvolvimento encaminha `/actuator` e `/api` para o backend em `localhost:8080`. As páginas iniciais estão em `/`, `/participante`, `/anfitriao` e `/musico`.
 
-PrimeNG 22 e PrimeIcons 8 usam licença PrimeUI Community. O responsável escolheu uso pessoal; emita sua chave gratuita pelos [canais oficiais](https://primeui.dev/licenses/community) e observe a renovação anual. O modelo `frontend/public/config.example.json` é versionado. Os valores locais ficam em `frontend/public/config.json`, ignorado pelo Git e preservado pelos comandos de início e build. Não publique sua chave para reutilização por terceiros. Sem chave, o fornecedor exibe aviso; não há contorno da verificação.
+PrimeNG 22 usa licença PrimeUI Community. Os ícones explícitos do app usam Font Awesome Free 7.3.1, incluído pelo pacote npm local. O responsável escolheu uso pessoal; emita sua chave gratuita pelos [canais oficiais](https://primeui.dev/licenses/community) e observe a renovação anual. O modelo `frontend/public/config.example.json` é versionado. Os valores locais ficam em `frontend/public/config.json`, ignorado pelo Git e preservado pelos comandos de início e build. Não publique sua chave para reutilização por terceiros. Sem chave, o fornecedor exibe aviso; não há contorno da verificação.
 
 Verificações:
 

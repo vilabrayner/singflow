@@ -19,7 +19,9 @@ public class SongSearch {
     }
   }
 
-  private record Cached(long expires, List<Song> songs) {}
+  public record SearchPage(List<Song> songs, boolean hasMore) {}
+
+  private record Cached(long expires, SearchPage result) {}
 
   private final RestClient client;
   private final String key;
@@ -53,25 +55,34 @@ public class SongSearch {
   }
 
   public List<Song> search(String query) {
-    return lookup(query, "", 3);
+    return lookup(query, "", 3, 1).songs();
   }
 
   public List<Song> searchForCatalog(String query, String artist) {
-    return lookup(query, artist, 1);
+    return lookup(query, artist, 1, 1).songs();
   }
 
-  private synchronized List<Song> lookup(String query, String inputArtist, int minimum) {
+  public SearchPage searchPage(String query, int page) {
+    if (page < 1 || page > 1000) throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
+    return lookup(query, "", 3, page);
+  }
+
+  private synchronized SearchPage lookup(String query, String inputArtist, int minimum, int page) {
     String text = query == null ? "" : query.strip();
-    if (text.length() < minimum) return List.of();
+    if (text.length() < minimum) return new SearchPage(List.of(), false);
     if (text.length() > 160) throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
     String artistFilter = inputArtist == null ? "" : inputArtist.strip();
     if (artistFilter.length() > 160) throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
     if (key.isBlank()) throw unavailable();
     long now = System.currentTimeMillis();
     String cacheKey =
-        text.toLowerCase(Locale.ROOT) + "\u001f" + artistFilter.toLowerCase(Locale.ROOT);
+        text.toLowerCase(Locale.ROOT)
+            + "\u001f"
+            + artistFilter.toLowerCase(Locale.ROOT)
+            + "\u001f"
+            + page;
     var hit = cache.get(cacheKey);
-    if (hit != null && hit.expires > now) return hit.songs;
+    if (hit != null && hit.expires > now) return hit.result;
     if (now / 60000 != window) {
       window = now / 60000;
       calls = 0;
@@ -89,6 +100,7 @@ public class SongSearch {
                         .queryParam("api_key", "{key}")
                         .queryParam("format", "json")
                         .queryParam("limit", 10)
+                        .queryParam("page", page)
                         .build(
                             artistFilter.isBlank()
                                 ? new Object[] {text, key}
@@ -119,7 +131,15 @@ public class SongSearch {
           if (songs.size() == 10) break;
         }
       }
-      var answer = List.copyOf(songs);
+      boolean hasMore = tracks.size() >= 10;
+      try {
+        hasMore =
+            Long.parseLong(String.valueOf(results.get("opensearch:totalResults")))
+                > (long) page * 10;
+      } catch (NumberFormatException ignored) {
+        // Some responses omit pagination metadata; a full raw page may have a successor.
+      }
+      var answer = new SearchPage(List.copyOf(songs), hasMore);
       cache.entrySet().removeIf(e -> e.getValue().expires <= now);
       if (cache.size() >= 200) cache.remove(cache.keySet().iterator().next());
       cache.put(cacheKey, new Cached(now + 300000, answer));

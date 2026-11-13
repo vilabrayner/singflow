@@ -1,5 +1,19 @@
-import { Component, OnInit, OnDestroy, inject, input, output, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import {
+  Component,
+  ElementRef,
+  OnInit,
+  OnDestroy,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+  TemplateRef,
+} from '@angular/core';
+import { ScrollAreaModule } from 'primeng/scrollarea';
 import { InputTextModule } from 'primeng/inputtext';
+import { ButtonModule } from 'primeng/button';
 import { ApiClient } from '../../core/http/api-client';
 
 export interface PickedSong {
@@ -10,99 +24,287 @@ export interface PickedSong {
 }
 @Component({
   selector: 'app-catalog-song-picker',
-  imports: [InputTextModule],
+  imports: [InputTextModule, NgTemplateOutlet, ScrollAreaModule, ButtonModule],
+  host: { '[class.picker-scroll-results]': 'scrollResults()' },
   template: `
-    <div class="picker-search">
-      <input
-        id="participant-catalog-search"
-        aria-label="Buscar música ou artista"
-        pInputText
-        [value]="query()"
-        (input)="search($any($event.target).value)"
-        placeholder="Digite a música para buscar"
-        maxlength="160"
-        [readOnly]="disabled()"
-      />
-    </div>
-    <p class="picker-hint" role="status" aria-live="polite">
-      {{ loading() ? 'Buscando músicas…' : message() }}
-    </p>
-    <ul class="picker-list" aria-label="Resultados de músicas" [attr.aria-busy]="loading()">
-      @for (song of songs(); track $index) {
-        <li [class.picker-already-added]="isAdded(song)">
-          <div>
-            <strong>{{ song.title }}</strong
-            ><span>{{ song.artist || 'Artista não informado' }}</span
-            ><small>{{ song.source === 'LASTFM' ? 'Internet' : 'Catálogo' }}</small>
-          </div>
-          @if (isAdded(song)) {
-            <span
-              class="picker-added-check"
-              role="img"
-              [attr.aria-label]="
-                'Já adicionada: ' + song.title + ' — ' + (song.artist || 'Artista não informado')
-              "
-              title="Música já adicionada aos seus pedidos"
-              ><i class="pi pi-check" aria-hidden="true"></i
-            ></span>
-          } @else {
+    <ng-template #searchField>
+      <div class="picker-search">
+        <div class="picker-search-control">
+          <input
+            #queryInput
+            id="participant-catalog-search"
+            aria-label="Buscar música ou artista"
+            pInputText
+            [value]="query()"
+            (input)="search($any($event.target).value)"
+            placeholder="Digite a música para buscar"
+            maxlength="160"
+            [readOnly]="disabled()"
+          />
+          @if (query().length) {
             <button
               type="button"
-              class="sf-button sf-primary picker-add"
-              [attr.aria-label]="
-                actionLabel() + ' ' + song.title + ' — ' + (song.artist || 'Artista não informado')
-              "
-              [attr.title]="actionLabel() + ' música'"
-              [disabled]="disabled() || loading()"
-              (click)="choose(song)"
+              class="picker-clear-search"
+              aria-label="Limpar busca"
+              title="Limpar busca"
+              [disabled]="disabled()"
+              (pointerdown)="$event.preventDefault()"
+              (click)="clearSearch()"
             >
-              <i [class]="'pi ' + actionIcon()" aria-hidden="true"></i>
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
             </button>
           }
-        </li>
-      }
-    </ul>
-    @if (!query().trim() && total() > 20) {
-      <div class="picker-pagination">
+        </div>
+      </div>
+      <p class="picker-hint" role="status" aria-live="polite">
+        {{ loading() ? 'Buscando músicas…' : message() }}
+      </p>
+    </ng-template>
+    @if (!externalSearch()) {
+      <ng-container [ngTemplateOutlet]="searchField" />
+    }
+    <ng-template #resultsContent>
+      <ul class="picker-list" aria-label="Resultados de músicas" [attr.aria-busy]="loading()">
+        @for (song of songs(); track $index) {
+          <li [class.picker-already-added]="isAdded(song)">
+            <div>
+              <strong>{{ song.title }}</strong
+              ><span>{{ song.artist || 'Artista não informado' }}</span
+              ><small>{{ song.source === 'LASTFM' ? 'Internet' : 'Catálogo' }}</small>
+            </div>
+            @if (isAdded(song)) {
+              <span
+                class="picker-added-check"
+                role="img"
+                [attr.aria-label]="
+                  'Já adicionada: ' + song.title + ' — ' + (song.artist || 'Artista não informado')
+                "
+                title="Música já adicionada aos seus pedidos"
+                ><i class="fa-solid fa-check" aria-hidden="true"></i
+              ></span>
+            } @else {
+              <button
+                type="button"
+                class="sf-button sf-primary picker-add"
+                [attr.aria-label]="
+                  actionLabel() +
+                  ' ' +
+                  song.title +
+                  ' — ' +
+                  (song.artist || 'Artista não informado')
+                "
+                [attr.title]="actionLabel() + ' música'"
+                [disabled]="disabled() || loading()"
+                (click)="choose(song)"
+              >
+                <i [class]="actionIcon()" aria-hidden="true"></i>
+              </button>
+            }
+          </li>
+        }
+      </ul>
+      @if (incremental() && hasMore()) {
         <button
           type="button"
-          class="sf-button sf-outline"
-          [disabled]="page() === 0 || loading() || disabled()"
-          (click)="browse(page() - 1)"
+          pButton
+          severity="secondary"
+          class="sf-button sf-full"
+          [disabled]="loading() || disabled()"
+          (click)="loadMore()"
         >
-          Anterior</button
-        ><span>{{ page() + 1 }}</span
-        ><button
-          type="button"
-          class="sf-button sf-outline"
-          [disabled]="(page() + 1) * 20 >= total() || loading() || disabled()"
-          (click)="browse(page() + 1)"
-        >
-          Próxima
+          {{ loading() ? 'Carregando…' : 'Carregar mais' }}
         </button>
-      </div>
+      }
+      @if (incremental() && catalogLoaded() && !query().trim() && !loading() && !hasMore()) {
+        <button
+          type="button"
+          class="sf-button sf-text sf-full picker-end-hint"
+          [disabled]="disabled()"
+          (click)="focusSearch()"
+        >
+          Para mais músicas use a busca <i class="fa-solid fa-arrow-turn-up" aria-hidden="true"></i>
+        </button>
+      }
+      @if (!incremental() && !query().trim() && total() > 20) {
+        <div class="picker-pagination">
+          <button
+            type="button"
+            class="sf-button sf-outline"
+            [disabled]="page() === 0 || loading() || disabled()"
+            (click)="browse(page() - 1)"
+          >
+            Anterior</button
+          ><span>{{ page() + 1 }}</span
+          ><button
+            type="button"
+            class="sf-button sf-outline"
+            [disabled]="(page() + 1) * 20 >= total() || loading() || disabled()"
+            (click)="browse(page() + 1)"
+          >
+            Próxima
+          </button>
+        </div>
+      }
+
+      @if (inlineManual() && query().trim() && !loading()) {
+        <section class="picker-manual" aria-label="Adicionar música manualmente">
+          @if (!manualExpanded()) {
+            <button
+              type="button"
+              class="sf-button sf-text sf-full"
+              [disabled]="disabled()"
+              (click)="manualExpanded.set(true)"
+            >
+              Adicionar “{{ query().trim() }}” manualmente
+            </button>
+          } @else {
+            <strong>{{ query().trim() }}</strong>
+            <label
+              >Artista (opcional)<input
+                pInputText
+                maxlength="160"
+                [value]="manualArtist()"
+                [readOnly]="disabled()"
+                (input)="manualArtist.set($any($event.target).value)"
+            /></label>
+            <button
+              type="button"
+              class="sf-button sf-primary sf-full"
+              [disabled]="
+                disabled() || isAdded({ title: query().trim(), artist: manualArtist().trim() })
+              "
+              (click)="chooseManual()"
+            >
+              {{ actionLabel() === 'Trocar por' ? 'Trocar música' : 'Adicionar música' }}
+            </button>
+          }
+        </section>
+      }
+    </ng-template>
+    @if (scrollResults()) {
+      <p-scrollarea variant="scroll" class="picker-scrollarea">
+        <p-scrollarea-viewport class="picker-results" role="region" aria-label="Lista de músicas">
+          <p-scrollarea-content class="picker-content"
+            ><ng-container [ngTemplateOutlet]="resultsContent"
+          /></p-scrollarea-content>
+        </p-scrollarea-viewport>
+        <p-scrollarea-scrollbar orientation="vertical"
+          ><p-scrollarea-handle
+        /></p-scrollarea-scrollbar>
+      </p-scrollarea>
+    } @else {
+      <div class="picker-results"><ng-container [ngTemplateOutlet]="resultsContent" /></div>
     }
-    <button
-      type="button"
-      class="sf-button sf-text sf-full"
-      [disabled]="disabled()"
-      (click)="manual.emit()"
-    >
-      Não encontrei minha música
-    </button>
+    @if (!inlineManual()) {
+      <button
+        type="button"
+        class="sf-button sf-text sf-full"
+        [disabled]="disabled()"
+        (click)="manual.emit()"
+      >
+        Não encontrei minha música
+      </button>
+    }
   `,
   styles: `
     :host {
       display: block;
     }
+    .picker-results {
+      display: contents;
+    }
+    .picker-end-hint {
+      margin: 16px 0 4px;
+      color: var(--sf-muted);
+      text-align: center;
+      font-size: 0.875rem;
+    }
+    :host.picker-scroll-results {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+    :host.picker-scroll-results .picker-search,
+    :host.picker-scroll-results .picker-hint,
+    :host.picker-scroll-results > button {
+      flex: none;
+    }
+    :host.picker-scroll-results .picker-results {
+      display: block;
+      flex: 1;
+      min-height: 0;
+      overscroll-behavior: contain;
+      padding: 0;
+      overflow-x: hidden !important;
+    }
+    .picker-scrollarea {
+      flex: 1;
+      min-height: 0;
+      height: 100%;
+      width: 100%;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+    .picker-content {
+      min-width: 0 !important;
+      width: 100%;
+      padding: 0 8px 4px 2px;
+    }
+    :host.picker-scroll-results .picker-list {
+      margin-top: 0;
+    }
+    .picker-manual {
+      margin: 16px 0;
+      padding: 12px;
+      border: 1px solid var(--sf-border);
+      border-radius: 12px;
+      background: #fff;
+      overflow-wrap: anywhere;
+    }
+    .picker-manual label {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    .picker-manual input {
+      width: 100%;
+    }
     .picker-search {
       display: grid;
       gap: 8px;
     }
+    .picker-search-control {
+      position: relative;
+      min-width: 0;
+    }
     .picker-search input {
       width: 100%;
+      padding-right: 48px;
+    }
+    .picker-clear-search {
+      position: absolute;
+      right: 2px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--sf-muted);
+      cursor: pointer;
+    }
+    .picker-clear-search:hover:not(:disabled) {
+      color: var(--sf-purple);
+      background: #f0eafb;
     }
     .picker-hint {
+      margin: 8px 0 0;
       font-size: 13px;
       color: var(--sf-muted);
     }
@@ -145,7 +347,7 @@ export interface PickedSong {
       padding: 0;
       flex-shrink: 0;
     }
-    .picker-list .picker-add .pi {
+    .picker-list .picker-add :is(.fa-solid, .fa-regular, .fa-brands) {
       font-size: 18px;
     }
     .picker-list li.picker-already-added {
@@ -161,7 +363,7 @@ export interface PickedSong {
       height: 48px;
       color: var(--sf-purple);
     }
-    .picker-added-check .pi {
+    .picker-added-check :is(.fa-solid, .fa-regular, .fa-brands) {
       font-size: 22px;
     }
     .picker-list button span {
@@ -176,8 +378,38 @@ export interface PickedSong {
   `,
 })
 export class CatalogSongPicker implements OnInit, OnDestroy {
+  readonly scrollResults = input(false);
+  readonly externalSearch = input(false);
+  readonly incremental = input(false);
+  readonly inlineManual = input(false);
+  readonly searchField = viewChild<TemplateRef<unknown>>('searchField');
+  readonly manualExpanded = signal(false);
+  readonly manualArtist = signal('');
+  readonly hasMore = signal(false);
+  private nextSource = 'catalog';
+  private nextPage = 0;
+  chooseManual() {
+    this.choose({
+      title: this.query().trim(),
+      artist: this.manualArtist().trim(),
+      source: 'MANUAL',
+    });
+  }
+  loadMore() {
+    if (this.loading() || this.disabled() || !this.hasMore()) return;
+    if (this.query().trim()) void this.lookupPage(this.query().trim(), true);
+    else void this.browse(this.page() + 1, true);
+  }
+  private appendUnique(incoming: PickedSong[], append: boolean) {
+    const unique = new Map<string, PickedSong>();
+    for (const song of [...(append ? this.songs() : []), ...incoming]) {
+      const key = this.songKey(song);
+      if (!unique.has(key)) unique.set(key, song);
+    }
+    this.songs.set([...unique.values()]);
+  }
   readonly disabled = input(false);
-  readonly actionIcon = input('pi-plus');
+  readonly actionIcon = input('fa-solid fa-plus');
   readonly actionLabel = input('Adicionar');
   readonly addedSongs = input<ReadonlyArray<{ title: string; artist: string | null }>>([]);
   private songKey(song: { title: string; artist: string | null }) {
@@ -194,11 +426,22 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
   readonly picked = output<PickedSong>();
   readonly manual = output<void>();
   private readonly api = inject(ApiClient);
+  private readonly queryInput = viewChild<ElementRef<HTMLInputElement>>('queryInput');
+  focusSearch() {
+    // Keep this synchronous with the user's tap so iOS can open the keyboard.
+    if (!this.disabled()) this.queryInput()?.nativeElement.focus({ preventScroll: true });
+  }
+  clearSearch() {
+    if (this.disabled()) return;
+    this.search('');
+    this.focusSearch();
+  }
   readonly query = signal('');
   readonly songs = signal<PickedSong[]>([]);
   readonly loading = signal(false);
   readonly message = signal('Escolha uma música do catálogo.');
   readonly total = signal(0);
+  readonly catalogLoaded = signal(false);
   readonly page = signal(0);
   private generation = 0;
   private destroyed = false;
@@ -215,6 +458,11 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
     clearTimeout(this.timer);
     this.generation++;
     this.query.set(value);
+    this.hasMore.set(false);
+    this.nextSource = 'catalog';
+    this.nextPage = 0;
+    this.manualExpanded.set(false);
+    this.manualArtist.set('');
     this.songs.set([]);
     this.loading.set(false);
     const text = value.trim();
@@ -228,17 +476,23 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
     }
     this.timer = setTimeout(() => void this.lookup(text), 400);
   }
-  async browse(page: number) {
+  async browse(page: number, append = false) {
+    this.catalogLoaded.set(false);
     const generation = ++this.generation;
     this.loading.set(true);
     try {
       const result = await this.api.get<{ items: PickedSong[]; total: number }>(
-        `/public/songs/catalog?page=${page}`,
+        `/public/songs/catalog?page=${page}${this.incremental() ? '&size=10' : ''}`,
       );
       if (this.destroyed || generation !== this.generation) return;
       if (!Array.isArray(result.items)) throw new Error('Unavailable');
-      this.songs.set(result.items.map((s) => ({ ...s, source: 'SINGFLOW' })));
+      this.appendUnique(
+        result.items.map((s) => ({ ...s, source: 'SINGFLOW' })),
+        append,
+      );
+      this.hasMore.set((page + 1) * (this.incremental() ? 10 : 20) < result.total);
       this.total.set(result.total);
+      this.catalogLoaded.set(true);
       this.page.set(page);
       this.message.set(
         result.total
@@ -254,7 +508,49 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
       if (!this.destroyed && generation === this.generation) this.loading.set(false);
     }
   }
+  private async lookupPage(query: string, append = false) {
+    const generation = ++this.generation;
+    this.loading.set(true);
+    try {
+      const result = await this.api.get<{
+        items: PickedSong[];
+        hasMore: boolean;
+        nextSource: string;
+        nextPage: number;
+      }>(
+        `/public/songs/search-page?q=${encodeURIComponent(query)}&source=${this.nextSource}&page=${this.nextPage}`,
+      );
+      if (this.destroyed || generation !== this.generation) return;
+      if (
+        !Array.isArray(result.items) ||
+        typeof result.hasMore !== 'boolean' ||
+        !['catalog', 'internet'].includes(result.nextSource) ||
+        !Number.isInteger(result.nextPage)
+      )
+        throw new Error('Unavailable');
+      this.appendUnique(result.items.slice(0, 10), append);
+      this.hasMore.set(result.hasMore);
+      this.nextSource = result.nextSource;
+      this.nextPage = result.nextPage;
+      this.message.set(
+        this.songs().length
+          ? 'Escolha uma música ou carregue mais resultados.'
+          : 'Nenhuma música encontrada. Você pode adicionar o título digitado.',
+      );
+    } catch {
+      if (!this.destroyed && generation === this.generation)
+        this.message.set(
+          append
+            ? 'Não foi possível carregar mais. Tente novamente; suas músicas continuam na lista.'
+            : 'Busca indisponível. Você pode adicionar o título digitado.',
+        );
+    } finally {
+      if (!this.destroyed && generation === this.generation) this.loading.set(false);
+    }
+  }
   private async lookup(query: string) {
+    if (this.incremental()) return this.lookupPage(query);
+
     const generation = ++this.generation;
     this.loading.set(true);
     try {

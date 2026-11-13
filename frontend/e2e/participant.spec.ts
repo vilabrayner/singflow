@@ -1,3 +1,8 @@
+import {
+  prepareManual,
+  refreshParticipant,
+  openParticipantCatalog,
+} from './participant-ui-helpers';
 import { test, expect } from '@playwright/test';
 const session = '11111111-1111-4111-8111-111111111111';
 const url = `/participante/${session}/entry-code`;
@@ -44,7 +49,9 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
       completedPerformances: 3,
     },
     requests,
-    active: active ? { title: 'Equalize', artist: 'Pitty' } : null,
+    active: active
+      ? { id: 'call-initial', title: 'Equalize', artist: 'Pitty', acceptedAt: null }
+      : null,
     history: [
       {
         id: 'performance',
@@ -139,6 +146,7 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
   await page.getByRole('button', { name: 'Entrar com minha música' }).click();
   await expect(page.getByRole('heading', { name: 'Meus pedidos' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Você está na fila' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Histórico', exact: true }).click();
   const history = page.getByRole('region', { name: 'Meu histórico de palco' });
   const performed = history.locator('article').filter({ hasText: 'Evidências' });
   await expect(performed).toContainText('Chitãozinho & Xororó');
@@ -148,17 +156,22 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
     page.getByRole('region', { name: 'Meus pedidos' }).getByText('Evidências'),
   ).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
-  const songDialog = page.getByRole('dialog', { name: 'Adicionar música' });
-  await songDialog.getByRole('button', { name: 'Não encontrei minha música', exact: true }).click();
-  await songDialog.getByLabel('Música', { exact: true }).fill('Na Sua Estante');
-  await page.getByRole('button', { name: 'Pedir música' }).click();
-  await expect(songDialog.getByRole('alert')).toContainText('Não foi possível confirmar');
-  await expect(songDialog.getByLabel('Música', { exact: true })).toHaveValue('Na Sua Estante');
-  await page.getByRole('button', { name: 'Pedir música' }).click();
+  await page.getByRole('tab', { name: 'Pedidos', exact: true }).click();
+  const songDialog = await openParticipantCatalog(page);
+  await prepareManual(songDialog, 'Na Sua Estante');
+  await songDialog.getByRole('button', { name: 'Adicionar música', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Não foi possível confirmar');
+  await expect(songDialog.getByLabel('Buscar música ou artista', { exact: true })).toHaveValue(
+    'Na Sua Estante',
+  );
+  await songDialog.getByRole('button', { name: 'Adicionar música', exact: true }).click();
   const songNotice = page.getByRole('status').filter({ hasText: 'Música adicionada' });
   await expect(songNotice).toBeVisible();
-  await expect(songDialog).toHaveCount(0);
+  await expect(songDialog).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Navegação do participante', exact: true })
+    .getByRole('tab', { name: 'Pedidos', exact: true })
+    .click();
   const headerHeight = await page
     .locator('.sf-panel-header')
     .evaluate((header) => header.offsetHeight);
@@ -187,11 +200,12 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
     .getByRole('button', { name: 'Cancelar pedido' })
     .click();
   await page.getByRole('button', { name: 'Confirmar cancelamento do pedido' }).click();
+  await page.getByRole('tab', { name: 'Histórico', exact: true }).click();
   await expect(page.locator('article').filter({ hasText: 'Na Sua Estante' })).toContainText(
     'Cancelada',
   );
   active = true;
-  await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
+  await refreshParticipant(page);
   await expect(page.getByRole('heading', { name: 'É a sua vez!' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Meus pedidos' })).toBeVisible();
@@ -199,7 +213,7 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
   await page.getByRole('button', { name: 'Opções da participação' }).click();
-  await page.getByRole('menuitem', { name: 'Sair da fila', exact: true }).click();
+  await page.getByRole('button', { name: 'Sair da fila', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar saída da fila', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Você está fora da fila' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Meus pedidos' })).toBeVisible();
@@ -214,10 +228,13 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
   expect(returns).toHaveLength(2);
   expect(returns[0]).toBe(returns[1]);
   await expect(page.locator('article').filter({ hasText: 'Voltei para cantar' })).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Histórico', exact: true }).click();
   await expect(page.locator('article').filter({ hasText: 'Equalize' })).toContainText('Cancelada');
+  await page.getByRole('tab', { name: 'Pedidos', exact: true }).click();
   await page.getByRole('button', { name: 'Opções da participação' }).click();
-  await page.getByRole('menuitem', { name: 'Sair da fila', exact: true }).click();
+  await page.getByRole('button', { name: 'Sair da fila', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar saída da fila', exact: true }).click();
+  await page.getByRole('button', { name: 'Opções da participação', exact: true }).click();
   await page.getByRole('button', { name: 'Esquecer meu acesso neste aparelho' }).click();
   await expect(page.getByRole('heading', { name: 'Meus pedidos' })).toBeVisible();
   await page.getByRole('button', { name: 'Confirmar esquecimento do acesso' }).click();
@@ -279,11 +296,10 @@ test('host displays a local QR and confirms link rotation', async ({ page }) => 
     /^data:image\/png/,
   );
   joinedQueue = true;
-  const share = page.getByRole('button', { name: 'Opções da fila', exact: true });
+  const share = page.getByRole('button', { name: 'Compartilhar link e QR Code', exact: true });
   await expect(share).toBeVisible({ timeout: 10000 });
   await expect(page.getByAltText('QR Code para entrar nesta sessão')).toHaveCount(0);
   await share.click();
-  await page.getByRole('menuitem', { name: 'Compartilhar link e QR Code', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Compartilhar link e QR Code' });
   await expect(dialog.getByAltText('QR Code para entrar nesta sessão')).toBeVisible();
   await dialog.getByRole('button', { name: 'Opções do link e QR Code' }).click();
@@ -378,7 +394,7 @@ test('participant can skip without leaving and confirm a later call', async ({ p
   await page.getByRole('button', { name: 'Estou pronto para voltar' }).click();
   await expect(page.getByRole('heading', { name: 'Você está na fila' })).toBeVisible();
   active = { id: 'second', title: 'Equalize', artist: 'Pitty', acceptedAt: null };
-  await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
+  await refreshParticipant(page);
   await page.getByRole('button', { name: 'Confirmar ida', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Ida confirmada' })).toBeVisible();
   await page.reload();
@@ -472,8 +488,7 @@ test('host grants individual QR access and the phone confirms a replacement expl
     return route.fulfill({ json: [] });
   });
   await page.goto('/anfitriao');
-  await page.getByRole('button', { name: 'Opções da fila', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Participantes', exact: true }).click();
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.locator('.sf-person-row').filter({ hasText: 'Ana' }).click();
   await page.getByRole('button', { name: 'Opções do participante' }).click();
   await page.getByRole('menuitem', { name: 'Acesso pelo celular', exact: true }).click();
@@ -498,19 +513,20 @@ test('host grants individual QR access and the phone confirms a replacement expl
   await expect(
     page.getByRole('list', { name: 'Músicas pendentes' }).getByText('Equalize', { exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Adicionar música', exact: true }).click();
-  const songDialog = page.getByRole('dialog', { name: 'Adicionar música', exact: true });
-  await songDialog.getByRole('button', { name: 'Não encontrei minha música', exact: true }).click();
-  await songDialog.getByLabel('Música', { exact: true }).fill('Teste');
-  await songDialog.getByRole('button', { name: 'Pedir música' }).click();
-  await expect(songDialog).toHaveCount(0);
+  const songDialog = await openParticipantCatalog(page);
+  await prepareManual(songDialog, 'Teste');
+  await songDialog.getByRole('button', { name: 'Adicionar música', exact: true }).click();
+  await expect(songDialog).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Navegação do participante', exact: true })
+    .getByRole('tab', { name: 'Pedidos', exact: true })
+    .click();
   await expect(
     page.getByRole('region', { name: 'Meus pedidos' }).getByText('Teste', { exact: true }),
   ).toBeVisible();
 
   await page.goto('/anfitriao');
-  await page.getByRole('button', { name: 'Opções da fila', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Participantes', exact: true }).click();
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.getByRole('button', { name: 'Acesso pelo celular de Ana' }).click();
   await expect(page.getByText('Celular vinculado', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Opções do acesso pelo celular' })).toBeVisible();
@@ -571,12 +587,12 @@ test('participant reopening restores the session and distinguishes position, nex
   await expect(page.getByRole('heading', { name: 'Você está na fila' })).toBeVisible();
   await expect(page.getByText('Posição sugerida · 3º', { exact: true })).toBeVisible();
   position = 1;
-  await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
+  await refreshParticipant(page);
   await expect(page.getByRole('heading', { name: 'Sua vez está chegando!' })).toBeVisible();
   await expect(page.getByText('Posição sugerida · 1º', { exact: true })).toBeVisible();
   called = true;
   position = null;
-  await page.getByRole('button', { name: 'Atualizar', exact: true }).click();
+  await refreshParticipant(page);
   await expect(page.getByRole('heading', { name: 'É a sua vez!' })).toBeVisible();
   await expect(page.getByText(/Posição sugerida/)).toHaveCount(0);
 

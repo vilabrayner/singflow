@@ -9,7 +9,7 @@ import { TagModule } from 'primeng/tag';
   template: `
     <section class="role-page page-width">
       <a routerLink="/" class="back-link"
-        ><i class="pi pi-arrow-left" aria-hidden="true"></i> Todas as experiências</a
+        ><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Todas as experiências</a
       >
       <div class="role-intro">
         <p class="eyebrow">Experiência {{ label() }}</p>
@@ -17,14 +17,14 @@ import { TagModule } from 'primeng/tag';
         <p class="hero-description">{{ description() }}</p>
       </div>
       <div class="empty-panel">
-        <span class="role-icon purple"><i [class]="'pi ' + icon()" aria-hidden="true"></i></span
+        <span class="role-icon purple"><i [class]="icon()" aria-hidden="true"></i></span
         ><p-tag severity="secondary" value="Em desenvolvimento" />
         <h2>{{ emptyTitle() }}</h2>
         <p>{{ emptyDescription() }}</p>
         <p-button
           label="Voltar ao início"
           routerLink="/"
-          icon="pi pi-arrow-left"
+          icon="fa-solid fa-arrow-left"
           [outlined]="true"
         />
       </div>

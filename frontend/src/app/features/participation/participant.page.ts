@@ -1,9 +1,13 @@
+import { ScrollArea, ScrollAreaModule } from 'primeng/scrollarea';
+import { CdkScrollable } from '@angular/cdk/scrolling';
+import { BottomNavigation, BottomNavigationItem } from '../../shared/components/bottom-navigation';
+import { MenuPopover } from '../../shared/components/menu-popover';
+import { StatusBadge } from '../../shared/components/status-badge';
 import { SongChoiceTabs } from '../../shared/components/song-choice-tabs';
 import { PickedSong } from '../../shared/components/catalog-song-picker';
 import { SongSearch } from '../../shared/components/song-search';
 import { ParticipationMemory } from './participation-memory';
 import { createOperationId } from '../../shared/operation-id';
-import { MenuItem } from 'primeng/api';
 import { PanelHeader } from '../../shared/components/panel-header';
 import { SurfaceCard } from '../../shared/components/surface-card';
 import { Notifications } from '../../shared/notifications';
@@ -17,6 +21,8 @@ import {
   signal,
   OnInit,
   OnDestroy,
+  ElementRef,
+  viewChild,
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT } from '@angular/common';
@@ -33,6 +39,11 @@ import { ParticipantRequestsCard } from './participant-requests-card';
 import { ParticipantHistoryCard } from './participant-history-card';
 @Component({
   imports: [
+    ScrollAreaModule,
+    CdkScrollable,
+    BottomNavigation,
+    MenuPopover,
+    StatusBadge,
     ParticipantStatusCard,
     ParticipantRequestsCard,
     ParticipantHistoryCard,
@@ -58,6 +69,66 @@ export class ParticipantPage implements OnInit, OnDestroy {
   private readonly code = this.route.snapshot.paramMap.get('code') ?? '';
   private readonly base = `/participation/${this.session}`;
   readonly own = signal<OwnView | null>(null);
+  readonly activeTab = signal('requests');
+  readonly catalogVisited = signal(false);
+  readonly dockHeight = signal(64);
+  readonly headerMenu = signal(false);
+  private readonly viewport = viewChild('participantViewport', { read: ElementRef });
+  private readonly scrollArea = viewChild(ScrollArea);
+  private tabScroll: Record<string, number> = {};
+  readonly navigationItems: BottomNavigationItem[] = [
+    { value: 'requests', label: 'Pedidos', icon: 'fa-solid fa-list-ol' },
+    { value: 'catalog', label: 'Catálogo', icon: 'fa-solid fa-music' },
+    { value: 'history', label: 'Histórico', icon: 'fa-solid fa-clock-rotate-left' },
+  ];
+  readonly tabLabel = computed(
+    () =>
+      ({
+        requests: 'Conteúdo dos pedidos',
+        catalog: 'Conteúdo do catálogo',
+        history: 'Conteúdo do histórico',
+      })[this.activeTab() as 'requests' | 'catalog' | 'history'],
+  );
+  changeTab(value: string) {
+    if (
+      this.busy() ||
+      !this.navigationItems.some((item) => item.value === value) ||
+      value === this.activeTab()
+    )
+      return;
+    if (value !== 'catalog') this.editingSong.set(null);
+    this.setTab(value);
+  }
+  private setTab(value: string, reset = false) {
+    const viewport = this.viewport()?.nativeElement;
+    if (viewport) this.tabScroll[this.activeTab()] = viewport.scrollTop;
+    if (reset) this.tabScroll[value] = 0;
+    if (value === 'catalog') this.catalogVisited.set(true);
+    this.activeTab.set(value);
+    afterNextRender(
+      () => {
+        this.scrollArea()?.refresh();
+        this.viewport()?.nativeElement.scrollTo({
+          top: this.tabScroll[value] ?? 0,
+          behavior: 'instant',
+        });
+      },
+      { injector: this.injector },
+    );
+  }
+  refreshFromMenu() {
+    this.headerMenu.set(false);
+    void this.refresh();
+  }
+  askExit() {
+    this.headerMenu.set(false);
+    this.confirmingExit.set(true);
+  }
+  askForget() {
+    this.headerMenu.set(false);
+    this.confirmingForget.set(true);
+  }
+
   readonly currentRequests = computed(
     () =>
       this.own()?.requests.filter((song) =>
@@ -79,7 +150,6 @@ export class ParticipantPage implements OnInit, OnDestroy {
   private readonly notifications = inject(Notifications);
   readonly departed = signal(false);
   readonly cancellingSong = signal<SongRequest | null>(null);
-  readonly addingSong = signal(false);
   readonly editingSong = signal<SongRequest | null>(null);
   readonly chosenSongs = computed(
     () =>
@@ -96,7 +166,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
       artist: song.artist,
       selectionToken: song.selectionToken ?? '',
     });
-    await this.add(!this.editingSong());
+    await this.add();
   }
   async reorderSongs({ expectedOrder, order }: { expectedOrder: string[]; order: string[] }) {
     if (this.busy()) return;
@@ -123,13 +193,6 @@ export class ParticipantPage implements OnInit, OnDestroy {
 
   readonly skippingCall = signal<string | null>(null);
   readonly confirmingExit = signal(false);
-  readonly participationOptions: MenuItem[] = [
-    {
-      label: 'Sair da fila',
-      icon: 'pi pi-sign-out',
-      command: () => this.confirmingExit.set(true),
-    },
-  ];
   readonly confirmingForget = signal(false);
   readonly lastUpdated = signal<Date | null>(null);
   readonly disconnected = signal(false);
@@ -215,7 +278,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
     if (this.destroyed) return;
     const previous = this.own();
     if (previous && previous.participant.id !== view.participant.id) {
-      this.addingSong.set(false);
+      this.editingSong.set(null);
       this.confirmingExit.set(false);
       this.confirmingForget.set(false);
       this.cancellingSong.set(null);
@@ -225,13 +288,33 @@ export class ParticipantPage implements OnInit, OnDestroy {
       this.returnOperation = null;
     }
     this.own.set(view);
+    if (previous && previous.participant.id !== view.participant.id) {
+      this.tabScroll = {};
+      this.setTab('requests', true);
+      this.catalogVisited.set(false);
+      this.headerMenu.set(false);
+    }
+    if (view.active && (!previous?.active || view.active.id !== previous.active.id)) {
+      this.editingSong.set(null);
+      this.headerMenu.set(false);
+      this.confirmingExit.set(false);
+      this.confirmingForget.set(false);
+      this.cancellingSong.set(null);
+      this.setTab('requests', true);
+    }
     if (view.session.status === 'OPEN') this.memory.remember(this.session);
     else this.memory.forget(this.session);
     if (view.active?.id !== this.skippingCall() || view.active?.acceptedAt) {
       this.skippingCall.set(null);
     }
-    if (view.session.status !== 'OPEN' || view.participant.status !== 'ACTIVE') {
-      this.addingSong.set(false);
+    const editing = this.editingSong();
+    if (
+      view.session.status !== 'OPEN' ||
+      view.participant.status !== 'ACTIVE' ||
+      (editing &&
+        !view.requests.some((song) => song.id === editing.id && song.status === 'PENDING'))
+    ) {
+      this.editingSong.set(null);
     }
     this.entry.set(null);
     this.lastUpdated.set(new Date());
@@ -247,7 +330,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
     this.loading = true;
     try {
       await this.load();
-      if (!this.addingSong()) this.error.set('');
+      if (!this.editingSong()) this.error.set('');
     } catch (error) {
       this.disconnected.set(true);
       this.error.set(this.message(error));
@@ -299,17 +382,24 @@ export class ParticipantPage implements OnInit, OnDestroy {
     });
   }
   openSongEdit(song: SongRequest) {
-    this.openSongForm();
-    this.editingSong.set({ ...song });
-  }
-  openSongForm() {
-    this.editingSong.set(null);
+    if (
+      this.busy() ||
+      song.status !== 'PENDING' ||
+      this.own()?.participant.status !== 'ACTIVE' ||
+      this.own()?.session.status !== 'OPEN'
+    )
+      return;
     this.error.set('');
-    this.addingSong.set(true);
+    this.editingSong.set({ ...song });
+    this.setTab('catalog', true);
+  }
+  cancelSongEdit() {
+    if (this.busy()) return;
+    this.closeSongForm();
+    this.setTab('requests');
   }
   closeSongForm() {
     this.editingSong.set(null);
-    this.addingSong.set(false);
     this.error.set('');
   }
   private update(path: string, body: unknown = {}) {
@@ -321,7 +411,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
     );
   }
 
-  async add(keepChoosing = false) {
+  async add() {
     if (this.editingSong()) {
       await this.saveSongEdit();
       return;
@@ -340,7 +430,6 @@ export class ParticipantPage implements OnInit, OnDestroy {
       );
       this.songOperation = null;
       this.songForm.reset();
-      if (!keepChoosing) this.addingSong.set(false);
       this.notifications.success('Música adicionada aos seus pedidos.');
     });
   }
@@ -357,6 +446,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
       );
       this.closeSongForm();
       this.songForm.reset();
+      this.setTab('requests', true);
       this.notifications.success('Música do pedido alterada.');
     });
   }
@@ -384,6 +474,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
   async leave() {
     await this.run(async () => {
       this.accept(await this.update(`/leave`));
+      this.setTab('requests', true);
       this.confirmingExit.set(false);
       this.songForm.reset();
       this.songOperation = null;

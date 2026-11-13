@@ -1,10 +1,13 @@
 @import '@fontsource-variable/manrope';
-@import 'primeicons/primeicons.css';
+@import '@fortawesome/fontawesome-free/css/all.css';
 @import '@angular/cdk/overlay-prebuilt.css';
 @layer theme, base, primeng, components, utilities;
 @import 'tailwindcss';
 @import 'tailwindcss-primeui';
 @import './app/shared/styles/panels.css';
+@import './app/shared/styles/bottom-navigation.css';
+@import './app/shared/styles/host-workspace.css';
+@import './app/shared/styles/participant-workspace.css';
 @theme {
   --color-navy: #0b1e3f;
   --color-singflow-purple: #7c3aed;

@@ -1,22 +1,11 @@
 <app-surface-card labelledBy="participant-requests-title">
   <h2 id="participant-requests-title">Meus pedidos</h2>
-  @if (editable()) {
-    <button
-      type="button"
-      class="sf-button sf-primary sf-full"
-      [disabled]="busy()"
-      aria-haspopup="dialog"
-      (click)="added.emit()"
-    >
-      <i class="pi pi-plus" aria-hidden="true"></i>Adicionar música
-    </button>
-  }
   <p class="choices-help">
     Arraste pelo ícone à esquerda para ordenar suas músicas. Sua posição na fila não muda.
   </p>
   @for (song of fixed(); track song.id) {
     <article class="choice-panel choice-fixed">
-      <i class="pi pi-lock" aria-hidden="true"></i>
+      <i class="fa-solid fa-lock" aria-hidden="true"></i>
       <div class="choice-copy">
         <strong>{{ song.title }}</strong>
         @if (song.artist) {
@@ -62,7 +51,7 @@
           <span class="choice-number" [attr.aria-label]="index + 1 + 'ª escolha'">{{
             index + 1
           }}</span>
-          <i class="pi pi-grip-vertical" aria-hidden="true"></i>
+          <i class="fa-solid fa-grip-vertical" aria-hidden="true"></i>
         </span>
         <div class="choice-copy">
           <strong>{{ song.title }}</strong>
@@ -73,16 +62,12 @@
         </div>
         @if (editable()) {
           <div class="choice-actions" role="group" [attr.aria-label]="'Ordem de ' + song.title">
-            <button
-              type="button"
-              class="sf-icon-button"
-              [attr.aria-label]="'Trocar música ' + song.title"
-              title="Trocar música"
+            <app-actions-speed-dial
+              [buttonId]="'request-actions-' + song.id"
+              [label]="'Opções de ' + song.title"
+              [items]="actions(song)"
               [disabled]="busy()"
-              (click)="edited.emit(song)"
-            >
-              <i class="pi pi-pencil" aria-hidden="true"></i>
-            </button>
+            />
             <button
               type="button"
               class="sf-icon-button choice-cancel"
@@ -91,7 +76,7 @@
               [disabled]="busy()"
               (click)="cancelled.emit(song)"
             >
-              <i class="pi pi-trash" aria-hidden="true"></i>
+              <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
             </button>
           </div>
         }

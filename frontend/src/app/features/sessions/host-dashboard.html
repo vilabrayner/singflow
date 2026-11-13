@@ -1,56 +1,107 @@
 <app-panel-header>
   @if (email()) {
+    @if (selected(); as session) {
+      @if (!creatingSession() && session.status !== 'DRAFT') {
+        <h1
+          id="host-session-title"
+          tabindex="-1"
+          class="sf-host-header-session"
+          [title]="session.name"
+        >
+          {{ session.name }}
+        </h1>
+      }
+    }
     <app-menu-popover
       buttonId="account-options-button"
       label="Opções da conta"
-      icon="pi pi-user"
+      icon="fa-solid fa-user"
       [disabled]="locked()"
       [opened]="accountOptions()"
       (openedChange)="$event ? toggleAccount() : dismissAccount()"
     >
       <div id="host-account-options" class="sf-account-panel">
         <p class="sf-account-email">{{ email() }}</p>
-        <h2 id="account-session-title" tabindex="-1">{{ accountSessionTitle() }}</h2>
-        @if (accountSessionStatus() !== 'OPEN') {
-          <button
-            type="button"
-            class="sf-button sf-text sf-full"
-            [disabled]="locked()"
-            (click)="showAccountSessions('OPEN')"
-          >
-            Voltar às sessões abertas
-          </button>
-        }
-        <div class="session-list">
-          @for (item of accountSessions(); track item.id) {
+        @if (selected(); as session) {
+          <section class="sf-account-current-session" aria-label="Sessão atual">
+            <h2>{{ session.name }}</h2>
+            <app-status-badge [tone]="session.status === 'OPEN' ? 'positive' : 'neutral'">{{
+              sessionStatus(session.status)
+            }}</app-status-badge>
             <button
               type="button"
-              [class.selected]="selected()?.id === item.id"
-              [attr.aria-pressed]="selected()?.id === item.id"
+              class="sf-button sf-text sf-full"
               [disabled]="locked()"
-              (click)="select(item)"
+              (click)="refreshFromMenu()"
             >
-              <strong>{{ item.name }}</strong
-              ><span>{{ sessionStatus(item.status) }}</span>
+              <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Atualizar sessão
             </button>
-          } @empty {
-            @if (accountSessionStatus() === 'OPEN') {
-              <p>Nenhuma sessão aberta.</p>
-            } @else if (accountSessionStatus() === 'CLOSED') {
-              <p>Nenhuma sessão encerrada.</p>
-            } @else {
-              <p>Nenhum rascunho.</p>
+            @if (session.status !== 'CLOSED') {
+              <button
+                type="button"
+                class="sf-button sf-text sf-full"
+                [disabled]="locked()"
+                (click)="askClose()"
+              >
+                <i class="fa-solid fa-circle-stop" aria-hidden="true"></i>Encerrar sessão
+              </button>
             }
+          </section>
+        }
+        <button
+          type="button"
+          class="sf-button sf-text sf-full"
+          [disabled]="locked()"
+          (click)="showAccountSessions('OPEN')"
+        >
+          <i class="fa-solid fa-right-left" aria-hidden="true"></i>Trocar sessão
+        </button>
+        @if (choosingSession()) {
+          <h2 id="account-session-title" tabindex="-1">{{ accountSessionTitle() }}</h2>
+          @if (accountSessionStatus() !== 'OPEN') {
+            <button
+              type="button"
+              class="sf-button sf-text sf-full"
+              [disabled]="locked()"
+              (click)="showAccountSessions('OPEN')"
+            >
+              <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Voltar às sessões abertas
+            </button>
           }
-        </div>
-        @if (accountSessionStatus() === 'OPEN') {
+          <div class="session-list">
+            @for (item of accountSessions(); track item.id) {
+              <button
+                type="button"
+                [class.selected]="selected()?.id === item.id"
+                [attr.aria-pressed]="selected()?.id === item.id"
+                [disabled]="locked()"
+                (click)="select(item)"
+              >
+                <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+                <span class="sf-account-session-copy"
+                  ><strong>{{ item.name }}</strong
+                  ><span>{{ sessionStatus(item.status) }}</span></span
+                >
+              </button>
+            } @empty {
+              @if (accountSessionStatus() === 'OPEN') {
+                <p>Nenhuma sessão aberta.</p>
+              } @else if (accountSessionStatus() === 'CLOSED') {
+                <p>Nenhuma sessão encerrada.</p>
+              } @else {
+                <p>Nenhum rascunho.</p>
+              }
+            }
+          </div>
+        }
+        @if (!choosingSession() || accountSessionStatus() === 'OPEN') {
           <button
             type="button"
             class="sf-button sf-text sf-full"
             [disabled]="locked()"
             (click)="showAccountSessions('CLOSED')"
           >
-            Histórico de sessões
+            <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>Histórico de sessões
           </button>
           @if (hasDrafts()) {
             <button
@@ -59,7 +110,7 @@
               [disabled]="locked()"
               (click)="showAccountSessions('DRAFT')"
             >
-              Rascunhos
+              <i class="fa-solid fa-file-pen" aria-hidden="true"></i>Rascunhos
             </button>
           }
         }
@@ -69,15 +120,16 @@
           [disabled]="locked()"
           (click)="beginCreate()"
         >
-          Criar outra sessão
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>Criar outra sessão
         </button>
+        <hr class="sf-account-logout-separator" />
         <button
           type="button"
           class="sf-button sf-text sf-full"
           [disabled]="locked()"
           (click)="logout()"
         >
-          Sair da conta
+          <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>Sair da conta
         </button>
       </div>
     </app-menu-popover>
@@ -87,6 +139,13 @@
   id="host-content"
   tabindex="-1"
   class="host-dashboard sf-host-shell"
+  [class.sf-has-bottom-nav]="
+    !!email() && !creatingSession() && !!selected() && selected()?.status !== 'DRAFT'
+  "
+  [class.sf-host-touch-registration]="
+    interaction.touchPrimary() && activeTab() === 'participants' && registeringParticipant()
+  "
+  [style.--host-dock-height]="dockHeight() + 'px'"
   aria-label="Painel do anfitrião"
   [attr.aria-busy]="busy() || !ready()"
 >
@@ -98,7 +157,7 @@
   } @else if (!email()) {
     <div class="sf-centered-state">
       <app-surface-card labelledBy="host-login-title">
-        <span class="sf-card-icon" aria-hidden="true"><i class="pi pi-microphone"></i></span>
+        <span class="sf-card-icon" aria-hidden="true"><i class="fa-solid fa-bullhorn"></i></span>
         <h1 id="host-login-title">Entrar como anfitrião</h1>
         <p>Entre na sua conta para organizar o karaokê.</p>
         <form [formGroup]="loginForm" (ngSubmit)="login()" class="host-form">
@@ -143,7 +202,10 @@
               [disabled]="locked()"
               (click)="showPassword.set(!showPassword())"
             >
-              <i [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'" aria-hidden="true"></i>
+              <i
+                [class]="showPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"
+                aria-hidden="true"
+              ></i>
             </button>
           </div>
           <button
@@ -152,7 +214,7 @@
             [disabled]="loginForm.invalid || locked()"
           >
             @if (busy()) {
-              <i class="pi pi-spinner" aria-hidden="true"></i>
+              <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
             }
             Entrar
           </button>
@@ -197,90 +259,112 @@
       </app-surface-card>
     </div>
   } @else if (selected(); as session) {
-    <div [class.sf-centered-state]="session.status === 'DRAFT'">
-      <app-surface-card
-        labelledBy="host-session-title"
-        [class.sf-session-card]="session.status !== 'DRAFT'"
-      >
-        <div class="sf-session-heading">
-          <div>
+    <ng-template #sessionBody>
+      @if (session.status === 'DRAFT') {
+        <div class="sf-centered-state">
+          <app-surface-card labelledBy="host-session-title">
             <h1 id="host-session-title" tabindex="-1">{{ session.name }}</h1>
-            <app-status-badge [tone]="session.status === 'OPEN' ? 'positive' : 'neutral'">{{
-              sessionStatus(session.status)
-            }}</app-status-badge>
-          </div>
-          <app-options-menu
-            buttonId="session-options-button"
-            label="Opções da sessão"
-            [items]="sessionMenuItems()"
-            [disabled]="locked()"
-          />
+            <app-status-badge tone="neutral">Rascunho</app-status-badge>
+            <p>Abra para começar as inscrições.</p>
+            <button
+              type="button"
+              class="sf-button sf-primary sf-full"
+              [disabled]="locked()"
+              (click)="transition('open')"
+            >
+              <i class="fa-solid fa-play" aria-hidden="true"></i>Abrir sessão
+            </button>
+          </app-surface-card>
         </div>
-        @if (session.status === 'DRAFT') {
-          <p>Abra para começar as inscrições.</p>
-          <button
-            type="button"
-            class="sf-button sf-primary sf-full"
-            [disabled]="locked()"
-            (click)="transition('open')"
-          >
-            <i class="pi pi-play" aria-hidden="true"></i>Abrir sessão
-          </button>
+      }
+      @if (confirmingClose()) {
+        <app-confirmation-dialog
+          title="Encerrar sessão?"
+          [busy]="locked()"
+          [error]="error()"
+          returnFocus="account-options-button"
+          (dismissed)="cancelClose()"
+        >
+          <p>
+            Encerrar bloqueia novas inscrições e músicas. O histórico será mantido e a sessão não
+            poderá ser reaberta.
+          </p>
+          <div class="sf-dialog-actions">
+            <button
+              type="button"
+              class="sf-button sf-danger"
+              [disabled]="locked()"
+              (click)="transition('close')"
+            >
+              Confirmar encerramento
+            </button>
+            <button
+              type="button"
+              class="sf-button sf-outline"
+              [disabled]="locked()"
+              (click)="cancelClose()"
+            >
+              Cancelar encerramento
+            </button>
+          </div>
+        </app-confirmation-dialog>
+      }
+      @if (session.status !== 'DRAFT') {
+        @if (activeTab() === 'musicians') {
+          @if (session.status === 'OPEN') {
+            <app-session-musicians
+              [session]="session.id"
+              [embedded]="true"
+              (working)="participantBusy.set($event)"
+            />
+          } @else {
+            <app-surface-card labelledBy="closed-musicians-title"
+              ><h2 id="closed-musicians-title">Músicos da sessão</h2>
+              <p>
+                A sessão está encerrada. A gestão dos músicos fica disponível durante a sessão
+                aberta.
+              </p></app-surface-card
+            >
+          }
         }
-        @if (confirmingClose()) {
-          <app-confirmation-dialog
-            title="Encerrar sessão?"
-            [busy]="locked()"
-            [error]="error()"
-            returnFocus="session-options-button"
-            (dismissed)="cancelClose()"
-          >
-            <p>
-              Encerrar bloqueia novas inscrições e músicas. O histórico será mantido e a sessão não
-              poderá ser reaberta.
-            </p>
-            <div class="sf-dialog-actions">
-              <button
-                type="button"
-                class="sf-button sf-danger"
-                [disabled]="locked()"
-                (click)="transition('close')"
-              >
-                Confirmar encerramento
-              </button>
-              <button
-                type="button"
-                class="sf-button sf-outline"
-                [disabled]="locked()"
-                (click)="cancelClose()"
-              >
-                Cancelar encerramento
-              </button>
-            </div>
-          </app-confirmation-dialog>
-        }
-        @if (showingMusicians() && session.status === 'OPEN') {
-          <app-session-musicians [session]="session.id" (dismissed)="showingMusicians.set(false)" />
-        }
-      </app-surface-card>
-    </div>
-    @if (session.status !== 'DRAFT') {
-      <app-host-participants
-        #workspace
-        [session]="session"
-        [people]="participants()"
-        [requests]="requests()"
-        [disabled]="busy() || stageBusy()"
-        (changed)="refresh()"
-        (working)="participantBusy.set($event)"
-      >
-        <ng-container ngProjectAs="[session-entry]">
-          @if (session.status === 'OPEN' && !participants().length) {
+        <app-host-participants
+          #workspace
+          [session]="session"
+          [people]="participants()"
+          [requests]="requests()"
+          [embedded]="true"
+          [active]="activeTab() === 'participants'"
+          [disabled]="busy() || stageBusy()"
+          (directoryRequested)="changeTab('participants')"
+          (changed)="refresh()"
+          (working)="participantBusy.set($event)"
+          (registeringChange)="registeringParticipant.set($event)"
+          (registered)="participantRegistered()"
+        />
+        @if (session.status === 'OPEN' && !participants().length) {
+          <div [hidden]="activeTab() !== 'queue'">
             @for (id of [session.id]; track id) {
               <app-entry-share [session]="id" [inline]="true" />
             }
+            <app-surface-card labelledBy="host-empty-queue-title"
+              ><h2 id="host-empty-queue-title">Fila do karaokê</h2>
+              <p>Ainda não há participantes na fila.</p>
+              <button
+                type="button"
+                class="sf-button sf-outline sf-full"
+                (click)="changeTab('participants')"
+              >
+                Ver participantes
+              </button></app-surface-card
+            >
+          </div>
+          @if (activeTab() === 'history') {
+            <app-surface-card labelledBy="host-stage-history-title"
+              ><h2 id="host-stage-history-title">Histórico do palco</h2>
+              <p>Nenhuma convocação resolvida.</p></app-surface-card
+            >
           }
-        </ng-container>
+        }
         @if (participants().length > 0 || session.status === 'CLOSED') {
           @for (id of [session.id]; track id) {
             <app-entry-share
@@ -291,28 +375,62 @@
             />
             <app-stage-panel
               [sessionId]="id"
+              [section]="
+                activeTab() === 'participants' || activeTab() === 'musicians'
+                  ? 'hidden'
+                  : activeTab() === 'history'
+                    ? 'history'
+                    : 'queue'
+              "
               [open]="session.status === 'OPEN'"
               [disabled]="busy() || participantBusy()"
               [revision]="stageRevision()"
               (changed)="refresh()"
               (personSelected)="workspace.showPerson($event)"
-              (participantsRequested)="workspace.openDirectory()"
               (entryRequested)="queueEntry.open()"
               (working)="stageBusy.set($event)"
             />
           }
         }
-      </app-host-participants>
-      @if (session.status === 'CLOSED') {
-        <button
-          type="button"
-          class="sf-button sf-primary"
-          [disabled]="locked()"
-          (click)="beginCreate()"
-        >
-          Criar nova sessão
-        </button>
+        @if (session.status === 'CLOSED') {
+          <button
+            type="button"
+            class="sf-button sf-primary"
+            [disabled]="locked()"
+            (click)="beginCreate()"
+          >
+            Criar nova sessão
+          </button>
+        }
       }
+    </ng-template>
+    @if (session.status === 'DRAFT') {
+      <ng-container [ngTemplateOutlet]="sessionBody" />
+    } @else {
+      <p-scrollarea variant="scroll" class="sf-host-scrollarea">
+        <p-scrollarea-viewport
+          #tabViewport
+          cdkScrollable
+          role="region"
+          [attr.aria-label]="tabContentLabel()"
+          class="sf-host-tab-viewport"
+        >
+          <p-scrollarea-content class="sf-host-tab-content"
+            ><ng-container [ngTemplateOutlet]="sessionBody"
+          /></p-scrollarea-content>
+        </p-scrollarea-viewport>
+        <p-scrollarea-scrollbar orientation="vertical"
+          ><p-scrollarea-handle
+        /></p-scrollarea-scrollbar>
+      </p-scrollarea>
+      <app-bottom-navigation
+        [items]="navigationItems"
+        [value]="activeTab()"
+        [disabled]="locked()"
+        (valueChange)="changeTab($event)"
+        (heightChange)="dockHeight.set($event)"
+        label="Navegação do anfitrião"
+      />
     }
   } @else {
     <div class="sf-centered-state">
@@ -326,7 +444,7 @@
           [disabled]="locked()"
           (click)="beginCreate()"
         >
-          <i class="pi pi-plus" aria-hidden="true"></i>Criar sessão
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>Criar sessão
         </button>
         @if (hasSessionHistory()) {
           <button

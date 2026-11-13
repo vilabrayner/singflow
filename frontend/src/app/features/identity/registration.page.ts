@@ -57,10 +57,10 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
             <i
               [class]="
                 sent()
-                  ? 'pi pi-envelope'
+                  ? 'fa-solid fa-envelope'
                   : role === 'HOST'
-                    ? 'pi pi-microphone'
-                    : 'pi pi-headphones'
+                    ? 'fa-solid fa-bullhorn'
+                    : 'fa-solid fa-guitar'
               "
             ></i>
           </span>
@@ -80,7 +80,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
             @if (error()) {
               <p-message
                 severity="error"
-                icon="pi pi-exclamation-circle"
+                icon="fa-solid fa-circle-exclamation"
                 class="registration-form-error"
                 >{{ error() }}</p-message
               >
@@ -126,7 +126,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                   severity="error"
                   size="small"
                   variant="simple"
-                  icon="pi pi-exclamation-circle"
+                  icon="fa-solid fa-circle-exclamation"
                   class="registration-field-error"
                   >{{ detail }}</p-message
                 >
@@ -152,7 +152,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                   severity="error"
                   size="small"
                   variant="simple"
-                  icon="pi pi-exclamation-circle"
+                  icon="fa-solid fa-circle-exclamation"
                   class="registration-field-error"
                   >{{ detail }}</p-message
                 >
@@ -183,7 +183,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                   (click)="showPassword.set(!showPassword())"
                 >
                   <i
-                    [class]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'"
+                    [class]="showPassword() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"
                     aria-hidden="true"
                   ></i>
                 </button>
@@ -194,7 +194,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                   severity="error"
                   size="small"
                   variant="simple"
-                  icon="pi pi-exclamation-circle"
+                  icon="fa-solid fa-circle-exclamation"
                   class="registration-field-error"
                   >{{ detail }}</p-message
                 >
@@ -233,7 +233,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                   (click)="showConfirmation.set(!showConfirmation())"
                 >
                   <i
-                    [class]="showConfirmation() ? 'pi pi-eye-slash' : 'pi pi-eye'"
+                    [class]="showConfirmation() ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'"
                     aria-hidden="true"
                   ></i>
                 </button>
@@ -244,7 +244,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                   severity="error"
                   size="small"
                   variant="simple"
-                  icon="pi pi-exclamation-circle"
+                  icon="fa-solid fa-circle-exclamation"
                   class="registration-field-error"
                   >{{ detail }}</p-message
                 >
@@ -255,14 +255,14 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                 [disabled]="form.invalid || busy()"
               >
                 @if (busy()) {
-                  <i class="pi pi-spinner" aria-hidden="true"></i>
+                  <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
                 }
                 {{ busy() ? 'Enviando…' : 'Criar minha conta' }}
               </button>
               @if (error()) {
                 <p-message
                   severity="error"
-                  icon="pi pi-exclamation-circle"
+                  icon="fa-solid fa-circle-exclamation"
                   class="registration-form-error"
                   >{{ error() }}</p-message
                 >
