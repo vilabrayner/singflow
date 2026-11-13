@@ -115,7 +115,7 @@ npx playwright install chromium
 npm test
 ```
 
-A saída estática fica em `frontend/dist/singflow-web/browser`. Uma hospedagem futura deve fornecer `config.json` por ambiente antes de liberar tráfego, aplicar fallback das rotas para `index.html` e encaminhar API/WebSocket. A configuração é carregada antes do Angular, sem exigir recompilação. Consulte [Configuração por ambiente](docs/runtime-configuration.md). O proxy Angular só existe no desenvolvimento. Login do anfitrião está disponível. Fila sugerida e convocações estão implementadas e aceitas nos dois modos; PWA permanece para outro incremento.
+A saída estática fica em `frontend/dist/singflow-web/browser`. A hospedagem Node.js usa `server.js`, incluído também no artefato, para servir a SPA e encaminhar `/api` ao `BACKEND_URL` do ambiente. Início de produção: `npm run start:prod`; `npm start` continua exclusivo do desenvolvimento. Configure a Hostinger como aplicação com servidor ativo, conforme o [guia de hospedagem](docs/hostinger.md). O servidor lê `BACKEND_URL` ao iniciar, sem exigir recompilação para trocar o backend. A configuração pública é carregada antes do Angular. Consulte [Configuração por ambiente](docs/runtime-configuration.md). O proxy Angular só existe no desenvolvimento. Login do anfitrião está disponível. Fila sugerida e convocações estão implementadas e aceitas nos dois modos; PWA permanece para outro incremento.
 
 Os workflows em `.github/workflows/` verificam backend e frontend no GitHub Actions. Configure `PRIMEUI_LICENSE_KEY` nos secrets para os builds autorizados; a ausência não é tratada como chave válida. Os workflows ainda não foram executados no GitHub.
 
@@ -152,3 +152,5 @@ A administração em `/admin` oferece **Catálogo** para revisar, aprovar, corri
 ### Sincronizar músicas provisórias
 
 Em **Admin → Catálogo → Sincronizar provisórias**, inicie um lote e acompanhe aprovações automáticas, revisão e falhas. Estado salvo pela V15; utiliza a mesma `LASTFM_API_KEY` do backend. Título e artista precisam corresponder exatamente, sem ambiguidade, para aprovação automática. Fechar a tela preserva o trabalho. [Roteiro e regras de sincronização](docs/acceptance/012-catalog-synchronization.md).
+
+O [modelo consolidado de ambiente](.env.example) agrupa comuns, backend e frontend. Hoje não há variável de negócio compartilhada pelos dois processos; importar somente o bloco do serviço correspondente. O [modelo do frontend](frontend/.env.example) evita copiar credenciais do banco para a Hostinger. Nenhum arquivo `.env` real é alterado pelos modelos.

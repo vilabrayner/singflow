@@ -184,3 +184,7 @@ Integrado PrimeNG ScrollArea com estado de rolagem por aba e CdkScrollable para 
 ## Padronização do participante — 13/11/2026
 
 Anfitrião aceito como referência visual; participante adaptado para header com contexto/menu, dock Pedidos/Catálogo/Histórico, ScrollArea e itens compartilhados. Catálogo direto, modais com busca fixa e histórico com faixa lateral. Fluxos de convocação, saída/retorno e pedidos preservados. O [padrão de telas](ui/screen-pattern.md) registra a referência para futuras implementações. Font Awesome Free 7.3.1 adotado para todos os ícones explícitos da aplicação, conforme tabela aprovada; PrimeIcons removido como dependência direta. Build e 172 testes de navegador em desktop/celular aprovados. [Roteiro de aceite](acceptance/022-participant-workspace.md); aceite manual deste redesenho aguarda o responsável.
+
+## Frontend Node.js parametrizável — 13/11/2026
+
+Preparado servidor HTTP para a Hostinger, com entrega do Angular, fallback de rotas, proxy da API com cookies/CSRF e `BACKEND_URL` lida em runtime. Pacote independente gerado no build; dependência do Netlify removida. Modelos de ambiente revisados por serviço, incluindo limites de cadastro de músico e flag da sincronização. O responsável fará commit e deploy; produção não alterada nesta preparação. [Guia da Hostinger](hostinger.md).

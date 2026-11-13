@@ -66,7 +66,7 @@ docker compose -f compose.mailpit.yaml down
 
 ## Produção
 
-Configurar no Render `SINGFLOW_MAIL_FROM`, `SINGFLOW_SMTP_HOST`, `SINGFLOW_SMTP_PORT`, `SINGFLOW_SMTP_USERNAME`, `SINGFLOW_SMTP_PASSWORD`, `SINGFLOW_SMTP_AUTH=true` e `SINGFLOW_SMTP_STARTTLS=true`, conforme o provedor. Manter as credenciais somente no backend. Manter `SINGFLOW_PUBLIC_APP_URL=https://flowavesingflow.netlify.app` para os links chegarem ao frontend certo.
+Configurar no Render `SINGFLOW_MAIL_FROM`, `SINGFLOW_SMTP_HOST`, `SINGFLOW_SMTP_PORT`, `SINGFLOW_SMTP_USERNAME`, `SINGFLOW_SMTP_PASSWORD`, `SINGFLOW_SMTP_AUTH=true` e `SINGFLOW_SMTP_STARTTLS=true`, conforme o provedor. Manter as credenciais somente no backend. Manter `SINGFLOW_PUBLIC_APP_URL=https://singflow.flowave.tec.br` para os links chegarem ao frontend certo.
 
 O envio real ainda depende da escolha e configuração de um provedor e de remetente autorizado. **Render Free bloqueia saída nas portas SMTP 25, 465 e 587**. Se estiver nesse plano, esta integração precisa de porta alternativa permitida e suportada pelo provedor ou de um adaptador de API HTTPS. Não desabilitar TLS para contornar essa limitação. Nenhum provedor foi contratado, recurso criado ou mensagem real enviada nesta implementação.
 
