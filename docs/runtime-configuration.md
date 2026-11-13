@@ -33,11 +33,11 @@ O navegador carrega `config.json` relativo ao base URL da aplicação, com `cach
 2. Use `dist/singflow-web/browser` como artefato estático.
 3. Antes de liberar o ambiente, substitua o `config.json` do artefato por um documento válido com os valores daquele ambiente, por cópia ou volume montado somente para leitura.
 4. Sirva `config.json` com `Content-Type: application/json` e `Cache-Control: no-store`. Não aplique o fallback da SPA a esse arquivo. Configure essas regras também no CDN, se houver.
-5. Sirva as rotas da SPA com fallback para `index.html`, e encaminhe API e futuro WebSocket ao backend no mesmo domínio.
+5. Na Hostinger, use o servidor Node.js com `BACKEND_URL`: ele serve as rotas da SPA e encaminha a API no mesmo domínio. Consulte [o guia da Hostinger](hostinger.md). WebSocket não faz parte deste servidor.
 
 O build local copia sua configuração para a saída: não publique esse arquivo inadvertidamente em outro ambiente. A implantação deve sempre substituí-lo pelo arquivo correspondente. Trocar parâmetros não exige reconstruir JavaScript; basta atualizar o arquivo e recarregar a aplicação.
 
-Configuração de hospedagem e automação de implantação serão implementadas quando o provedor for escolhido. O fluxo CI existente pode usar `PRIMEUI_LICENSE_KEY` dos secrets na criação inicial do arquivo. Não distribuir esse artefato para desenvolvimento de terceiros com sua chave incluída.
+O pacote Node.js de produção lê `BACKEND_URL`, `PORT` e, opcionalmente, `PRIMEUI_LICENSE_KEY` ao iniciar. A variável de licença, quando definida, sobrescreve o valor do artefato na resposta de `config.json` sem alterar os arquivos. Trocar host ou licença no Node requer reiniciar o processo, sem recompilar Angular. A configuração Nginx do Docker continua independente. O fluxo CI existente pode usar `PRIMEUI_LICENSE_KEY` dos secrets na criação inicial do arquivo. Não distribuir esse artefato para desenvolvimento de terceiros com sua chave incluída.
 
 Todo parâmetro desse arquivo chega ao navegador. Não armazenar senhas, tokens privados ou credenciais do banco. A chave PrimeUI pode aparecer no bundle público da aplicação conforme os termos do fornecedor, mas não deve ser publicada para reutilização por terceiros.
 
