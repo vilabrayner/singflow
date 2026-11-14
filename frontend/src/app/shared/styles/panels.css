@@ -364,7 +364,7 @@
   font-weight: 800;
   color: var(--sf-navy);
 }
-.sf-person-row span span,
+.sf-person-row span span:not(.sf-badge),
 .sf-queue-person span,
 .sf-queue-person small {
   font-size: 13px;

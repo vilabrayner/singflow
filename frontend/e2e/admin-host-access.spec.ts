@@ -52,7 +52,7 @@ test('administrator opens the chosen session as host even with a musician profil
     return route.fulfill({ status: 404 });
   });
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Sessões abertas', exact: true }).click();
+  await page.getByRole('tab', { name: 'Sessões', exact: true }).click();
   await page.getByRole('button', { name: /Evento de outro anfitrião/ }).click();
   const modal = page.getByRole('dialog', { name: target.name, exact: true });
   await modal.getByRole('button', { name: 'Opções da consulta', exact: true }).click();

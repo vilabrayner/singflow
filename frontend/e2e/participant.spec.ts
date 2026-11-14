@@ -649,5 +649,7 @@ test('temporary connection failure retains remembered access and a revoked grant
   revoked = true;
   await page.goto('/participante');
   await expect(page).toHaveURL('/participante');
-  expect(await page.evaluate(() => localStorage.getItem('singflow.lastParticipation'))).toBeNull();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('singflow.lastParticipation')))
+    .toBeNull();
 });

@@ -40,7 +40,7 @@ async function auth(page: Page) {
 }
 async function enter(page: Page) {
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Catálogo', exact: true }).click();
+  await page.getByRole('tab', { name: 'Catálogo', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Catálogo de músicas', exact: true }),
   ).toBeVisible();

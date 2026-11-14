@@ -77,7 +77,7 @@ test('admin reads host, musicians and live queue without operating the session',
     return route.fulfill({ status: 404 });
   });
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Sessões abertas', exact: true }).click();
+  await page.getByRole('tab', { name: 'Sessões', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Sessões abertas', exact: true })).toBeVisible();
   await page.getByLabel('Buscar sessão ou anfitrião').fill('Rita');
   await expect(page.getByRole('button', { name: /Festa particular/ })).toHaveCount(0);

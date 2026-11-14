@@ -1,6 +1,6 @@
 # Padrão atual de telas do SingFlow
 
-Referência em 13/11/2026. A UI do anfitrião foi aceita pelo responsável; o participante foi adaptado a esse padrão neste incremento. Este documento orienta mudanças futuras e prevalece sobre os desenhos exploratórios antigos quando houver divergência de layout. Regras de negócio continuam nas respectivas especificações.
+Referência atualizada em 14/11/2026. A UI do anfitrião foi aceita pelo responsável; o participante foi adaptado a esse padrão neste incremento. Este documento orienta mudanças futuras e prevalece sobre os desenhos exploratórios antigos quando houver divergência de layout. Regras de negócio continuam nas respectivas especificações.
 
 ## Identidade e componentes
 
@@ -77,7 +77,17 @@ Uma nova convocação leva a Pedidos e mostra o aviso central. Se a pessoa naveg
 
 ### Músico
 
-Ainda possui seu fluxo existente. Uma adaptação futura deve reutilizar este padrão, respeitando o acesso próprio e a consulta sem permissões de gestão do anfitrião. Este documento não autoriza essa etapa automaticamente.
+Dock: Palco, Fila e Histórico. O header mostra a sessão aberta e o menu da conta, com atualização, escolha de sessão e saída separada. Não repetir o card de sessão em cada aba. Palco concentra a convocação e a próxima sugestão; Fila mantém a lista completa pesquisável, com posição original mesmo ao filtrar; Histórico usa o componente compartilhado de itens, sem horários.
+
+Sessões encerradas permanecem em modal dentro do seletor. Sem sessão aberta, mostrar o card centralizado de espera, sem dock. Encerramento ou revogação elimina os dados atuais e volta à espera; troca de sessão reinicia aba, busca e rolagem. Acesso é somente de consulta, sem controles de convocar, pausar ou concluir.
+
+### Administração
+
+Dock: Cadastros, Sessões e Catálogo. Header mantém a marca, contexto Admin e botão direto de sair. A rota administrativa continua fora dos menus públicos. Consultas e decisões permanecem nos diálogos existentes; catálogo e sessões são carregados na primeira visita, preservando filtros ao alternar abas. Logout limpa as instâncias e seus dados.
+
+Listas de cadastros, sessões, catálogo e sincronização usam painéis com borda, raio de 12px e faixa cinza estática para o ícone, sem grip. Confirmações, auditoria e controle de versão continuam preservados. Ao sair da aba Catálogo com sincronização pendente, destruir somente a tela de sincronização e manter o aviso de revisão; o processamento persistente não é cancelado.
+
+Músico e admin reutilizam `PanelWorkspace` para o ScrollArea e dock. O componente preserva rolagem por aba, mede a altura real da navegação e reinicia posições quando muda a chave de contexto. `StageQueue` e `StageHistory` compartilham a apresentação de consulta. Somente o viewport central rola; a página permanece parada.
 
 ## Feedback, concorrência e validação
 

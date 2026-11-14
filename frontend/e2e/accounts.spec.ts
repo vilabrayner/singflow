@@ -332,8 +332,12 @@ test('admin login and the direct logout button reveal each page below the fixed 
   const header = await page.locator('.sf-panel-header').boundingBox();
   const card = await page.locator('app-surface-card').boundingBox();
   expect(card!.y).toBeGreaterThanOrEqual(header!.y + header!.height);
-  await page.evaluate(() => window.scrollTo(0, 400));
-  await expect.poll(() => page.evaluate(() => scrollY)).toBe(400);
+  const viewport = page.locator('.sf-workspace-viewport');
+  await viewport.evaluate((el) => {
+    el.scrollTop = 400;
+  });
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(200);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
   await page.getByRole('button', { name: 'Sair da conta', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Entrar como administrador', exact: true }),

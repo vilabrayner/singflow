@@ -144,3 +144,38 @@
 .admin-person-copy > span {
   overflow-wrap: anywhere;
 }
+
+/* Same item geometry as the participant/host lists; the rail is not draggable. */
+.sf-people-list {
+  display: grid;
+  gap: 12px;
+}
+.sf-person-row.admin-account-row,
+.sf-person-row.admin-collection-row {
+  grid-template-columns: 36px minmax(0, 1fr) 16px;
+  padding: 16px 12px;
+  border: 1px solid var(--sf-border);
+  border-radius: 12px;
+  background: var(--sf-surface, #fff);
+}
+.admin-avatar {
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  margin: -16px 0 -16px -12px;
+  border-radius: 11px 0 0 11px;
+  background: #e7ebf2;
+  color: var(--sf-muted);
+}
+.sf-person-row .admin-person-copy > span {
+  font-size: 14px;
+}
+@media (max-width: 480px) {
+  .sf-person-row.admin-account-row,
+  .sf-person-row.admin-collection-row {
+    padding: 12px 10px;
+  }
+  .admin-avatar {
+    margin: -12px 0 -12px -10px;
+  }
+}

@@ -9,6 +9,8 @@ import {
   computed,
   inject,
   signal,
+  input,
+  effect,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -107,6 +109,12 @@ export class AdminCatalog implements OnInit, OnDestroy {
   private readonly notify = inject(Notifications);
   private readonly base = '/admin/catalog/songs';
   readonly filter = this.fb.group({ q: [''], status: [''] });
+  readonly active = input(true);
+  constructor() {
+    effect(() => {
+      if (!this.active()) this.showingSync.set(false);
+    });
+  }
   readonly showingSync = signal(false);
   closeSync() {
     this.showingSync.set(false);

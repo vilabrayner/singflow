@@ -74,7 +74,7 @@ async function shell(page: Page) {
 }
 async function enter(page: Page) {
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Catálogo', exact: true }).click();
+  await page.getByRole('tab', { name: 'Catálogo', exact: true }).click();
   await page.getByRole('button', { name: 'Sincronizar provisórias', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Sincronizar provisórias', exact: true }),
@@ -561,7 +561,7 @@ for (const exit of ['back', 'tab'] as const) {
     await expect(page.getByRole('progressbar')).toBeVisible();
     if (exit === 'back')
       await page.getByRole('button', { name: 'Voltar ao catálogo', exact: true }).click();
-    else await page.getByRole('button', { name: 'Cadastros', exact: true }).click();
+    else await page.getByRole('tab', { name: 'Cadastros', exact: true }).click();
     await expect(page.locator('.p-toast-message-warn')).toHaveCount(1);
     await expect(page.locator('.p-toast-message-warn')).toContainText(
       'Existem músicas pendentes de revisão',

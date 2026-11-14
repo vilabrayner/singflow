@@ -96,12 +96,14 @@ test('musician signs in, receives a session, reads the full queue and tracks the
   granted = true;
   await page.getByRole('button', { name: 'Atualizar sessões', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Café Tão', exact: true })).toBeVisible();
-  await expect(page.locator('.sf-queue-line')).toHaveCount(14);
+  await page.getByRole('tab', { name: 'Fila', exact: true }).click();
+  await expect(page.locator('app-stage-queue:visible .sf-queue-line')).toHaveCount(14);
   await page.getByLabel('Buscar na fila', { exact: true }).fill('Música 14');
-  await expect(page.locator('.sf-queue-line')).toHaveCount(1);
-  await expect(page.locator('.sf-queue-line')).toContainText('Artista 14');
+  await expect(page.locator('app-stage-queue:visible .sf-queue-line')).toHaveCount(1);
+  await expect(page.locator('app-stage-queue:visible .sf-queue-line')).toContainText('Artista 14');
   await page.getByLabel('Buscar na fila', { exact: true }).fill('');
   accepted = true;
+  await page.getByRole('tab', { name: 'Palco', exact: true }).click();
   await expect(page.getByText('Ida confirmada', { exact: true })).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toBeVisible();
   await page.screenshot({
@@ -113,11 +115,10 @@ test('musician signs in, receives a session, reads the full queue and tracks the
   for (const label of ['Chamar', 'Pular', 'Concluir apresentação', 'Criar participante']) {
     await expect(page.getByRole('button', { name: label, exact: true })).toHaveCount(0);
   }
-  await page.getByRole('button', { name: 'Opções do músico' }).click();
-  await page.getByRole('menuitem', { name: 'Histórico do palco', exact: true }).click();
-  const history = page.getByRole('dialog', { name: 'Histórico do palco', exact: true });
-  await expect(history).toContainText('Evidências');
-  await history.getByRole('button', { name: 'Fechar', exact: true }).click();
+  await page.getByRole('tab', { name: 'Histórico', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Histórico do palco', exact: true })).toContainText(
+    'Evidências',
+  );
   granted = false;
   await expect(page.getByRole('heading', { name: 'Aguardando uma sessão' })).toBeVisible({
     timeout: 10000,

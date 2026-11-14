@@ -188,3 +188,9 @@ Anfitrião aceito como referência visual; participante adaptado para header com
 ## Frontend Node.js parametrizável — 13/11/2026
 
 Preparado servidor HTTP para a Hostinger, com entrega do Angular, fallback de rotas, proxy da API com cookies/CSRF e `BACKEND_URL` lida em runtime. Pacote independente gerado no build; dependência do Netlify removida. Modelos de ambiente revisados por serviço, incluindo limites de cadastro de músico e flag da sincronização. O responsável fará commit e deploy; produção não alterada nesta preparação. [Guia da Hostinger](hostinger.md).
+
+## Padronização do músico e admin — 14/11/2026
+
+Implementação autorizada para uniformizar a UI do MVP. Músico passa a Palco/Fila/Histórico; admin passa a Cadastros/Sessões/Catálogo. Header fixo, dock, ScrollArea, tipografia e itens compartilham o padrão atual. Sessões antigas do músico continuam em modal e o acesso permanece de consulta. Filtros administrativos são preservados entre abas; saída da sincronização mantém aviso de revisão pendente. Sem alteração de API, migrations ou regras da fila. Validação e roteiro em [Aceite 028](acceptance/028-musician-admin-workspaces.md). Aceite em aparelho físico pendente. Esta seção substitui o estado visual antigo da etapa 3C; WebSocket e demais evoluções seguem pendentes.
+
+Validação da padronização: build e formatação aprovados; 68 testes dos dois painéis e recarga aprovados com API simulada. A regressão geral e os timeouts de testes antigos estão discriminados no Aceite 028; não confundir emulação de celular com aceite físico.

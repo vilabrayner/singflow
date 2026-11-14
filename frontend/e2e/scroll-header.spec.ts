@@ -35,8 +35,12 @@ test('reload returns content below the fixed header and polling keeps the readin
   });
   await page.goto('/musico');
   await expect(page.getByRole('heading', { name: session.name, exact: true })).toBeVisible();
-  await page.evaluate(() => window.scrollTo(0, 120));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(120);
+  await page.getByRole('tab', { name: 'Fila', exact: true }).click();
+  const viewport = page.locator('.sf-workspace-viewport');
+  await viewport.evaluate((el) => {
+    el.scrollTop = 120;
+  });
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(120);
   await page.reload();
   await expect(page.getByRole('heading', { name: session.name, exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
@@ -46,7 +50,13 @@ test('reload returns content below the fixed header and polling keeps the readin
   await page.bringToFront();
   await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
   const previousReads = reads;
-  await page.evaluate(() => window.scrollTo(0, 240));
+  await page.getByRole('tab', { name: 'Fila', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Próximas músicas', exact: true })).toBeVisible();
+  await expect.poll(() => viewport.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await viewport.evaluate((el) => {
+    el.scrollTop = 240;
+  });
   await expect.poll(() => reads, { timeout: 10000 }).toBeGreaterThan(previousReads);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(240);
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(240);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });

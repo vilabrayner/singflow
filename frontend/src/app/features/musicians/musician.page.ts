@@ -1,3 +1,7 @@
+import { PanelWorkspace } from '../../shared/components/panel-workspace';
+import { MenuPopover } from '../../shared/components/menu-popover';
+import { StageQueue } from '../stage/stage-queue';
+import { StageHistory } from '../stage/stage-history';
 import { Router } from '@angular/router';
 import {
   afterNextRender,
@@ -13,18 +17,15 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT, DatePipe } from '@angular/common';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MenuItem } from 'primeng/api';
 import { InputTextModule } from 'primeng/inputtext';
 import { ApiClient, apiError } from '../../core/http/api-client';
 import { HostAuth } from '../identity/host-auth';
 import { KaraokeSession } from '../sessions/session-api';
-import { StageView, callStatus } from '../stage/stage-api';
+import { StageView } from '../stage/stage-api';
 import { PanelHeader } from '../../shared/components/panel-header';
-import { OptionsMenu } from '../../shared/components/options-menu';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import { SurfaceCard } from '../../shared/components/surface-card';
 import { StatusBadge } from '../../shared/components/status-badge';
-import { Notifications } from '../../shared/notifications';
 
 interface Performance {
   session: KaraokeSession;
@@ -32,11 +33,15 @@ interface Performance {
 }
 @Component({
   selector: 'app-musician-page',
+  styleUrl: '../../shared/styles/admin-collections.css',
   styles:
-    ':host { display: block; } .sf-musician-archive-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--sf-border); }',
+    ':host { display:block; } .sf-musician-archive-section { margin-top:20px; padding-top:20px; border-top:1px solid var(--sf-border); }',
   imports: [
     PanelHeader,
-    OptionsMenu,
+    PanelWorkspace,
+    MenuPopover,
+    StageQueue,
+    StageHistory,
     ConfirmationDialog,
     SurfaceCard,
     StatusBadge,
@@ -53,7 +58,6 @@ export class MusicianPage implements OnInit, OnDestroy {
   private readonly auth = inject(HostAuth);
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly document = inject(DOCUMENT);
-  private readonly notifications = inject(Notifications);
   readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email, Validators.maxLength(254)]],
     password: ['', Validators.required],
@@ -77,40 +81,19 @@ export class MusicianPage implements OnInit, OnDestroy {
   readonly archiveLoading = signal(false);
   readonly archiveError = signal('');
   readonly chooserReturnFocus = signal('musician-options');
-  readonly archiveMenu: MenuItem[] = [
-    {
-      label: 'Atualizar consulta',
-      icon: 'fa-solid fa-rotate-right',
-      command: () => void this.loadArchive(),
-    },
-  ];
   private archiveGeneration = 0;
-  readonly showingHistory = signal(false);
-  readonly search = signal('');
+  readonly headerMenu = signal(false);
+  readonly activeTab = signal('stage');
+  readonly navigationItems = [
+    { value: 'stage', label: 'Palco', icon: 'fa-solid fa-bullhorn' },
+    { value: 'queue', label: 'Fila', icon: 'fa-solid fa-list-ol' },
+    { value: 'history', label: 'Histórico', icon: 'fa-solid fa-clock-rotate-left' },
+  ];
+  changeTab(value: string) {
+    if (this.navigationItems.some((item) => item.value === value)) this.activeTab.set(value);
+  }
   readonly updatedAt = signal<Date | null>(null);
-  readonly labels = callStatus;
   readonly locked = computed(() => this.busy() || this.loading());
-  readonly queue = computed(() => {
-    const query = this.search().trim().toLocaleLowerCase();
-    return (this.performance()?.stage.suggestions ?? []).filter((p) =>
-      `${p.name} ${p.title ?? ''} ${p.artist ?? ''}`.toLocaleLowerCase().includes(query),
-    );
-  });
-  readonly menu = computed<MenuItem[]>(() => [
-    { label: 'Atualizar', icon: 'fa-solid fa-rotate-right', command: () => void this.load() },
-    { label: 'Trocar sessão', icon: 'fa-solid fa-list-ol', command: () => this.openChooser() },
-    {
-      label: 'Histórico do palco',
-      icon: 'fa-solid fa-clock-rotate-left',
-      disabled: !this.performance(),
-      command: () => this.showingHistory.set(true),
-    },
-    {
-      label: 'Sair da conta',
-      icon: 'fa-solid fa-right-from-bracket',
-      command: () => void this.logout(),
-    },
-  ]);
   private timer?: ReturnType<typeof setInterval>;
   private generation = 0;
   private destroyed = false;
@@ -185,8 +168,7 @@ export class MusicianPage implements OnInit, OnDestroy {
         null;
       if (selected?.id !== this.selected()?.id) {
         this.performance.set(null);
-        this.search.set('');
-        this.showingHistory.set(false);
+        this.activeTab.set('stage');
       }
       this.selected.set(selected);
       if (selected) {
@@ -199,7 +181,7 @@ export class MusicianPage implements OnInit, OnDestroy {
           // The host may close the session between the list request and the snapshot.
           this.selected.set(null);
           this.performance.set(null);
-          this.showingHistory.set(false);
+          this.activeTab.set('stage');
           this.sessions.update((list) =>
             list.map((s) => (s.id === performance.session.id ? performance.session : s)),
           );
@@ -216,7 +198,7 @@ export class MusicianPage implements OnInit, OnDestroy {
       if (error instanceof HttpErrorResponse && [401, 403, 404].includes(error.status)) {
         this.performance.set(null);
         this.selected.set(null);
-        this.showingHistory.set(false);
+        this.activeTab.set('stage');
         if ([401, 403].includes(error.status)) {
           this.backToSessions();
           this.archiveError.set(
@@ -225,6 +207,7 @@ export class MusicianPage implements OnInit, OnDestroy {
           this.sessions.set([]);
         }
         if (error.status === 401) {
+          this.headerMenu.set(false);
           this.email.set('');
           this.sessions.set([]);
           this.choosingSession.set(false);
@@ -307,11 +290,12 @@ export class MusicianPage implements OnInit, OnDestroy {
     try {
       await this.auth.logout();
       this.generation++;
+      this.headerMenu.set(false);
       this.email.set('');
       this.sessions.set([]);
       this.selected.set(null);
       this.performance.set(null);
-      this.showingHistory.set(false);
+      this.activeTab.set('stage');
       this.closeChooser();
       this.error.set('');
     } catch (error) {
