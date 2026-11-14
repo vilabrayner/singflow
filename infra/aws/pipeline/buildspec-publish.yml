@@ -1,0 +1,33 @@
+# PREPARADO, NAO ATIVADO. Publica imagens; instalacao/boot/SSM ainda pendentes.
+# Nao criar CodeBuild/CodePipeline usando este arquivo antes de revisar a infraestrutura.
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+      nodejs: 24
+    commands:
+      - cd "$CODEBUILD_SRC_DIR/frontend" && npm ci
+      - cd "$CODEBUILD_SRC_DIR/frontend" && npx playwright install --with-deps chromium
+  pre_build:
+    commands:
+      - cd "$CODEBUILD_SRC_DIR/backend" && ./mvnw -B verify
+      - cd "$CODEBUILD_SRC_DIR/frontend" && npm run format:check
+      - cd "$CODEBUILD_SRC_DIR/frontend" && npm run test:config
+      - cd "$CODEBUILD_SRC_DIR/frontend" && npm run build
+      - cd "$CODEBUILD_SRC_DIR/frontend" && npm test
+  build:
+    commands:
+      - cd "$CODEBUILD_SRC_DIR"
+      - python3 scripts/aws/release.py build-source --source "$CODEBUILD_SRC_DIR" --revision "$CODEBUILD_RESOLVED_SOURCE_VERSION" --output /tmp/singflow-release.json
+  post_build:
+    commands:
+      - test "$CODEBUILD_BUILD_SUCCEEDING" = "1"
+      - cd "$CODEBUILD_SRC_DIR"
+      - python3 scripts/aws/release.py publish --profile "" --manifest /tmp/singflow-release.json
+      - mkdir -p /tmp/singflow-pipeline-artifacts
+      - cp /tmp/singflow-release.published.json /tmp/singflow-pipeline-artifacts/release.published.json
+artifacts:
+  files:
+    - release.published.json
+  base-directory: /tmp/singflow-pipeline-artifacts

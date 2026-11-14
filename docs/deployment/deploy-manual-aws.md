@@ -112,3 +112,7 @@ A parada automática permanece em 15/11 às 19:58 America/Recife. Antes disso, d
 Depois de provisionada e ativada: console AWS → Ohio → CodePipeline → singflow-production → Release change. Isso executa a pipeline AWS para a revisão da fonte; não requer GitHub Actions nem um novo commit para republicar uma revisão já existente. Conferir a revisão selecionada e a política de tags antes de repetir uma publicação: tags imutáveis não podem ser sobrescritas. O comportamento de reutilização de imagens da mesma revisão ainda será implementado e testado.
 
 Esse botão continua usando testes e build CodeBuild e gera consumo. Para instalar diretamente uma release que já está no ECR, usar o futuro instalador comum/manual descrito acima, sem acionar CodePipeline. Não confundir essas duas operações.
+
+## Primeiro build local guiado
+
+Os comandos de build isolado da main e push separado agora estão preparados em [primeiro-build-local.md](primeiro-build-local.md). O script scripts/aws/release.py não cria repositórios, não inicia aplicação nem implanta na EC2. A pipeline continua inativa; instalador/boot continuam pendentes.

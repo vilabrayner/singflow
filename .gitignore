@@ -21,3 +21,6 @@ frontend/public/config.js
 
 # Local runtime configuration (example is versioned)
 frontend/public/config.json
+
+# Local release tooling
+scripts/aws/__pycache__/
