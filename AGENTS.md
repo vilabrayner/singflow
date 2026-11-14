@@ -10,10 +10,11 @@
 
 ## AWS neste projeto
 
-- Conta tradicional; perfil CLI: `singflow`; região padrão das operações: `sa-east-1`.
-- Toolkit e endpoint MCP: `us-east-1`, com metadado `AWS_REGION=sa-east-1`.
-- MCP usa `AWS_MCP_PROXY_PROFILES=singflow`. Não gravar credenciais no repositório ou mostrar segredos nos logs.
-- O login inicial foi feito como root. Antes de provisionar a hospedagem, propor e aprovar uma identidade com permissões específicas; não alterar IAM automaticamente.
+- Teste AWS aprovado: conta Array of Sunshine `505828739529`; perfil CLI `singflow-teste`; região `us-east-2` (Ohio). O perfil antigo `singflow` permanece preservado, mas não é o destino deste teste.
+- Endpoint MCP global em `us-east-1`, com metadado `AWS_REGION=us-east-2`. Serviços globais, como CloudFront e ACM para seu certificado, podem usar `us-east-1`.
+- MCP usa `AWS_MCP_PROXY_PROFILES=singflow-teste`. Conferir STS antes de mutações. Não gravar credenciais no repositório ou mostrar segredos nos logs.
+- O perfil antigo foi autenticado como root: não o usar para provisionar. O teste usa a função do projeto; a instância recebe função própria para SSM e leitura do artefato. Novas alterações IAM exigem o escopo autorizado; não ampliar permissões automaticamente.
+- Operação, parada automática em 48 horas, DNS e reversão: `infra/aws/trial/README.md`. Reverter o DNS antes de parar o teste se o domínio atual ainda estiver apontando para ele.
 - Preferir o AWS MCP quando disponível. Se as ferramentas ainda não estiverem carregadas, informar a limitação e usar AWS CLI e documentação oficial para as verificações autorizadas.
 - As regras específicas do projeto acima têm precedência sobre as recomendações genéricas abaixo.
 

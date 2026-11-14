@@ -1,0 +1,150 @@
+{
+  "status": "PROPOSED_NOT_DEPLOYED",
+  "region": "us-east-2",
+  "accountId": "505828739529",
+  "source": {
+    "repository": "vilabrayner/singflow",
+    "branch": "main",
+    "authentication": "GitHub App via CodeConnections",
+    "trigger": "every push to main; weekly is usage assumption, not rate limit"
+  },
+  "resources": [
+    {
+      "type": "CodeConnections connection",
+      "name": "singflow-github",
+      "count": 1,
+      "scope": "Authorize GitHub App for vilabrayner/singflow only; requires console handshake"
+    },
+    {
+      "type": "CodePipeline V2",
+      "name": "singflow-production",
+      "count": 1,
+      "executionMode": "QUEUED",
+      "stages": [
+        "Source",
+        "VerifyBuildPublishDeploy"
+      ]
+    },
+    {
+      "type": "CodeBuild project",
+      "name": "singflow-release",
+      "count": 1,
+      "compute": "BUILD_GENERAL1_MEDIUM",
+      "architecture": "x86_64",
+      "privilegedMode": true,
+      "timeoutMinutes": 45,
+      "concurrentBuildLimit": 1,
+      "vpc": false,
+      "reservedCapacity": false,
+      "dockerImageServer": false
+    },
+    {
+      "type": "ECR private repositories",
+      "names": [
+        "singflow/backend",
+        "singflow/frontend"
+      ],
+      "count": 2,
+      "immutable": true,
+      "encryption": "AES256",
+      "retainOnDelete": true
+    },
+    {
+      "type": "S3 artifacts bucket",
+      "name": "CloudFormation-generated",
+      "count": 1,
+      "publicAccessBlocked": true,
+      "encryption": "AES256",
+      "versioning": true,
+      "retentionDays": 7
+    },
+    {
+      "type": "CloudWatch Logs group",
+      "name": "/aws/codebuild/singflow-release",
+      "count": 1,
+      "retentionDays": 7
+    },
+    {
+      "type": "IAM service roles",
+      "names": [
+        "pipeline role",
+        "build role"
+      ],
+      "count": 2,
+      "scope": "No OIDC providers; CodeConnections source, scoped artifacts, one build project, two ECR, release state and one SSM document/EC2"
+    },
+    {
+      "type": "EC2 supplemental IAM policy",
+      "count": 1,
+      "scope": "Read two ECR and desired release; write active release; preserve existing role"
+    },
+    {
+      "type": "SSM String parameters",
+      "names": [
+        "/singflow/production/desired-release",
+        "/singflow/production/active-release"
+      ],
+      "count": 2,
+      "secrets": false
+    },
+    {
+      "type": "SSM Command document",
+      "name": "SingFlow-DeployRelease",
+      "count": 1,
+      "scope": "Validated invocation of installed updater only, no arbitrary shell parameter"
+    },
+    {
+      "type": "EC2 boot updater",
+      "count": 1,
+      "scope": "systemd service and common deploy script; no new EC2, do not modify shutdown schedule"
+    }
+  ],
+  "costs": {
+    "currency": "USD",
+    "codeBuildPerMinute": "0.01",
+    "codePipelinePerActionMinute": "0.002",
+    "ecrPerGBMonth": "0.10",
+    "monthlyComputeExamples": [
+      {
+        "runs": 4,
+        "buildMinutesEach": 20,
+        "sourceMinutesEach": 1,
+        "gross": "0.968"
+      },
+      {
+        "runs": 5,
+        "buildMinutesEach": 30,
+        "sourceMinutesEach": 1,
+        "gross": "1.810"
+      },
+      {
+        "runs": 5,
+        "buildMinutesEach": 45,
+        "sourceMinutesEach": 1,
+        "gross": "2.710"
+      }
+    ],
+    "planningRangeWithSmallStorageAndLogs": "2-5 additional per month; estimate, not cap",
+    "excluded": [
+      "existing EC2/EBS/IPv4/CloudFront/database",
+      "tax",
+      "unbounded reruns or more main pushes"
+    ],
+    "benefits": "No credit or Free Tier discount assumed"
+  },
+  "approvalsOutstanding": [
+    "concrete resource provisioning and IAM changes",
+    "GitHub App repository authorization",
+    "first controlled deployment and boot-service installation",
+    "automatic trigger activation and Hostinger auto-deploy disablement"
+  ],
+  "preserve": [
+    "database and volumes",
+    "private backend.env",
+    "public runtime-config.json",
+    "DNS and TLS",
+    "current shutdown deadline",
+    "existing GitHub checks"
+  ],
+  "manualDeployment": "Same common installer; publish images from local machine or start CodePipeline manually at selected revision; final commands require implementation"
+}
