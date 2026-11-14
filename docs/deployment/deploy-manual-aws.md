@@ -116,3 +116,7 @@ Esse botão continua usando testes e build CodeBuild e gera consumo. Para instal
 ## Primeiro build local guiado
 
 Os comandos de build isolado da main e push separado agora estão preparados em [primeiro-build-local.md](primeiro-build-local.md). O script scripts/aws/release.py não cria repositórios, não inicia aplicação nem implanta na EC2. A pipeline continua inativa; instalador/boot continuam pendentes.
+
+## Implantação manual pelo ECR e console web
+
+O procedimento executável, os comandos para repetir a implantação e os caminhos do console estão em [Acompanhar deploy AWS](acompanhar-deploy-aws.md). A primeira implantação por imagens ECR foi verificada em 14/11/2026; a automação continua inativa.
