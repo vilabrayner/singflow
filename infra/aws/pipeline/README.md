@@ -120,3 +120,11 @@ Guias: ../../../docs/deployment/pipeline-aws.md e ../../../docs/deployment/deplo
 O template ECR passou no cfn-lint 1.51.4, Guard (guardpycfn 0.1.0) e ValidateTemplate do CloudFormation na preparação anterior. São validações de estrutura e controles selecionados, não de toda a pipeline ou permissões de criação. Nenhum stack/change set foi criado na preparação da pipeline.
 
 Referências adicionais: https://docs.aws.amazon.com/accounts/latest/reference/supported-services-sign-up-new.html ; https://docs.aws.amazon.com/codepipeline/latest/userguide/connections-github.html
+
+## Preparação local sem ativação - 14/11/2026
+
+Usuário publicou a main f0256da85c73fd7d31b65d9a4cfd9809019337b2, com a correção de lockfile Linux. Docker Desktop disponível no Mac ARM64. Script scripts/aws/release.py e testes preparados: exporta origin/main isolada, constrói linux/amd64, publica em etapa separada e verifica ambos os digests. Nove testes locais passaram sem rede/Docker reais. Nenhum build/push de aplicação foi executado pelo agente nesta preparação.
+
+Buildspec de publicação adicionado como rascunho inativo: infra/aws/pipeline/buildspec-publish.yml. Não há projeto associado nem registro/implantação SSM nele. Não tratar esse arquivo como pipeline completa; instalador, boot e template completo permanecem pendentes.
+
+As tentativas de consulta pelo conector AWS nesta etapa retornaram Unknown tool em duas tentativas. Não foi possível confirmar a existência dos ECR. Não foi criada infraestrutura nem executado push. Roteiro para o responsável: ../../../docs/deployment/primeiro-build-local.md.
