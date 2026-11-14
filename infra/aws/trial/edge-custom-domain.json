@@ -1,0 +1,250 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "SingFlow trial HTTPS entry - custom domain and private EC2 origin, with authenticated caching disabled.",
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
+    }
+  },
+  "Parameters": {
+    "InstanceArn": {
+      "Type": "String",
+      "AllowedPattern": "arn:aws:ec2:us-east-2:[0-9]{12}:instance/i-[a-z0-9]+"
+    },
+    "PrivateDns": {
+      "Type": "String",
+      "AllowedPattern": "[a-zA-Z0-9.-]+"
+    },
+    "CertificateArn": {
+      "Type": "String",
+      "AllowedPattern": "arn:aws:acm:us-east-1:[0-9]{12}:certificate/[a-z0-9-]+"
+    },
+    "AppDomain": {
+      "Type": "String",
+      "AllowedPattern": "[a-zA-Z0-9.-]+",
+      "Default": "singflow.flowave.tec.br"
+    }
+  },
+  "Resources": {
+    "Logs": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Private short-retention CloudFront access logs; ACLs required by legacy delivery.",
+          "must": [
+            "Block all public access; no cookie logging; retain only seven days."
+          ]
+        }
+      },
+      "Properties": {
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "OwnershipControls": {
+          "Rules": [
+            {
+              "ObjectOwnership": "BucketOwnerPreferred"
+            }
+          ]
+        },
+        "AccessControl": "LogDeliveryWrite",
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "TrialLogs",
+              "Status": "Enabled",
+              "ExpirationInDays": 7
+            }
+          ]
+        }
+      }
+    },
+    "LogsPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "Logs"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "Logs",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${Logs.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "VpcOrigin": {
+      "Type": "AWS::CloudFront::VpcOrigin",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "CloudFront reaches the EC2 private address without public application ingress.",
+          "must": [
+            "Only CloudFront allowed in server security group."
+          ]
+        }
+      },
+      "Properties": {
+        "VpcOriginEndpointConfig": {
+          "Arn": {
+            "Ref": "InstanceArn"
+          },
+          "Name": {
+            "Fn::Sub": "${AWS::StackName}-origin"
+          },
+          "HTTPPort": 80,
+          "HTTPSPort": 443,
+          "OriginProtocolPolicy": "http-only",
+          "OriginSSLProtocols": [
+            "TLSv1.2"
+          ]
+        }
+      }
+    },
+    "Distribution": {
+      "Type": "AWS::CloudFront::Distribution",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Approved existing hostname uses ACM certificate; default AWS hostname remains available for diagnostics.",
+          "must": [
+            "Caching disabled for authentication and session data; forward cookies, query strings and CSRF headers."
+          ]
+        }
+      },
+      "Properties": {
+        "DistributionConfig": {
+          "Enabled": true,
+          "Comment": "SingFlow 48-hour latency trial",
+          "HttpVersion": "http2and3",
+          "IPV6Enabled": true,
+          "Origins": [
+            {
+              "Id": "app",
+              "DomainName": {
+                "Ref": "PrivateDns"
+              },
+              "VpcOriginConfig": {
+                "VpcOriginId": {
+                  "Fn::GetAtt": [
+                    "VpcOrigin",
+                    "Id"
+                  ]
+                },
+                "OriginReadTimeout": 60,
+                "OriginKeepaliveTimeout": 5
+              }
+            }
+          ],
+          "DefaultCacheBehavior": {
+            "TargetOriginId": "app",
+            "ViewerProtocolPolicy": "redirect-to-https",
+            "AllowedMethods": [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "PUT",
+              "POST",
+              "PATCH",
+              "DELETE"
+            ],
+            "CachedMethods": [
+              "GET",
+              "HEAD"
+            ],
+            "CachePolicyId": "4135ea2d-6df8-44a3-9df3-4b5a84be39ad",
+            "OriginRequestPolicyId": "216adef6-5c7f-47e4-b989-5492eafa07d3",
+            "ResponseHeadersPolicyId": "67f7725c-6f97-4210-82d7-5512b31e9d03",
+            "Compress": true
+          },
+          "ViewerCertificate": {
+            "AcmCertificateArn": {
+              "Ref": "CertificateArn"
+            },
+            "SslSupportMethod": "sni-only",
+            "MinimumProtocolVersion": "TLSv1.2_2021"
+          },
+          "Logging": {
+            "Bucket": {
+              "Fn::GetAtt": [
+                "Logs",
+                "DomainName"
+              ]
+            },
+            "IncludeCookies": false,
+            "Prefix": "access/"
+          },
+          "Aliases": [
+            {
+              "Ref": "AppDomain"
+            }
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "SingFlow"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "DomainName": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Distribution",
+          "DomainName"
+        ]
+      },
+      "Description": "AWS HTTPS hostname."
+    },
+    "DistributionId": {
+      "Value": {
+        "Ref": "Distribution"
+      },
+      "Description": "CloudFront distribution."
+    },
+    "VpcOriginId": {
+      "Value": {
+        "Fn::GetAtt": [
+          "VpcOrigin",
+          "Id"
+        ]
+      },
+      "Description": "Private origin."
+    }
+  }
+}

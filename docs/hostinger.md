@@ -1,6 +1,6 @@
 # Frontend Node.js na Hostinger
 
-O servidor `frontend/server.js` entrega o build Angular e encaminha `/api`, `/api/*` e `/actuator/health` para `BACKEND_URL`. A URL é lida ao iniciar o processo: mudar o backend não exige novo commit nem recompilação do Angular. Reiniciar a aplicação após alterar a variável. O navegador continua usando `/api` no domínio do frontend, com cookies e CSRF existentes.
+O entry point `frontend/server.js` inicializa o processo mesmo quando importado pelo carregador da Hostinger. A implementação fica em `frontend/scripts/frontend-server.mjs` e entrega o build Angular e encaminha `/api`, `/api/*` e `/actuator/health` para `BACKEND_URL`. A URL é lida ao iniciar o processo: mudar o backend não exige novo commit nem recompilação do Angular. Reiniciar a aplicação após alterar a variável. O navegador continua usando `/api` no domínio do frontend, com cookies e CSRF existentes.
 
 ## Configuração no painel
 

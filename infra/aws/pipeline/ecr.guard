@@ -1,0 +1,7 @@
+let repos = Resources.*[ Type == 'AWS::ECR::Repository' ]
+rule protected_release_repositories when %repos !empty {
+  %repos.Properties.ImageTagMutability == 'IMMUTABLE'
+  %repos.Properties.EncryptionConfiguration.EncryptionType == 'AES256'
+  %repos.DeletionPolicy == 'Retain'
+  %repos.UpdateReplacePolicy == 'Retain'
+}

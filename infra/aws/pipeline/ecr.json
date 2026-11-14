@@ -1,0 +1,119 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "SingFlow private release images - immutable versions with repository retention; no deployment or IAM changes.",
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
+    },
+    "com.aws.cloudformation.Context": {
+      "ref": [
+        {
+          "at": "README.md",
+          "has": "Approval scope, cost and rollout status",
+          "scope": "shared"
+        }
+      ]
+    }
+  },
+  "Parameters": {
+    "RepositoryPrefix": {
+      "Type": "String",
+      "Default": "singflow",
+      "AllowedPattern": "[a-z][a-z0-9-]{1,40}"
+    }
+  },
+  "Resources": {
+    "BackendRepository": {
+      "Type": "AWS::ECR::Repository",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Private versioned application artifacts; this stage does not grant publish or deployment permissions.",
+          "must": [
+            "Do not overwrite release tags or delete repositories during stack removal.",
+            "Do not expire tagged releases until active and rollback digests are protected."
+          ]
+        }
+      },
+      "Properties": {
+        "RepositoryName": {
+          "Fn::Sub": "${RepositoryPrefix}/backend"
+        },
+        "ImageTagMutability": "IMMUTABLE",
+        "EncryptionConfiguration": {
+          "EncryptionType": "AES256"
+        },
+        "LifecyclePolicy": {
+          "LifecyclePolicyText": "{\"rules\":[{\"rulePriority\":1,\"description\":\"Expire abandoned untagged uploads after seven days\",\"selection\":{\"tagStatus\":\"untagged\",\"countType\":\"sinceImagePushed\",\"countUnit\":\"days\",\"countNumber\":7},\"action\":{\"type\":\"expire\"}}]}"
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "SingFlow"
+          },
+          {
+            "Key": "Purpose",
+            "Value": "Application releases"
+          }
+        ]
+      }
+    },
+    "FrontendRepository": {
+      "Type": "AWS::ECR::Repository",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Private versioned application artifacts; this stage does not grant publish or deployment permissions.",
+          "must": [
+            "Do not overwrite release tags or delete repositories during stack removal.",
+            "Do not expire tagged releases until active and rollback digests are protected."
+          ]
+        }
+      },
+      "Properties": {
+        "RepositoryName": {
+          "Fn::Sub": "${RepositoryPrefix}/frontend"
+        },
+        "ImageTagMutability": "IMMUTABLE",
+        "EncryptionConfiguration": {
+          "EncryptionType": "AES256"
+        },
+        "LifecyclePolicy": {
+          "LifecyclePolicyText": "{\"rules\":[{\"rulePriority\":1,\"description\":\"Expire abandoned untagged uploads after seven days\",\"selection\":{\"tagStatus\":\"untagged\",\"countType\":\"sinceImagePushed\",\"countUnit\":\"days\",\"countNumber\":7},\"action\":{\"type\":\"expire\"}}]}"
+        },
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "SingFlow"
+          },
+          {
+            "Key": "Purpose",
+            "Value": "Application releases"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "BackendRepositoryUri": {
+      "Description": "Private backend image repository.",
+      "Value": {
+        "Fn::GetAtt": [
+          "BackendRepository",
+          "RepositoryUri"
+        ]
+      }
+    },
+    "FrontendRepositoryUri": {
+      "Description": "Private frontend image repository.",
+      "Value": {
+        "Fn::GetAtt": [
+          "FrontendRepository",
+          "RepositoryUri"
+        ]
+      }
+    }
+  }
+}

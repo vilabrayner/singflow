@@ -1,0 +1,40 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "SingFlow test HTTPS certificate - DNS validation preserves the current web destination until cutover.",
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
+    }
+  },
+  "Resources": {
+    "Certificate": {
+      "Type": "AWS::CertificateManager::Certificate",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "HTTPS for the approved existing hostname; DNS validation avoids interrupting the current site.",
+          "must": [
+            "Keep this certificate in us-east-1 for CloudFront."
+          ]
+        }
+      },
+      "Properties": {
+        "DomainName": "singflow.flowave.tec.br",
+        "ValidationMethod": "DNS",
+        "Tags": [
+          {
+            "Key": "Project",
+            "Value": "SingFlow"
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "CertificateArn": {
+      "Value": {
+        "Ref": "Certificate"
+      },
+      "Description": "CloudFront viewer certificate."
+    }
+  }
+}

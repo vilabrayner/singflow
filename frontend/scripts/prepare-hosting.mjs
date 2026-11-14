@@ -10,6 +10,10 @@ export function prepareHosting(frontendDirectory) {
     resolve(frontendDirectory, 'scripts/environment.mjs'),
     resolve(output, 'scripts/environment.mjs'),
   );
+  copyFileSync(
+    resolve(frontendDirectory, 'scripts/frontend-server.mjs'),
+    resolve(output, 'scripts/frontend-server.mjs'),
+  );
   writeFileSync(
     resolve(output, 'package.json'),
     JSON.stringify(

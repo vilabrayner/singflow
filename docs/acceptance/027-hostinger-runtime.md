@@ -18,3 +18,15 @@ Nenhum serviço real foi iniciado/reiniciado, nem foram alterados os arquivos .e
 ## Aceite em produção pelo responsável
 
 Seguir docs/hostinger.md: configurar preset com servidor Node e entry file, variáveis de runtime, publicar e conferir health/API, recarga das rotas, login persistente, logout, QR Code e participante no celular. Cookies reais e o comportamento do painel/proxy da Hostinger ainda exigem esse ensaio; os testes locais não substituem a validação da hospedagem.
+
+## Inicialização pela Hostinger
+
+O primeiro ensaio com processo Node identificou que a Hostinger importa o entry point e rejeita a guarda de execução direta. O entry point agora inicia incondicionalmente e delega a implementação para scripts/frontend-server.mjs. Um teste de processo separado simula importação via Node e confirma listen e entrega da SPA. Os 18 testes passaram e o build foi concluído. A correção foi preparada localmente para versionamento pelo responsável.
+
+## Publicação verificada — 13/11/2026
+
+Após autorização explícita, configurações da Hostinger alteradas para Other/server.js e publicado pacote baseado na main (f78faa42) com a correção de inicialização por importação. Deploy concluído: 01a1d6df-a527-7342-9cad-0b08947bb40c. Variáveis existentes preservadas e auto-deploy da main mantido.
+
+Verificado no domínio público: health HTTP 200/status UP; config JSON com /api; CSRF HTTP 200 sem divulgar token; auth/me HTTP 401 sem autenticação; navegação HTML em /, /anfitriao, /musico e /admin HTTP 200; arquivos do servidor HTTP 404. Login com credenciais e operação de sessão ficam para ensaio do responsável.
+
+Nenhum commit ou push foi realizado. Ao final foi observado o commit local 4af0615 (Ajuste start server), criado pelo responsável com a correção. Garantir que esse commit esteja na main antes de novo deploy automático. O agente não realizou commit ou push.
