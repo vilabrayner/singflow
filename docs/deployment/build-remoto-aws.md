@@ -1,6 +1,6 @@
 # Build remoto manual e release versionada
 
-Estado em 17/11/2026: infraestrutura autorizada e provisionada, stack `singflow-manual-build` em `CREATE_COMPLETE`. Arquivos publicados na main no commit `f4f84f70e2464bc3de3e10058dad6ff61fdaf0c6`. Duas execuções de build foram realizadas posteriormente e interrompidas pelos testes, antes da publicação. Nenhuma tag/release GitHub ou implantação foi realizada nesta etapa.
+Estado em 17/11/2026: infraestrutura autorizada e provisionada, stack `singflow-manual-build` em `CREATE_COMPLETE`. Arquivos publicados na main no commit `f4f84f70e2464bc3de3e10058dad6ff61fdaf0c6`. As duas primeiras execuções foram interrompidas pelos testes. A terceira publicou `0.1.0-beta.1` no ECR com sucesso, conforme registro abaixo. A tag/prerelease GitHub foi criada posteriormente; implantação ainda pendente, conforme registro abaixo.
 
 Projeto: `singflow-manual-build-release`; bucket privado: `singflow-manual-build-artifacts-ci8ndzpd8xii`; logs: `/aws/codebuild/singflow-manual-build-release`. Operação CloudFormation: `2b5d0170-e2cb-11f1-81e0-0a605a67e8f7`. Validação de serviço sem eventos de erro e criação concluída. A leitura do projeto confirmou fonte manual, MEDIUM, concorrência 1, timeout 45 minutos e ausência de webhook; histórico de builds vazio. A consulta CloudTrail em Ohio não retornou trails; não foi configurada retenção durável de auditoria neste incremento.
 
@@ -106,3 +106,36 @@ Após a primeira validação completa na AWS, a suíte de interface da publicaç
 - `dcfa129f-d001-479e-abac-92692b576d26`, SHA `bc55b275838b4ac783d311e3261aa25c53641870`: backend 211/211 aprovado; interface 269 aprovados, dois ignorados e uma falha no foco de menu mobile. Interface completa em 8,8 minutos. Nenhuma publicação ECR ou implantação executada.
 
 Após a revisão solicitada, o gate de interface passa a usar 30 execuções críticas. Elas passaram localmente em 1,3 minuto; o resultado real na AWS ainda será medido após commit/push. A falha de foco continua documentada e disponível na regressão completa, sem bloqueio deste gate por decisão do responsável.
+
+## Publicação confirmada — 17/11/2026
+
+Build `singflow-manual-build-release:d8e21f5b-2260-412c-b93f-a2fb2aae1a3d`, status `SUCCEEDED`, commit `e3350c3def4c30bd3c93bab2d166b50617428190`, versão `0.1.0-beta.1`. Execução de 18:57:13 a 19:04:25 (America/Recife): aproximadamente 7 min 12 s no total; preparação do executor de 123 s, fase principal de 303 s. Os 211 testes do backend e os 30 testes críticos de interface passaram. Interface em 1,7 min, contra 8,8 min na execução completa anterior; não confundir essa redução com o tempo total, que inclui dependências, preparação, imagens e envio.
+
+As imagens Linux amd64 foram confirmadas diretamente no ECR com a tag imutável `0.1.0-beta.1`:
+
+| Imagem | Digest | Tamanho comprimido |
+| --- | --- | --- |
+| backend | `sha256:53ca551631e0e7067f35ddc4ceb3708215971648f74cabfd940995d11b58de3c` | 178.232.033 bytes |
+| frontend | `sha256:a08ef8e75d909fd1db597e0d17e0c29a23aebba37dff822907166d4f423ec00e` | 29.836.615 bytes |
+
+Recibo privado no S3: `s3://singflow-manual-build-artifacts-ci8ndzpd8xii/releases/d8e21f5b-2260-412c-b93f-a2fb2aae1a3d/release.zip`. ZIP de 556 bytes, checksum SHA256 `2c372859f654400cd546ab4316431f3abc4d9bdb38cb8cbc49f076a260532d51`, conferido após download. Cópia local validada em [Recibo da versão](releases/0.1.0-beta.1.published.json). Não houve transferência local das imagens Docker; só do recibo pequeno.
+
+Estado: **publicada no ECR, não implantada**. Criar tag/prerelease GitHub e instalar na EC2 são operações seguintes, sujeitas à autorização. Usar o SHA do recibo ao criar `v0.1.0-beta.1`, mesmo que a main avance por documentação; não reconstruir outra revisão com a mesma versão imutável.
+
+## Prerelease GitHub e preparação de implantação
+
+Em 17/11/2026 foi criada e verificada a prerelease [v0.1.0-beta.1](https://github.com/vilabrayner/singflow/releases/tag/v0.1.0-beta.1), com tag no commit `e3350c3def4c30bd3c93bab2d166b50617428190` e recibo `0.1.0-beta.1.published.json` anexado. Não foi feito novo build.
+
+Consultas somente de leitura via SSM confirmaram EC2 `i-0972aeebecab607ba` ligada, três containers em execução, saúde `UP`, 25,41 GiB livres e versão ativa `d7517a724193d1f184c57bf6ca9090ddaab1f10b`. Histórico Flyway até V17, todas bem-sucedidas, e uma sessão com status `OPEN`. Comandos de consulta: `ae249890-bb4d-4289-bd50-ef420ee900bc` e `3fb9d428-1f58-4c75-81be-7d15e5db151c`.
+
+O comando da beta.1 foi preparado em `/private/tmp/singflow-deploy-0.1.0-beta.1.json`, sem executá-lo. A implantação fará backup antes da troca e aplicará V18–V21 no início do backend, incluindo a canonicalização do catálogo na V19. Rollback de imagem não desfaz essas migrations; a versão antiga pode ser incompatível com o novo schema. A execução aguarda aprovação específica, inclusive do momento de interrupção considerando a sessão aberta. Banco, volumes e configurações não serão recriados.
+
+## Implantação confirmada — 17/11/2026
+
+Após autorização específica, o comando SSM `0f8988c7-fd59-4a17-aad6-4c205a8e266f` concluiu com `Success` e código 0, entre 19:17:00 e 19:17:18 (America/Recife). Versão ativa `0.1.0-beta.1`, commit `e3350c3def4c30bd3c93bab2d166b50617428190`, usando os dois digests publicados acima. A tag/prerelease GitHub já identifica o mesmo SHA.
+
+Backup validado pelo instalador: `/opt/singflow/releases/20261117T221703Z-e3350c3def4c/database.dump`. A verificação posterior confirmou arquivo de 107.744 bytes, banco PostgreSQL saudável, configuração preservada e manifest ativo em `/opt/singflow/active-release.json`. Não houve restauração automática de banco ou uso de rollback.
+
+A consulta somente de leitura `3d6280ca-111e-4a65-8285-f643f9d7b1b3` confirmou containers em execução, labels OCI de revisão/versão e imagens por digest iguais ao recibo; histórico Flyway com V1–V21 bem-sucedidas; uma sessão `OPEN` antes e depois. Também confirmou HTTP 200 e `UP` em `/actuator/health` local e pelo domínio público, além das rotas públicas `/anfitriao`, `/musico` e `/admin` com HTTP 200 e entrada Angular. A checagem do domínio público foi feita pela EC2 via HTTPS. O navegador de pesquisa do agente não conseguiu acessar esse endpoint; isso não substituiu a verificação HTTPS efetiva pelo SSM.
+
+Estado atualizado: **publicada no ECR, prerelease GitHub criada e implantada na EC2**. O ensaio manual com login e operações reais fica com o responsável; não foram criados pedidos/convocações nem enviados e-mails de teste pelo agente. Novos logins podem ser necessários após a troca.

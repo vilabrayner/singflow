@@ -71,3 +71,7 @@ As APIs dos E2E são simuladas. A cobertura do backend usa PostgreSQL temporári
 ## Validação local desta revisão
 
 A listagem confirmou 30 execuções críticas (24 mobile e seis desktop) e 272 na completa (136 por projeto). A falha de foco está presente nos dois projetos da completa e ausente na seleção de publicação. A suíte crítica passou integralmente: **30 passed (1.3m)**, usando frontend iniciado pelo responsável na IDE e APIs simuladas. Também passaram os 19 testes de configuração, 26 testes dos scripts AWS, formatação e verificação de sintaxe do runner. Nenhum teste/migration/código de produção foi removido ou alterado nesta seleção. Não foi iniciado novo build na AWS após essa revisão; os arquivos precisam de commit/push antes da repetição. Comparar 1,3 minuto local com 8,8 minutos na AWS indica potencial de redução, mas não mede o ganho remoto definitivo.
+
+## Medição na AWS após a revisão
+
+Build `d8e21f5b-2260-412c-b93f-a2fb2aae1a3d`, commit `e3350c3`: 30 testes críticos de interface passaram em **1,7 minuto**, contra 8,8 minutos da suíte completa anterior. Backend manteve 211 testes aprovados. Build total de aproximadamente 7 min 12 s, incluindo preparação e imagens, terminou em publicação bem-sucedida das duas imagens ECR. Recibo e digests em [Build remoto](build-remoto-aws.md#publicação-confirmada--17112026). A falha de foco continua pendente na regressão completa; não foi corrigida nesta publicação.

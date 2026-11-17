@@ -1,0 +1,21 @@
+{
+  "schema": 2,
+  "account": "505828739529",
+  "region": "us-east-2",
+  "revision": "e3350c3def4c30bd3c93bab2d166b50617428190",
+  "version": "0.1.0-beta.1",
+  "tag": "0.1.0-beta.1",
+  "gitTag": "v0.1.0-beta.1",
+  "origin": "ci",
+  "builtAt": "2026-11-17T22:03:09.914763+00:00",
+  "platform": "linux/amd64",
+  "published": true,
+  "images": {
+    "backend": "505828739529.dkr.ecr.us-east-2.amazonaws.com/singflow/backend:0.1.0-beta.1",
+    "frontend": "505828739529.dkr.ecr.us-east-2.amazonaws.com/singflow/frontend:0.1.0-beta.1"
+  },
+  "digests": {
+    "backend": "505828739529.dkr.ecr.us-east-2.amazonaws.com/singflow/backend@sha256:53ca551631e0e7067f35ddc4ceb3708215971648f74cabfd940995d11b58de3c",
+    "frontend": "505828739529.dkr.ecr.us-east-2.amazonaws.com/singflow/frontend@sha256:a08ef8e75d909fd1db597e0d17e0c29a23aebba37dff822907166d4f423ec00e"
+  }
+}

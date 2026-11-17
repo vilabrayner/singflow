@@ -87,3 +87,14 @@ Se a troca falhar antes da conclusão, o script tenta voltar aos containers ante
 - Nenhum commit/push ou ativação da pipeline realizado pelo agente.
 
 O template versionável `infra/aws/pipeline/ec2-ecr-pull.json` registra a permissão autorizada para a função já existente da EC2. Não substitui o instance profile ou sua trust policy, nem remove os acessos anteriores a SSM e ao artefato inicial.
+
+## Implantação da beta.1
+
+- Data: 17/11/2026, 19:17:00–19:17:18 (Recife).
+- Versão `0.1.0-beta.1`, commit `e3350c3def4c30bd3c93bab2d166b50617428190`.
+- Comando SSM `0f8988c7-fd59-4a17-aad6-4c205a8e266f`, `Success`, código 0.
+- Backup `/opt/singflow/releases/20261117T221703Z-e3350c3def4c/database.dump`.
+- V18–V21 aplicadas; Flyway confirmou V1–V21 bem-sucedidas.
+- Backend/frontend com digests e labels de versão/revisão conferidos; saúde local e pública `UP`; sessão aberta preservada.
+- [Prerelease GitHub](https://github.com/vilabrayner/singflow/releases/tag/v0.1.0-beta.1) com recibo das imagens anexado.
+- Detalhes e verificações: [Build remoto](build-remoto-aws.md#implantação-confirmada--17112026).
