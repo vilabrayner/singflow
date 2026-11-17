@@ -1,16 +1,26 @@
 <app-panel-header>
   @if (authorized()) {
     <span class="sf-panel-context" title="Administração">Admin</span>
-    <button
-      type="button"
-      class="sf-icon-button"
-      aria-label="Sair da conta"
-      title="Sair da conta"
+    <app-menu-popover
+      buttonId="admin-options"
+      label="Opções da administração"
+      icon="fa-solid fa-user"
+      [versionFooter]="true"
       [disabled]="busy()"
-      (click)="logout()"
+      [(opened)]="headerMenu"
     >
-      <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-    </button>
+      <div class="sf-account-panel sf-panel-menu" role="menu" aria-label="Opções da administração">
+        <button
+          type="button"
+          role="menuitem"
+          class="sf-button sf-text sf-full"
+          [disabled]="busy()"
+          (click)="headerMenu.set(false); logout()"
+        >
+          <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>Sair da conta
+        </button>
+      </div>
+    </app-menu-popover>
   }
 </app-panel-header>
 <main [class.sf-host-shell]="!authorized()" aria-label="Painel administrativo">

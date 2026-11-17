@@ -4,6 +4,7 @@
       {{ selected()?.name || 'Músico' }}
     </h1>
     <app-menu-popover
+      [versionFooter]="true"
       buttonId="musician-options"
       label="Opções do músico"
       icon="fa-solid fa-user"

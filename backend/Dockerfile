@@ -7,7 +7,7 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 RUN groupadd --system singflow && useradd --system --gid singflow singflow
-COPY --from=build --chown=singflow:singflow /workspace/target/singflow-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build --chown=singflow:singflow /workspace/target/singflow-*.jar app.jar
 USER singflow
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -1,3 +1,4 @@
+import { MenuPopover } from '../../shared/components/menu-popover';
 import { PanelWorkspace } from '../../shared/components/panel-workspace';
 import { AdminCatalog } from './admin-catalog';
 import { afterNextRender, Component, inject, Injector, OnInit, signal } from '@angular/core';
@@ -32,6 +33,7 @@ interface Event {
   styleUrls: ['../../shared/styles/admin-collections.css', './admin.page.css'],
   imports: [
     PanelHeader,
+    MenuPopover,
     PanelWorkspace,
     AdminSessions,
     AdminCatalog,
@@ -63,6 +65,7 @@ export class AdminPage implements OnInit {
   private readonly fb = inject(FormBuilder).nonNullable;
   private readonly notifications = inject(Notifications);
   readonly showPassword = signal(false);
+  readonly headerMenu = signal(false);
   readonly section = signal<'accounts' | 'sessions' | 'catalog'>('accounts');
   readonly navigationItems = [
     { value: 'accounts', label: 'Cadastros', icon: 'fa-solid fa-users' },

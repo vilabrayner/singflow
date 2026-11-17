@@ -971,3 +971,26 @@
   max-height: none;
   overflow: visible;
 }
+
+/* Header menus scroll their content while the shared release footer remains visible. */
+.sf-header-menu {
+  display: flex;
+  flex-direction: column;
+  width: min(360px, calc(100vw - 40px));
+  max-height: calc(100dvh - 100px);
+  overflow: hidden;
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  box-shadow: 0 12px 32px #0b1e3f18;
+  background: var(--sf-surface);
+}
+.sf-header-menu > .sf-account-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overscroll-behavior: contain;
+}

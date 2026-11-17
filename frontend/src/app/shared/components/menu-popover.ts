@@ -1,3 +1,4 @@
+import { VersionFooter } from './version-footer';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import {
   CdkConnectedOverlay,
@@ -9,7 +10,7 @@ import { Component, inject, input, model } from '@angular/core';
 
 @Component({
   selector: 'app-menu-popover',
-  imports: [CdkConnectedOverlay, CdkOverlayOrigin, CdkTrapFocus],
+  imports: [CdkConnectedOverlay, CdkOverlayOrigin, CdkTrapFocus, VersionFooter],
   template: `
     <button
       cdkOverlayOrigin
@@ -39,8 +40,16 @@ import { Component, inject, input, model } from '@angular/core';
       (backdropClick)="close()"
       (overlayKeydown)="keydown($event)"
     >
-      <div cdkTrapFocus [cdkTrapFocusAutoCapture]="true" [id]="buttonId() + '-menu'">
+      <div
+        cdkTrapFocus
+        [cdkTrapFocusAutoCapture]="true"
+        [id]="buttonId() + '-menu'"
+        [class.sf-header-menu]="versionFooter()"
+      >
         <ng-content />
+        @if (versionFooter()) {
+          <app-version-footer />
+        }
       </div>
     </ng-template>
   `,
@@ -49,6 +58,7 @@ export class MenuPopover {
   readonly buttonId = input.required<string>();
   readonly label = input.required<string>();
   readonly disabled = input(false);
+  readonly versionFooter = input(false);
   readonly icon = input('fa-solid fa-bars');
   readonly opened = model(false);
   readonly scrollStrategy = inject(Overlay).scrollStrategies.block();

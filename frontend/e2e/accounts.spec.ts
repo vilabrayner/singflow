@@ -285,7 +285,7 @@ test('field validation stays next to inputs while delivery failures use a form a
   await expect(page.locator('form .registration-form-error')).toBeVisible();
 });
 
-test('admin login and the direct logout button reveal each page below the fixed header', async ({
+test('admin login and header menu logout reveal each page below the fixed header', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 500 });
@@ -338,7 +338,8 @@ test('admin login and the direct logout button reveal each page below the fixed 
   });
   await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(200);
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
-  await page.getByRole('button', { name: 'Sair da conta', exact: true }).click();
+  await page.getByRole('button', { name: 'Opções da administração', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Sair da conta', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Entrar como administrador', exact: true }),
   ).toBeVisible();

@@ -83,7 +83,7 @@ Sessões encerradas permanecem em modal dentro do seletor. Sem sessão aberta, m
 
 ### Administração
 
-Dock: Cadastros, Sessões e Catálogo. Header mantém a marca, contexto Admin e botão direto de sair. A rota administrativa continua fora dos menus públicos. Consultas e decisões permanecem nos diálogos existentes; catálogo e sessões são carregados na primeira visita, preservando filtros ao alternar abas. Logout limpa as instâncias e seus dados.
+Dock: Cadastros, Sessões e Catálogo. Header mantém a marca, contexto Admin e menu Opções da administração com Sair da conta e rodapé de versão. A rota administrativa continua fora dos menus públicos. Consultas e decisões permanecem nos diálogos existentes; catálogo e sessões são carregados na primeira visita, preservando filtros ao alternar abas. Logout limpa as instâncias e seus dados.
 
 Listas de cadastros, sessões e sincronização usam painéis com borda, raio de 12px e faixa cinza estática para o ícone, sem grip. O catálogo segue a lista musical do participante, sem faixa lateral. Confirmações, auditoria e controle de versão continuam preservados. Ao sair da aba Catálogo com sincronização pendente, destruir somente a tela de sincronização e manter o aviso de revisão; o processamento persistente não é cancelado.
 
@@ -249,3 +249,21 @@ participante preserva sua configuração atual de badge.
 Validação: build frontend concluído; dez testes de tons e padronização passaram
 em desktop e mobile com API simulada, incluindo posição da badge, botão à direita,
 permissões e gravação em sessão anterior. Não houve alteração de backend.
+
+
+## Versão no menu do header
+
+Os menus autenticados do header de anfitrião, participante, músico e admin usam
+`MenuPopover` com `versionFooter=true`. O contêiner compartilha borda, fundo e
+limite de altura; o conteúdo rola separadamente e `VersionFooter` permanece no
+rodapé. Menus de cards/modais não recebem esse rodapé.
+
+Exibir `Versão 0.1.0-beta.1` como texto discreto, sem ação, foco ou papel de item
+de menu. O componente lê a versão do `frontend/package.json` no build; não obter
+a versão por configuração mutável ou nova consulta HTTP. O header mantém sua
+altura atual. Admin utiliza menu de conta para abrigar a saída e o rodapé comum.
+
+Manter a mesma versão no package-lock e no `backend/pom.xml`; o teste
+`frontend/scripts/version.test.mjs`, incluído em `npm run test:config`, confere a
+coerência desses metadados. A criação de tag/release, as tags de imagens e a
+publicação serão tratadas na etapa de release, sem serem disparadas pelo build.
