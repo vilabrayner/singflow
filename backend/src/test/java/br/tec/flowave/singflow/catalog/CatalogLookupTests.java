@@ -25,7 +25,22 @@ class CatalogLookupTests {
         null,
         0,
         Instant.now(),
-        Instant.now());
+        Instant.now(),null);
+  }
+
+  @Test
+  void adminSearchPreservesOriginalKeyForTheDetailsForm() {
+    var song = new CatalogService.Song(UUID.randomUUID(), "Equalize", "Pitty",
+        "APPROVED", "ADMIN", null, 3, Instant.now(), Instant.now(), "Bm");
+    when(catalog.clean("Equ", false)).thenReturn("Equ");
+    when(catalog.list("admin", "Equ", "", 0, 10))
+        .thenReturn(new CatalogService.Page(List.of(song), 1, 0, 10));
+    var result = lookup.adminSearch("admin", "Equ", "", "catalog", 0);
+    assertThat(result.items()).singleElement().satisfies(item -> {
+      assertThat(item.id()).isEqualTo(song.id());
+      assertThat(item.version()).isEqualTo(3);
+      assertThat(item.originalKey()).isEqualTo("Bm");
+    });
   }
 
   @Test

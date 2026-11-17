@@ -5,12 +5,3 @@
 .sf-password-field input {
   width: 100%;
 }
-.admin-sections {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 20px;
-}
-.admin-sections .sf-button {
-  padding: 12px 8px;
-}

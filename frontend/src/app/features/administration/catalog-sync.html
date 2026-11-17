@@ -1,15 +1,17 @@
 <app-surface-card labelledBy="catalog-sync-title">
   <div class="admin-card-heading">
     <div class="sync-heading">
-      <button
-        type="button"
-        class="sf-icon-button"
-        aria-label="Voltar ao catálogo"
-        [disabled]="busy()"
-        (click)="closed.emit()"
-      >
-        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
-      </button>
+      @if (!embedded()) {
+        <button
+          type="button"
+          class="sf-icon-button"
+          aria-label="Voltar ao catálogo"
+          [disabled]="busy()"
+          (click)="closed.emit()"
+        >
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+        </button>
+      }
       <h1 id="catalog-sync-title" tabindex="-1">Sincronizar provisórias</h1>
     </div>
     <button
@@ -28,29 +30,11 @@
   @if (error() && !starting()) {
     <p role="alert" class="sf-dialog-error">{{ error() }}</p>
   }
-  @if (runs().length > 1) {
-    <label class="host-form" for="sync-run"
-      >Lote de sincronização<select
-        id="sync-run"
-        class="admin-select"
-        [value]="runId()"
-        (change)="selectRun($any($event.target).value)"
-        [disabled]="busy()"
-      >
-        @for (run of runs(); track run.id) {
-          <option [value]="run.id">
-            {{ run.createdAt | date: 'dd/MM HH:mm' }} · {{ status(run.status) }}
-          </option>
-        }
-      </select></label
-    >
-    <p class="sync-help">Últimos 20 lotes.</p>
-  }
   <div class="sync-controls">
     <button
       type="button"
       class="sf-button sf-primary sf-full"
-      [disabled]="active() || busy() || loading()"
+      [disabled]="!!progress() || active() || busy() || loading()"
       (click)="askStart()"
     >
       <i class="fa-solid fa-rotate" aria-hidden="true"></i>Iniciar sincronização
@@ -130,34 +114,10 @@
     @if (progress.run.status === 'COMPLETED') {
       <p>As consultas terminaram. As músicas abaixo podem continuar aguardando sua revisão.</p>
     }
-    <div class="sync-tabs" aria-label="Resultados da sincronização">
-      <button
-        type="button"
-        class="sf-button"
-        [class.sf-primary]="view() === 'activity'"
-        [class.sf-outline]="view() !== 'activity'"
-        [attr.aria-pressed]="view() === 'activity'"
-        [disabled]="busy()"
-        (click)="setView('activity')"
-      >
-        Atividade</button
-      ><button
-        type="button"
-        class="sf-button"
-        [class.sf-primary]="view() === 'review'"
-        [class.sf-outline]="view() !== 'review'"
-        [attr.aria-pressed]="view() === 'review'"
-        [disabled]="busy()"
-        (click)="setView('review')"
-      >
-        Precisam de revisão
-      </button>
-    </div>
+    <h2 class="sf-subtitle">Precisam de interação</h2>
     <ul
       class="sf-people-list"
-      [attr.aria-label]="
-        view() === 'activity' ? 'Atividade da sincronização' : 'Músicas para revisão'
-      "
+      [attr.aria-label]="'Músicas para revisão'"
       [attr.aria-busy]="loading()"
     >
       @for (item of rows(); track item.id) {
@@ -224,7 +184,6 @@
       </div>
     }
   } @else if (loading()) {
-    <p role="status">Carregando sincronização…</p>
   } @else {
     <div class="admin-empty-state">
       <span class="sf-card-icon" aria-hidden="true"><i class="fa-solid fa-rotate"></i></span>

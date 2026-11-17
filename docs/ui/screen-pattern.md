@@ -1,6 +1,6 @@
 # Padrão atual de telas do SingFlow
 
-Referência em 13/11/2026. A UI do anfitrião foi aceita pelo responsável; o participante foi adaptado a esse padrão neste incremento. Este documento orienta mudanças futuras e prevalece sobre os desenhos exploratórios antigos quando houver divergência de layout. Regras de negócio continuam nas respectivas especificações.
+Referência atualizada em 14/11/2026. A UI do anfitrião foi aceita pelo responsável; o participante foi adaptado a esse padrão neste incremento. Este documento orienta mudanças futuras e prevalece sobre os desenhos exploratórios antigos quando houver divergência de layout. Regras de negócio continuam nas respectivas especificações.
 
 ## Identidade e componentes
 
@@ -77,7 +77,17 @@ Uma nova convocação leva a Pedidos e mostra o aviso central. Se a pessoa naveg
 
 ### Músico
 
-Ainda possui seu fluxo existente. Uma adaptação futura deve reutilizar este padrão, respeitando o acesso próprio e a consulta sem permissões de gestão do anfitrião. Este documento não autoriza essa etapa automaticamente.
+Dock: Palco, Fila e Histórico. O header mostra a sessão aberta e o menu da conta, com atualização, escolha de sessão e saída separada. Não repetir o card de sessão em cada aba. Palco concentra a convocação e a próxima sugestão; Fila mantém a lista completa pesquisável, com posição original mesmo ao filtrar; Histórico usa o componente compartilhado de itens, sem horários.
+
+Sessões encerradas permanecem em modal dentro do seletor. Sem sessão aberta, mostrar o card centralizado de espera, sem dock. Encerramento ou revogação elimina os dados atuais e volta à espera; troca de sessão reinicia aba, busca e rolagem. O músico não pode convocar, pausar ou concluir. A exceção à consulta é registrar o tom efetivamente cantado em apresentações em andamento ou concluídas das sessões às quais continua vinculado.
+
+### Administração
+
+Dock: Cadastros, Sessões e Catálogo. Header mantém a marca, contexto Admin e botão direto de sair. A rota administrativa continua fora dos menus públicos. Consultas e decisões permanecem nos diálogos existentes; catálogo e sessões são carregados na primeira visita, preservando filtros ao alternar abas. Logout limpa as instâncias e seus dados.
+
+Listas de cadastros, sessões e sincronização usam painéis com borda, raio de 12px e faixa cinza estática para o ícone, sem grip. O catálogo segue a lista musical do participante, sem faixa lateral. Confirmações, auditoria e controle de versão continuam preservados. Ao sair da aba Catálogo com sincronização pendente, destruir somente a tela de sincronização e manter o aviso de revisão; o processamento persistente não é cancelado.
+
+Músico e admin reutilizam `PanelWorkspace` para o ScrollArea e dock. O componente preserva rolagem por aba, mede a altura real da navegação e reinicia posições quando muda a chave de contexto. `StageQueue` e `StageHistory` compartilham a apresentação de consulta. Somente o viewport central rola; a página permanece parada.
 
 ## Feedback, concorrência e validação
 
@@ -94,3 +104,148 @@ Não abrir o teclado virtual nem selecionar opções automaticamente ao abrir um
 Exceção ao ScrollArea do anfitrião: enquanto o cadastro de participante estiver aberto em dispositivo de toque, usar fluxo natural do documento, sem ancestral fixo envolvendo os campos. Header e dock permanecem fixos; ao sair do cadastro, as abas retomam a rolagem interna. Essa exceção reduz a exposição a deslocamentos de toque do WebKit após fechar o teclado. Emulação não substitui teste físico no Safari.
 
 Ao concluir o cadastro assistido com sucesso, abrir a aba Fila, retirar o foco dos campos e restaurar a rolagem do painel no topo. A navegação de conclusão não deve ser rejeitada pelo bloqueio temporário de atualização dos dados. Falhas mantêm o formulário e o identificador da operação para reenvio.
+
+## Catálogo administrativo com abas — 15/11/2026
+
+O catálogo do admin reutiliza a classe `sf-catalog-card` do participante: card na altura disponível, abas no topo com ícones `fa-book` (Catálogo) e `fa-rotate` (Sincronizar), contorno roxo na seleção e cantos superiores externos arredondados. O título do card fica disponível para leitores de tela, sem repetir o texto visualmente.
+
+A busca e a barra de gestão ficam fixas na faixa branca. Somente a lista do Catálogo rola no ScrollArea cinza, com sombras internas acima dos itens e sem interceptar toques. O admin mantém todas as situações, filtros e ações de cadastro/edição/aprovação/rejeição/unificação/histórico. A lista carrega dez itens por vez, com “Carregar mais” ao final; falhas preservam os resultados já carregados. Cada item mostra título e artista, com botões de informação e exclusão à direita. A situação aparece somente no diálogo de informação. A exclusão exige confirmação e é bloqueada por qualquer associação de uso, inclusive pedidos cancelados, apresentações, sincronizações e unificações. A auditoria permanece preservada. Não usar a API pública do participante para gestão administrativa.
+
+A pesquisa administrativa é automática a partir de três caracteres, com espera de 400 ms após a digitação. Consulta primeiro o catálogo e complementa com a Internet via backend. Selecionar o botão de adição de um resultado Last.fm cadastra a música automaticamente usando a seleção comprovada pelo backend; reenvios reutilizam a mesma operação. Resultados já locais continuam com informação e exclusão.
+
+Sincronizar integra o processamento existente em outra aba, com ScrollArea próprio. Exibir somente itens que precisam de intervenção; aprovados automaticamente ou já resolvidos não entram nessa lista. Quando não restar nenhuma provisória do lote, mostrar “Sincronização finalizada com sucesso” e limpar a área para uma nova sincronização, permanecendo na aba. Limpar a tela nunca apaga o histórico persistente. Voltar ao Catálogo preserva os filtros; sair com pendências preserva o warn e não cancela o processamento. O dock administrativo permanece Cadastros/Sessões/Catálogo. Esta atualização de 16/11/2026 substitui o retorno automático ao Catálogo descrito no aceite 029.
+
+
+## Configuração musical — 16/11/2026
+
+Nos pedidos do participante, o SpeedDial mantém Trocar e habilita Configurar. O diálogo Configurar música mostra título, tom original (ou Não informado) e o campo Mudar tom: padrão zero, digitação inteira e dois botões de 48px com carets para diminuir/aumentar um semitom. Limites -24 a +24; validação junto do campo e erro de gravação no diálogo. Salvar/Voltar seguem o espaçamento padrão. Não focar automaticamente o input em dispositivos de toque. Só pedidos pendentes de participante ativo em sessão aberta podem ser configurados.
+
+O painel do músico mostra Tom: Original, Tom: D (Original), Tom: +1, Tom: -2 ou Tom: C conforme a existência de original e a transposição. Não acrescentar “semitons” ao valor exibido nessa linha. O tom efetivamente cantado aparece em linha separada, preenchido no diálogo Tom cantado por músico vinculado, pelo palco ou histórico. Histórico de sessões anteriores mantém o fluxo dentro das modais e usa o ID da sessão consultada.
+
+Admin cadastra o tom original no formulário de música. Catálogo, pedidos e histórico mostram sempre título/artista atuais do catálogo; unificadas não aparecem na pesquisa nem nos filtros. A unificação transfere os vínculos e remove o cadastro absorvido, preservando a auditoria. Detalhes técnicos em [ADR 005](../decisions/005-canonical-music-and-performance-keys.md).
+
+
+### Referências de cifra
+
+Usar `ChordActions` nos itens do palco/fila do músico: ícone `cifra-club-icon.png` (palheta preta com recortes transparentes) para abrir a referência efetiva e botão de busca para escolher a versão pessoal. Preservar rótulos acessíveis e a área de toque do botão compartilhado. `ChordLinkDialog` usa a modal comum, lista de sugestões, link manual e confirmação explícita, distinguindo “Cifra oficial” (admin) de “Minha cifra” (músico). A sugestão principal pré-selecionada não representa vínculo salvo. Alternativas de unificação exigem escolha explícita.
+
+
+### Streaming
+
+Usar `StreamingSearch` para pesquisar/confirmar a referência administrativa e `StreamingActions` para abrir links no painel do músico. O JSON fornece `type`, `label` e `icon`; o registro de apresentação valida a combinação e escolhe Font Awesome Brands (`spotify`/`fa-spotify`, `deezer`/`fa-deezer`). Apenas provedores instalados aparecem no seletor. A modal mantém erro visível, consulta sem persistência automática, álbum/duração para distinguir versões, link manual e ações com espaçamento compartilhado. Adicionar plataforma não exige copiar a modal.
+
+
+YouTube usa o mesmo seletor/modal de streaming com `type=youtube` e `fa-youtube`; resultados mostram título e canal. O canal é o publicador do vídeo, sem alterar o artista do catálogo. Os ícones das plataformas com links salvos coexistem no palco/fila do músico. Abrir o vídeo faz navegação externa; não há player incorporado.
+
+
+### Letra durante a apresentação
+
+`ParticipantLyrics` é um componente do card de status, exibido após aceite da convocação, mantendo os três cards do participante. Texto interpolado (sem HTML), fonte de 20 px, quebras preservadas e rolagem interna do painel. Exibir carregamento, falta de artista, letra não encontrada, instrumental ou falha com tentativa manual. A conclusão da convocação remove a letra e descarta qualquer resposta pendente. Não há rolagem ou sincronização automática nesta prova de conceito.
+
+
+### Sugestões de recursos preparadas
+
+As modais de cifra oficial e streaming consultam primeiro o enriquecimento persistido. Mostrar o estado de preparação e reaproveitar a mesma lista/seleção já existente; Atualizar sugestões preparadas atualiza apenas o banco. A pesquisa manual continua explícita e disponível. Preparação pendente não deve ser apresentada como “nenhum resultado”. Sugestões não equivalem a referências oficiais; o botão de salvar mantém a confirmação do admin. O fluxo pessoal do músico permanece separado.
+
+
+## Edição administrativa de música em abas
+
+A modal reúne Dados, Cifra, Spotify e YouTube usando TabsModule do PrimeNG e o
+estilo compartilhado `sf-song-tabs`, com ScrollArea sombreado e estrutura fullscreen
+com bordas visíveis do `ConfirmationDialog`. Apenas a região central rola; o
+cabeçalho, a navegação e o rodapé permanecem fixos. Divisórias internas retas e
+arredondamento apenas nas duas extremidades superiores.
+
+Cada aba contém somente um ícone centralizado de 20 × 20 px e um rótulo acessível.
+O símbolo CifraClub usa máscara CSS `currentColor` para seguir a cor do tema.
+Evitar parágrafos redundantes quando os rótulos dos campos explicam a interação.
+
+O rodapé contém apenas Salvar e Fechar. O frontend mantém um rascunho único de
+metadados e links, preservado ao alternar abas. O backend recebe esse conjunto em
+uma transação, sem consultar provedores externos. Erro ou conflito mantém o
+rascunho; fechar descarta. Links não visitados permanecem preservados.
+
+Reutilizar `ReferenceLinkInput` nos editores: x limpa o rascunho, e
+`fa-up-right-from-square` abre o destino validado em uma nova aba. Não remover
+referências imediatamente nem expor botões de remoção adicionais no rodapé.
+Os editores compartilhados continuam disponíveis de forma independente para o
+músico; o modo embutido emite rascunhos e solicita salvamento ao editor pai.
+
+Ao abrir os detalhes de uma música, consultar uma única vez
+`GET /api/admin/catalog/songs/{id}/details`: dados atuais, versão, cifra oficial e
+links/metadados dos provedores instalados. Essa leitura usa uma transação somente
+de leitura com snapshot consistente e não chama provedores externos. Não ampliar
+a listagem inteira do catálogo com dados necessários apenas ao editor.
+
+A aba Dados abre primeiro. Montar as demais somente na primeira visita e manter
+suas instâncias enquanto a modal estiver aberta, usando os dados iniciais como
+entrada. Alternar abas não dispara GETs nem loading e preserva campos, resultados,
+paginação e seleção. Cada instância de streaming precisa de IDs de campos e grupo
+de radios próprios; os rótulos devem apontar para o input da plataforma correta.
+
+Sem referência nem rascunho, a primeira visita pode consultar sugestões preparadas
+e, quando necessário, buscar no provedor. Pesquisar, carregar mais e atualizar
+sugestões continuam ações explícitas. Evitar consultas externas ao abrir vínculos
+existentes ou retornar a rascunhos. Fechar descarta o estado em memória; reabrir
+consulta novamente os dados completos e a versão atual. O salvamento atômico e a
+proteção de conflito de versão permanecem obrigatórios.
+
+
+## Carregamento de tela inteira
+
+Usar uma única instância de `LoadingRegion`, montada no app root, com BlockUI em
+modo documento e ProgressSpinner. Não envolver cards, listas, formulários ou
+ScrollAreas em componentes de loading nem alterar seus contêineres, altura,
+posição, foco ou rolagem. O host do indicador usa `display: contents`.
+
+`ApplicationLoading` controla operações simultâneas por contagem. Exibir a máscara
+imediatamente e manter por pelo menos 300 ms; ocultar somente depois de terminarem
+todas as operações bloqueantes. Esse mínimo é visual e não atrasa as APIs.
+O `ApiClient` encerra cada operação em `finally`, inclusive após erro, timeout ou
+cancelamento. CSRF e POST compartilham uma operação para evitar piscadas entre eles.
+Fluxos que também renderizam QR Code mantêm a operação até a imagem estar pronta.
+
+As consultas automáticas usam `{ background: true }`. Autocomplete e pesquisas
+incrementais por digitação usam `{ blocking: false }`, inclusive no catálogo do
+admin: o campo deve continuar editável durante a espera. A carga inicial do
+catálogo e salvamentos seguem bloqueantes. Não adicionar chamadas externas para
+controlar a apresentação do loading.
+
+Para consultas descartáveis (letra e referências), fornecer `signal` ao GET e
+abortar ao destruir o editor. Respostas antigas continuam protegidas por geração.
+A máscara libera o contador ao cancelar, sem cancelar gravações já autorizadas.
+Preservar rótulos acessíveis e foco de validação. Enquanto há requisição bloqueante,
+impedir ativação por teclado; o mínimo visual não deve roubar o foco programático.
+
+
+## Resgate do acesso do participante
+
+O QR Code individual fica disponível ao anfitrião para participantes inscritos
+pelo celular (`SELF`) ou pelo anfitrião (`ASSISTED`), na lista e no menu dos
+detalhes. Exibir apenas com sessão aberta e participante sem saída registrada.
+A origem permanece inalterada; o selo de inscrição assistida continua exclusivo
+para essa origem.
+
+Se já houver acesso vinculado, exibir **Gerar QR Code de recuperação** como botão
+primário diretamente na modal de acesso, sem menu intermediário. Esse fluxo atende mudança de endereço/IP, perda do acesso ou
+troca de aparelho. O convite tem cinco minutos e uso único. Emitir o QR não
+revoga o acesso atual; a confirmação do vínculo substitui o acesso anterior,
+preservando identidade, chegada, pedidos, histórico e convocação. O anfitrião
+confere quem receberá o convite; não criar outro participante para recuperar o
+existente. O link usa `SINGFLOW_PUBLIC_APP_URL`, que precisa corresponder ao
+endereço acessível aos celulares.
+
+
+## Histórico do músico
+
+No painel do músico, o histórico usa `HistoryItem` com `statusBelow=true`: nome,
+música/artista e tom permanecem na coluna principal, seguidos da badge de status
+no rodapé. A ação de registrar o tom cantado ocupa a coluna direita, com botão
+`sf-icon-button`, ícone `fa-sliders` e nome acessível incluindo o participante.
+Manter a área de toque de pelo menos 44 px e a mesma modal de registro de tom.
+O comportamento também vale para sessões anteriores. Histórico do anfitrião e
+participante preserva sua configuração atual de badge.
+
+Validação: build frontend concluído; dez testes de tons e padronização passaram
+em desktop e mobile com API simulada, incluindo posição da badge, botão à direita,
+permissões e gravação em sessão anterior. Não houve alteração de backend.

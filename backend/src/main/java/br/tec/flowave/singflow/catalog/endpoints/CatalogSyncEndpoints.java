@@ -61,6 +61,9 @@ class CatalogSyncEndpoints {
           "Configure LASTFM_API_KEY no backend para consultar o Last.fm.");
   }
 
+  @GetMapping("/workspace")
+  CatalogSync.Workspace workspace(Principal actor) { return sync.workspace(actor.getName()); }
+
   @GetMapping("/runs")
   List<CatalogSync.Run> runs(Principal actor) {
     return sync.runs(actor.getName());

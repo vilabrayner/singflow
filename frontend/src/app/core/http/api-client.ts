@@ -1,32 +1,53 @@
+import { ApplicationLoading } from '../../shared/application-loading';
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom, timeout } from 'rxjs';
+import { firstValueFrom, timeout, takeUntil, fromEvent, NEVER } from 'rxjs';
 import { RUNTIME_CONFIG } from '../config/runtime-config.token';
 
 @Injectable({ providedIn: 'root' })
 export class ApiClient {
   private readonly http = inject(HttpClient);
+  private readonly loading = inject(ApplicationLoading);
   private readonly config = inject(RUNTIME_CONFIG);
   private url(path: string): string {
     return `${this.config.apiBaseUrl === '/' ? '' : this.config.apiBaseUrl}${path}`;
   }
-  get<T>(path: string): Promise<T> {
-    return firstValueFrom(this.http.get<T>(this.url(path)).pipe(timeout(15000)));
+  get<T>(
+    path: string,
+    options: { background?: boolean; blocking?: boolean; signal?: AbortSignal } = {},
+  ): Promise<T> {
+    return this.loading.track(
+      () => {
+        if (options.signal?.aborted)
+          return Promise.reject(new DOMException('Aborted', 'AbortError'));
+        return firstValueFrom(
+          this.http
+            .get<T>(this.url(path))
+            .pipe(
+              timeout(15000),
+              takeUntil(options.signal ? fromEvent(options.signal, 'abort') : NEVER),
+            ),
+        );
+      },
+      options.background || options.blocking === false,
+    );
   }
   async post<T>(
     path: string,
     body: unknown = {},
     headers: Record<string, string> = {},
   ): Promise<T> {
-    // Fetch the current token for every mutation, including after login/logout rotation.
-    const csrf = await this.get<{ token: string; headerName: string }>('/auth/csrf');
-    return firstValueFrom(
-      this.http
-        .post<T>(this.url(path), body, {
-          headers: { ...headers, [csrf.headerName]: csrf.token },
-        })
-        .pipe(timeout(15000)),
-    );
+    return this.loading.track(async () => {
+      // One foreground operation includes CSRF and the mutation, without a gap between masks.
+      const csrf = await this.get<{ token: string; headerName: string }>('/auth/csrf', {
+        background: true,
+      });
+      return firstValueFrom(
+        this.http
+          .post<T>(this.url(path), body, { headers: { ...headers, [csrf.headerName]: csrf.token } })
+          .pipe(timeout(15000)),
+      );
+    });
   }
 }
 

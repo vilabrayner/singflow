@@ -153,7 +153,7 @@
     <p role="alert" class="host-error">{{ error() }}</p>
   }
   @if (!ready()) {
-    <div class="sf-centered-state"><p role="status">Carregando seu acesso…</p></div>
+    <div class="sf-centered-state"></div>
   } @else if (!email()) {
     <div class="sf-centered-state">
       <app-surface-card labelledBy="host-login-title">
@@ -315,7 +315,7 @@
             <app-session-musicians
               [session]="session.id"
               [embedded]="true"
-              (working)="participantBusy.set($event)"
+              (working)="childWorking('participants', $event)"
             />
           } @else {
             <app-surface-card labelledBy="closed-musicians-title"
@@ -336,8 +336,8 @@
           [active]="activeTab() === 'participants'"
           [disabled]="busy() || stageBusy()"
           (directoryRequested)="changeTab('participants')"
-          (changed)="refresh()"
-          (working)="participantBusy.set($event)"
+          (changed)="refresh(true)"
+          (working)="childWorking('participants', $event)"
           (registeringChange)="registeringParticipant.set($event)"
           (registered)="participantRegistered()"
         />
@@ -385,10 +385,10 @@
               [open]="session.status === 'OPEN'"
               [disabled]="busy() || participantBusy()"
               [revision]="stageRevision()"
-              (changed)="refresh()"
+              (changed)="refresh(true)"
               (personSelected)="workspace.showPerson($event)"
               (entryRequested)="queueEntry.open()"
-              (working)="stageBusy.set($event)"
+              (working)="childWorking('stage', $event)"
             />
           }
         }

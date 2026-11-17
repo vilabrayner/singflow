@@ -1,6 +1,8 @@
 package br.tec.flowave.singflow.musicians;
 
 import br.tec.flowave.singflow.audit.AuditTrail;
+import br.tec.flowave.singflow.catalog.CifraResources;
+import br.tec.flowave.singflow.catalog.StreamingResources;
 import br.tec.flowave.singflow.identity.AccountAccess;
 import br.tec.flowave.singflow.sessions.SessionAccess;
 import br.tec.flowave.singflow.stage.StageService;
@@ -15,25 +17,28 @@ import org.springframework.web.server.ResponseStatusException;
 public class MusicianAccess {
   public record Member(UUID id, String name, boolean enabled) {}
 
-  public record PerformanceView(SessionAccess.SessionView session, StageService.StageView stage) {}
+  public record PerformanceView(SessionAccess.SessionView session, StageService.StageView stage,Map<UUID,CifraResources.Link> chords,Map<UUID,List<StreamingResources.Link>> streaming) {}
 
   private final JdbcClient jdbc;
   private final AccountAccess accounts;
   private final SessionAccess sessions;
   private final StageService stage;
   private final AuditTrail audit;
+  private final CifraResources chords;
+  private final StreamingResources streaming;
 
   public MusicianAccess(
       JdbcClient jdbc,
       AccountAccess accounts,
       SessionAccess sessions,
       StageService stage,
-      AuditTrail audit) {
+      AuditTrail audit,CifraResources chords,StreamingResources streaming) {
     this.jdbc = jdbc;
     this.accounts = accounts;
     this.sessions = sessions;
     this.stage = stage;
     this.audit = audit;
+    this.chords=chords; this.streaming=streaming;
   }
 
   @Transactional
@@ -149,6 +154,29 @@ public class MusicianAccess {
     if (!(host && context.owner().equals(actor)) && !assigned(session, actor))
       throw new ResponseStatusException(
           HttpStatus.NOT_FOUND, "Sessão indisponível para este músico.");
-    return new PerformanceView(context.session(), stage.snapshot(session, context.owner()));
+    return new PerformanceView(context.session(), stage.snapshot(session, context.owner()),chords.session(session,actor),streaming.session(session));
   }
+  @Transactional
+  public PerformanceView recordKey(UUID session,String actor,UUID call,long version,String key) {
+    accounts.requireMusician(actor);
+    var context=sessions.lockAudienceContext(session,false);
+    if(!assigned(session,actor)) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Sessão indisponível para este músico.");
+    stage.recordPerformedKey(session,context.owner(),actor,call,version,key);
+    return new PerformanceView(context.session(),stage.snapshot(session,context.owner()),chords.session(session,actor),streaming.session(session));
+  }
+
+  @Transactional
+  public CifraResources.Link chordContext(UUID session,String actor,UUID song) {
+    accounts.requireMusician(actor);
+    sessions.lockAudienceContext(session,false);
+    if(!assigned(session,actor) || !jdbc.sql("SELECT EXISTS(SELECT 1 FROM singflow.song_requests WHERE session_id=:session AND catalog_song_id=:song) OR EXISTS(SELECT 1 FROM singflow.stage_calls WHERE session_id=:session AND catalog_song_id=:song)").param("session",session).param("song",song).query(Boolean.class).single())
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Música indisponível para este músico nesta sessão.");
+    return chords.get(song,actor);
+  }
+  @Transactional
+  public CifraResources.Link saveChord(UUID session,String actor,UUID song,long version,String url) {
+    chordContext(session,actor,song);
+    return chords.personal(actor,song,version,url);
+  }
+
 }

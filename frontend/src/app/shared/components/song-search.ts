@@ -43,6 +43,13 @@ let nextId = 0;
       emptyMessage="Nenhuma música encontrada. Use o texto digitado."
       [pt]="{ pcInputText: { root: { 'aria-describedby': id + '-help' } } }"
     >
+      <ng-template #empty
+        ><div class="sf-loading-placeholder">
+          @if (!searching()) {
+            Nenhuma música encontrada. Use o texto digitado.
+          }
+        </div></ng-template
+      >
       <ng-template #item let-song>
         <div>
           <span>{{ song.label }}</span>
@@ -85,6 +92,7 @@ export class SongSearch implements OnInit {
   readonly locked = input(false);
   readonly id = `song-search-${++nextId}`;
   readonly value = signal<string | Song>('');
+  readonly searching = signal(false);
   readonly suggestions = signal<Song[]>([]);
   readonly message = signal(
     'Digite 3 caracteres para buscar ou informe uma música em texto livre.',
@@ -113,6 +121,7 @@ export class SongSearch implements OnInit {
   }
 
   change(value: string | Song | null) {
+    this.searching.set(false);
     this.revision++;
     this.value.set(value ?? '');
     this.suggestions.set([]);
@@ -130,9 +139,12 @@ export class SongSearch implements OnInit {
     const text = query.trim();
     if (text.length < 3 || this.locked()) {
       this.suggestions.set([]);
+      this.searching.set(false);
       return;
     }
-    this.message.set('Buscando músicas…');
+    this.searching.set(true);
+    this.suggestions.set([]);
+    this.message.set('');
     try {
       const songs = await this.api.get<
         {
@@ -142,7 +154,7 @@ export class SongSearch implements OnInit {
           selectionToken?: string | null;
           source?: string;
         }[]
-      >(`/public/songs/search?q=${encodeURIComponent(text)}`);
+      >(`/public/songs/search?q=${encodeURIComponent(text)}`, { blocking: false });
       if (revision !== this.revision) return;
       this.suggestions.set(
         songs.slice(0, 10).map((song) => ({
@@ -159,6 +171,8 @@ export class SongSearch implements OnInit {
       if (revision !== this.revision) return;
       this.suggestions.set([]);
       this.message.set('Busca indisponível. Você pode usar a música digitada em texto livre.');
+    } finally {
+      if (revision === this.revision) this.searching.set(false);
     }
   }
 }

@@ -157,7 +157,7 @@ interface Member extends Musician {
             </button>
           </li>
         } @empty {
-          <li>{{ busy() ? 'Carregando músicos…' : 'Nenhum músico vinculado a esta sessão.' }}</li>
+          <li>{{ busy() ? '' : 'Nenhum músico vinculado a esta sessão.' }}</li>
         }
       </ul>
 

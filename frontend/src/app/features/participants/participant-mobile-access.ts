@@ -1,6 +1,5 @@
+import { ApplicationLoading } from '../../shared/application-loading';
 import { LinkClipboard } from '../../shared/link-clipboard';
-import { MenuItem } from 'primeng/api';
-import { OptionsMenu } from '../../shared/components/options-menu';
 import { DatePipe } from '@angular/common';
 import { Component, inject, input, OnDestroy, signal } from '@angular/core';
 import { Notifications } from '../../shared/notifications';
@@ -14,7 +13,7 @@ interface MobileAccess {
 
 @Component({
   selector: 'app-participant-mobile-access',
-  imports: [ConfirmationDialog, DatePipe, OptionsMenu],
+  imports: [ConfirmationDialog, DatePipe],
   template: `
     @if (!triggerHidden()) {
       <button
@@ -37,16 +36,6 @@ interface MobileAccess {
         [returnFocus]="returnFocus()"
         (dismissed)="close()"
       >
-        <div dialog-actions>
-          @if (access()?.linked) {
-            <app-options-menu
-              [buttonId]="'mobile-access-options-' + participant()"
-              label="Opções do acesso pelo celular"
-              [items]="accessMenu"
-              [disabled]="busy()"
-            />
-          }
-        </div>
         @if (access()?.linked) {
           <p role="status"><strong>Celular vinculado</strong></p>
         }
@@ -72,7 +61,10 @@ interface MobileAccess {
         } @else if (busy()) {
           <p role="status">Preparando acesso…</p>
         } @else if (access()?.linked) {
-          <p>O celular anterior mantém o acesso até o novo aparelho confirmar o vínculo.</p>
+          <p>
+            Gere um QR Code para recuperar o acesso ou trocar de celular. O acesso anterior só será
+            substituído após a confirmação do participante.
+          </p>
         }
         <div class="sf-dialog-actions">
           @if (qr()) {
@@ -83,6 +75,15 @@ interface MobileAccess {
               (click)="copy()"
             >
               <i class="fa-solid fa-copy" aria-hidden="true"></i>Copiar link
+            </button>
+          } @else if (access()?.linked) {
+            <button
+              type="button"
+              class="sf-button sf-primary sf-full"
+              [disabled]="busy()"
+              (click)="issue()"
+            >
+              <i class="fa-solid fa-qrcode" aria-hidden="true"></i>Gerar QR Code de recuperação
             </button>
           } @else if (!access()?.linked && !busy()) {
             <button type="button" class="sf-button sf-primary sf-full" (click)="open()">
@@ -104,6 +105,7 @@ interface MobileAccess {
 })
 export class ParticipantMobileAccess implements OnDestroy {
   private readonly api = inject(ApiClient);
+  private readonly loading = inject(ApplicationLoading);
   private readonly notifications = inject(Notifications);
   readonly session = input.required<string>();
   readonly participant = input.required<string>();
@@ -118,9 +120,6 @@ export class ParticipantMobileAccess implements OnDestroy {
   readonly qr = signal('');
   readonly url = signal('');
   readonly expiresAt = signal('');
-  readonly accessMenu: MenuItem[] = [
-    { label: 'Trocar celular', icon: 'fa-solid fa-rotate-right', command: () => this.issue() },
-  ];
   private generation = 0;
   private timer?: ReturnType<typeof setTimeout>;
 
@@ -158,21 +157,26 @@ export class ParticipantMobileAccess implements OnDestroy {
   }
 
   private async generate() {
-    clearTimeout(this.timer);
-    const generation = ++this.generation;
-    const invitation = await this.api.post<{ url: string; expiresAt: string }>(this.path);
-    const { default: qr } = await import('qrcode');
-    const image = await qr.toDataURL(invitation.url, {
-      width: 256,
-      margin: 4,
-      errorCorrectionLevel: 'M',
-      color: { dark: '#0B1E3F', light: '#ffffff' },
-    });
-    if (!this.showing() || generation !== this.generation) return;
-    this.expiresAt.set(invitation.expiresAt);
-    this.url.set(invitation.url);
-    this.qr.set(image);
-    this.scheduleCheck();
+    const finish = this.loading.start();
+    try {
+      clearTimeout(this.timer);
+      const generation = ++this.generation;
+      const invitation = await this.api.post<{ url: string; expiresAt: string }>(this.path);
+      const { default: qr } = await import('qrcode');
+      const image = await qr.toDataURL(invitation.url, {
+        width: 256,
+        margin: 4,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#0B1E3F', light: '#ffffff' },
+      });
+      if (!this.showing() || generation !== this.generation) return;
+      this.expiresAt.set(invitation.expiresAt);
+      this.url.set(invitation.url);
+      this.qr.set(image);
+      this.scheduleCheck();
+    } finally {
+      finish();
+    }
   }
 
   private scheduleCheck() {
@@ -185,7 +189,7 @@ export class ParticipantMobileAccess implements OnDestroy {
         return;
       }
       try {
-        const access = await this.api.get<MobileAccess>(this.path);
+        const access = await this.api.get<MobileAccess>(this.path, { background: true });
         if (!this.showing() || generation !== this.generation) return;
         this.access.set(access);
         if (!access.pending) {

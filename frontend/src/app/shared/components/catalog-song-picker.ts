@@ -57,7 +57,7 @@ export interface PickedSong {
         </div>
       </div>
       <p class="picker-hint" role="status" aria-live="polite">
-        {{ loading() ? 'Buscando músicas…' : message() }}
+        {{ loading() ? '' : message() }}
       </p>
     </ng-template>
     @if (!externalSearch()) {
@@ -112,7 +112,7 @@ export interface PickedSong {
           [disabled]="loading() || disabled()"
           (click)="loadMore()"
         >
-          {{ loading() ? 'Carregando…' : 'Carregar mais' }}
+          Carregar mais
         </button>
       }
       @if (incremental() && catalogLoaded() && !query().trim() && !loading() && !hasMore()) {
@@ -398,7 +398,7 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
   loadMore() {
     if (this.loading() || this.disabled() || !this.hasMore()) return;
     if (this.query().trim()) void this.lookupPage(this.query().trim(), true);
-    else void this.browse(this.page() + 1, true);
+    else void this.browse(this.page() + 1, true, false);
   }
   private appendUnique(incoming: PickedSong[], append: boolean) {
     const unique = new Map<string, PickedSong>();
@@ -467,7 +467,7 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
     this.loading.set(false);
     const text = value.trim();
     if (!text) {
-      void this.browse(0);
+      void this.browse(0, false, false);
       return;
     }
     if (text.length < 3) {
@@ -476,13 +476,14 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
     }
     this.timer = setTimeout(() => void this.lookup(text), 400);
   }
-  async browse(page: number, append = false) {
+  async browse(page: number, append = false, blocking = true) {
     this.catalogLoaded.set(false);
     const generation = ++this.generation;
     this.loading.set(true);
     try {
       const result = await this.api.get<{ items: PickedSong[]; total: number }>(
         `/public/songs/catalog?page=${page}${this.incremental() ? '&size=10' : ''}`,
+        { blocking },
       );
       if (this.destroyed || generation !== this.generation) return;
       if (!Array.isArray(result.items)) throw new Error('Unavailable');
@@ -519,6 +520,7 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
         nextPage: number;
       }>(
         `/public/songs/search-page?q=${encodeURIComponent(query)}&source=${this.nextSource}&page=${this.nextPage}`,
+        { blocking: false },
       );
       if (this.destroyed || generation !== this.generation) return;
       if (
@@ -556,6 +558,7 @@ export class CatalogSongPicker implements OnInit, OnDestroy {
     try {
       const songs = await this.api.get<PickedSong[]>(
         `/public/songs/search?q=${encodeURIComponent(query)}`,
+        { blocking: false },
       );
       if (this.destroyed || generation !== this.generation) return;
       if (!Array.isArray(songs)) throw new Error('Unavailable');

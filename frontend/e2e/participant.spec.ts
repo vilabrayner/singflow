@@ -529,11 +529,13 @@ test('host grants individual QR access and the phone confirms a replacement expl
   await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.getByRole('button', { name: 'Acesso pelo celular de Ana' }).click();
   await expect(page.getByText('Celular vinculado', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Opções do acesso pelo celular' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Gerar QR Code de recuperação', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Opções do acesso pelo celular' })).toHaveCount(0);
   await expect(page.getByAltText('QR Code de acesso individual')).toHaveCount(0);
   expect(emissions).toBe(1);
-  await page.getByRole('button', { name: 'Opções do acesso pelo celular' }).click();
-  await page.getByRole('menuitem', { name: 'Trocar celular' }).click();
+  await page.getByRole('button', { name: 'Gerar QR Code de recuperação', exact: true }).click();
   await expect(page.getByAltText('QR Code de acesso individual')).toBeVisible();
   expect(emissions).toBe(2);
   expect(linked).toBe(true);
@@ -649,5 +651,73 @@ test('temporary connection failure retains remembered access and a revoked grant
   revoked = true;
   await page.goto('/participante');
   await expect(page).toHaveURL('/participante');
-  expect(await page.evaluate(() => localStorage.getItem('singflow.lastParticipation'))).toBeNull();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('singflow.lastParticipation')))
+    .toBeNull();
+});
+
+test('host can recover a self-enrolled participant through the individual QR in the directory and detail', async ({
+  page,
+}) => {
+  const person = {
+    id: 'self',
+    name: 'Vila',
+    origin: 'SELF',
+    status: 'ACTIVE',
+    completedPerformances: 1,
+  };
+  const event = {
+    id: session,
+    name: 'Ensaio',
+    status: 'OPEN',
+    createdAt: new Date().toISOString(),
+  };
+  const accessPath = `/api/sessions/${session}/participants/self/mobile-access`;
+  let issued = 0;
+  const recovery = `http://127.0.0.1:4200/participante/${session}/vincular#${'b'.repeat(43)}`;
+  await page.route('**/api/**', (r) => {
+    const req = r.request(),
+      path = new URL(req.url()).pathname;
+    if (path.endsWith('/auth/me')) return r.fulfill({ json: { email: 'host@example.test' } });
+    if (path.endsWith('/csrf'))
+      return r.fulfill({ json: { token: 'csrf', headerName: 'X-CSRF-TOKEN' } });
+    if (path === '/api/sessions') return r.fulfill({ json: [event] });
+    if (path.endsWith('/participants')) return r.fulfill({ json: [person] });
+    if (path.endsWith('/requests'))
+      return r.fulfill({
+        json: [{ id: 'request', participantId: 'self', title: 'Giz', status: 'PENDING' }],
+      });
+    if (path.endsWith('/stage'))
+      return r.fulfill({ json: { suggestions: [], active: null, history: [], waits: [] } });
+    if (path === accessPath) {
+      if (req.method() === 'GET') return r.fulfill({ json: { linked: true, pending: issued > 0 } });
+      issued++;
+      expect(req.headers()['x-csrf-token']).toBe('csrf');
+      return r.fulfill({
+        json: { url: recovery, expiresAt: new Date(Date.now() + 300000).toISOString() },
+      });
+    }
+    return r.fulfill({ status: 404 });
+  });
+  await page.goto('/anfitriao');
+  await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
+  await page.getByRole('button', { name: 'Acesso pelo celular de Vila', exact: true }).click();
+  let dialog = page.getByRole('dialog', { name: 'Acesso pelo celular de Vila', exact: true });
+  await expect(dialog.getByText('Celular vinculado', { exact: true })).toBeVisible();
+  expect(issued).toBe(0);
+  await dialog.getByRole('button', { name: 'Gerar QR Code de recuperação', exact: true }).click();
+  await expect(dialog.getByLabel('Link de acesso individual')).toHaveValue(recovery);
+  await expect(dialog.getByAltText('QR Code de acesso individual')).toHaveAttribute(
+    'src',
+    /^data:image\/png/,
+  );
+  expect(issued).toBe(1);
+  await dialog.getByRole('button', { name: 'Fechar', exact: true }).click();
+  await page.locator('.sf-person-row').filter({ hasText: 'Vila' }).click();
+  await page.getByRole('button', { name: 'Opções do participante', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Acesso pelo celular', exact: true }).click();
+  dialog = page.getByRole('dialog', { name: 'Acesso pelo celular de Vila', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Celular vinculado', { exact: true })).toBeVisible();
+  expect(issued).toBe(1);
 });

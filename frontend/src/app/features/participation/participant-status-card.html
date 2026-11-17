@@ -44,6 +44,14 @@
         </div>
       }
     </div>
+    @if (call.acceptedAt) {
+      <app-participant-lyrics
+        [session]="view.session.id"
+        [callId]="call.id"
+        [title]="call.title"
+        [artist]="call.artist"
+      />
+    }
   } @else if (view.participant.selfPaused) {
     <div class="sf-participant-wait">
       <h2>Sua participação está pausada</h2>

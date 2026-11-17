@@ -41,3 +41,12 @@
     margin: -12px 0 -12px -10px;
   }
 }
+
+.history-actions {
+  flex: none;
+  align-self: center;
+  display: flex;
+}
+.history-actions:empty {
+  display: none;
+}

@@ -1,6 +1,7 @@
+import { ApplicationLoading } from '../application-loading';
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
-import { timeout } from 'rxjs';
+import { timeout, finalize } from 'rxjs';
 import { ButtonModule } from 'primeng/button';
 
 @Component({
@@ -20,14 +21,16 @@ import { ButtonModule } from 'primeng/button';
 })
 export class BackendStatus {
   private readonly http = inject(HttpClient);
+  private readonly loading = inject(ApplicationLoading);
   readonly checking = signal(false);
   readonly message = signal('Conexão com o servidor ainda não verificada.');
   check() {
     if (this.checking()) return;
     this.checking.set(true);
+    const finish = this.loading.start();
     this.http
       .get<{ status: string }>('/actuator/health')
-      .pipe(timeout(5000))
+      .pipe(timeout(5000), finalize(finish))
       .subscribe({
         next: (data) => {
           this.message.set(data.status === 'UP' ? 'Servidor conectado.' : 'Servidor indisponível.');

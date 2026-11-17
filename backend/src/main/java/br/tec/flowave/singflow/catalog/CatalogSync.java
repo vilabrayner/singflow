@@ -159,9 +159,9 @@ public class CatalogSync {
         .params(operation, actor, actor)
         .update();
     jdbc.sql(
-            "INSERT INTO singflow.catalog_sync_items(id,run_id,song_id,title,artist,song_version)"
-                + " SELECT gen_random_uuid(),?,id,title,artist,version FROM singflow.catalog_songs"
-                + " WHERE status='PENDING'")
+            "INSERT INTO singflow.catalog_sync_items(id,run_id,song_id,original_song_id,title,artist,song_version)"
+                + " SELECT gen_random_uuid(),?,id,id,title,artist,version FROM singflow.catalog_songs"
+                + " WHERE status='PENDING' AND deleted_at IS NULL")
         .param(operation)
         .update();
     settle(operation);
@@ -239,7 +239,7 @@ public class CatalogSync {
         jdbc.sql(
                 "SELECT count(DISTINCT s.id) FROM singflow.catalog_sync_items i JOIN"
                     + " singflow.catalog_songs s ON s.id=singflow.catalog_root(i.song_id) WHERE"
-                    + " i.run_id=? AND s.status='PENDING'")
+                    + " i.run_id=? AND s.status='PENDING' AND s.deleted_at IS NULL")
             .param(id)
             .query(Long.class)
             .single());
@@ -249,20 +249,19 @@ public class CatalogSync {
   public Page items(String actor, UUID id, String view, int page) {
     catalog.admin(actor);
     run(id);
-    if (!Set.of("activity", "review").contains(view) || page < 0 || page > 100000)
+    if (!Set.of("activity", "review", "attention").contains(view) || page < 0 || page > 100000)
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
-    String filter =
-        " FROM singflow.catalog_sync_items WHERE run_id=:run AND "
-            + (view.equals("review") ? "state IN ('REVIEW','FAILED')" : "state<>'QUEUED'");
+    String attention = " AND EXISTS(SELECT 1 FROM singflow.catalog_songs c WHERE c.id=singflow.catalog_root(song_id) AND c.status='PENDING' AND c.deleted_at IS NULL)";
+    String filter = " FROM singflow.catalog_sync_items WHERE run_id=:run AND "
+        + (view.equals("attention") ? "state IN ('REVIEW','FAILED','SKIPPED')" + attention : view.equals("review") ? "state IN ('REVIEW','FAILED')" : "state<>'QUEUED'");
     long total = jdbc.sql("SELECT count(*)" + filter).param("run", id).query(Long.class).single();
     var list =
         jdbc.sql(
                 "SELECT i.*,s.title AS current_title,s.artist AS current_artist FROM"
                     + " singflow.catalog_sync_items i LEFT JOIN singflow.catalog_songs s ON"
                     + " s.id=singflow.catalog_root(i.song_id) WHERE i.run_id=:run AND "
-                    + (view.equals("review")
-                        ? "i.state IN ('REVIEW','FAILED')"
-                        : "i.state<>'QUEUED'")
+                    + (view.equals("attention") ? "i.state IN ('REVIEW','FAILED','SKIPPED')" + attention.replace("catalog_root(song_id)","catalog_root(i.song_id)") : view.equals("review")
+                        ? "i.state IN ('REVIEW','FAILED')" : "i.state<>'QUEUED'")
                     + " ORDER BY i.updated_at DESC,i.id LIMIT 20 OFFSET :offset")
             .param("run", id)
             .param("offset", page * 20)
@@ -679,4 +678,23 @@ public class CatalogSync {
               + " manualmente.");
     settle(current.runId());
   }
+
+  public record Workspace(Progress current) {}
+  @Transactional
+  public Workspace workspace(String actor) {
+    catalog.admin(actor); catalog.lock();
+    while (true) {
+      var id=jdbc.sql("""
+          SELECT r.id FROM singflow.catalog_sync_runs r WHERE r.status IN ('RUNNING','PAUSED')
+          OR EXISTS(SELECT 1 FROM singflow.catalog_sync_items i JOIN singflow.catalog_songs s
+            ON s.id=singflow.catalog_root(i.song_id) WHERE i.run_id=r.id AND s.status='PENDING' AND s.deleted_at IS NULL)
+          ORDER BY CASE WHEN r.status IN ('RUNNING','PAUSED') THEN 0 ELSE 1 END,r.created_at DESC,r.id DESC LIMIT 1
+          """).query(UUID.class).optional();
+      if (id.isEmpty()) return new Workspace(null);
+      var progress=progress(actor,id.get());
+      if (!progress.run().status().equals("COMPLETED") || progress.pendingReview()>0
+          || progress.counts().queued()>0 || progress.counts().processing()>0) return new Workspace(progress);
+    }
+  }
+
 }

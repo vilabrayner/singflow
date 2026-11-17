@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
 
+@org.hibernate.annotations.DynamicUpdate
 @Entity
 @Table(name = "song_requests", schema = "singflow")
 public class SongRequest {
@@ -20,11 +21,9 @@ public class SongRequest {
   @Column(insertable = false, updatable = false)
   public long requestOrder;
 
-  @Column(nullable = false, length = 160)
-  public String title;
-
-  @Column(length = 160)
-  public String artist;
+  @Column(nullable = false) public String creationFingerprint;
+  public int semitones;
+  public long settingsVersion;
 
   @Column(nullable = false, length = 12)
   public String status;
@@ -34,12 +33,12 @@ public class SongRequest {
 
   protected SongRequest() {}
 
-  public SongRequest(UUID id, UUID session, UUID participant, String title, String artist) {
+  public SongRequest(UUID id, UUID session, UUID participant, UUID catalogSongId, String fingerprint) {
     this.id = id;
     this.sessionId = session;
     this.participantId = participant;
-    this.title = title;
-    this.artist = artist;
+    this.catalogSongId = catalogSongId;
+    this.creationFingerprint = fingerprint;
     this.status = "PENDING";
     this.createdAt = Instant.now();
   }

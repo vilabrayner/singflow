@@ -114,9 +114,7 @@
       }
     </div>
     @if (person(); as person) {
-      @if (
-        session().status === 'OPEN' && person.origin === 'ASSISTED' && person.status !== 'LEFT'
-      ) {
+      @if (session().status === 'OPEN' && person.status !== 'LEFT') {
         <app-participant-mobile-access
           #detailAccess
           [session]="session().id"
@@ -349,9 +347,7 @@
             status(person.status)
           }}</app-status-badge>
         </button>
-        @if (
-          session().status === 'OPEN' && person.origin === 'ASSISTED' && person.status !== 'LEFT'
-        ) {
+        @if (session().status === 'OPEN' && person.status !== 'LEFT') {
           <app-participant-mobile-access
             [session]="session().id"
             [participant]="person.id"

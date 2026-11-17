@@ -2,6 +2,7 @@ package br.tec.flowave.singflow.stage;
 
 import br.tec.flowave.singflow.audit.AuditTrail;
 import br.tec.flowave.singflow.catalog.CatalogService;
+import br.tec.flowave.singflow.catalog.MusicKey;
 import br.tec.flowave.singflow.participants.*;
 import br.tec.flowave.singflow.requests.AssistedRequests;
 import br.tec.flowave.singflow.sessions.*;
@@ -27,7 +28,7 @@ public class StageService {
       UUID requestId,
       String title,
       String artist,
-      String reason) {}
+      String reason, String keyLabel, UUID catalogSongId, String originalKey, int semitones) {}
 
   public record CallView(
       UUID id,
@@ -39,7 +40,7 @@ public class StageService {
       String status,
       Instant createdAt,
       Instant resolvedAt,
-      Instant acceptedAt) {}
+      Instant acceptedAt, String originalKey, int semitones, String keyLabel, String performedKey, long keyVersion, UUID catalogSongId) {}
 
   public record WaitView(UUID participantId, String name, boolean manualRelease, int remaining) {}
 
@@ -56,6 +57,7 @@ public class StageService {
   private final AssistedRequests requests;
   private final AuditTrail audit;
   private final CatalogService catalog;
+  private final org.springframework.context.ApplicationEventPublisher events;
 
   public StageService(
       StageStore store,
@@ -63,13 +65,15 @@ public class StageService {
       Participation participants,
       AssistedRequests requests,
       AuditTrail audit,
-      CatalogService catalog) {
+      CatalogService catalog,
+      org.springframework.context.ApplicationEventPublisher events) {
     this.store = store;
     this.sessions = sessions;
     this.participants = participants;
     this.requests = requests;
     this.audit = audit;
     this.catalog = catalog;
+    this.events = events;
   }
 
   private ResponseStatusException conflict(String message) {
@@ -106,7 +110,7 @@ public class StageService {
         c.status(),
         c.createdAt(),
         c.resolvedAt(),
-        c.acceptedAt());
+        c.acceptedAt(),c.originalKey(),c.semitones(),MusicKey.label(c.originalKey(),c.semitones()),c.performedKey(),c.keyVersion(),c.catalogSongId());
   }
 
   private List<Candidate> ranked(UUID session, String actor) {
@@ -172,6 +176,7 @@ public class StageService {
     var people = participants.list(session, actor);
     var calls = store.calls(session);
     var blockers = store.blockers(session);
+    var songRequests = requests.list(session,actor);
     var suggestions =
         ranked(session, actor).stream()
             .map(
@@ -187,7 +192,11 @@ public class StageService {
                         c.completed()
                             + " apresentações concluídas · "
                             + (c.requestId() == null ? "música a escolher" : "pedido pendente")
-                            + " · desempate: evitar repetição, pedido e chegada"))
+                            + " · desempate: evitar repetição, pedido e chegada",
+                        songRequests.stream().filter(r->r.id().equals(c.requestId())).map(AssistedRequests.RequestView::keyLabel).findFirst().orElse("Original"),
+                        songRequests.stream().filter(r->r.id().equals(c.requestId())).map(AssistedRequests.RequestView::catalogSongId).findFirst().orElse(null),
+                        songRequests.stream().filter(r->r.id().equals(c.requestId())).map(r->r.originalKey()==null?"":r.originalKey()).findFirst().orElse(null),
+                        songRequests.stream().filter(r->r.id().equals(c.requestId())).map(AssistedRequests.RequestView::semitones).findFirst().orElse(0)))
             .toList();
     var waits =
         store.waits(session).stream()
@@ -229,7 +238,7 @@ public class StageService {
                       song == null ? null : song.id(),
                       song == null ? null : song.title(),
                       song == null ? null : song.artist(),
-                      "Pausado");
+                      "Pausado",song==null?"Original":song.keyLabel(),song==null?null:song.catalogSongId(),song==null?null:song.originalKey(),song==null?0:song.semitones());
                 })
             .toList());
   }
@@ -336,6 +345,7 @@ public class StageService {
       String selectionToken,
       boolean allowOutOfOrder) {
     sessions.lockOwned(session, actor, true);
+    catalog.lockReferences();
     String title = clean(selectedTitle);
     String artist = clean(selectedArtist);
     if ((title != null && title.length() > 160) || (artist != null && artist.length() > 160))
@@ -356,7 +366,8 @@ public class StageService {
               catalog.register(
                   title, artist, actor, expectedRequest == null ? selectionToken : null));
           audit.record(actor, session, "CALL_SONG_SELECTED", operation);
-        } else if (!Objects.equals(call.title(), title) || !Objects.equals(call.artist(), artist)) {
+          events.publishEvent(new CallConfirmed(session,operation,title,artist));
+        } else if (!Objects.equals(call.choiceFingerprint(),MusicKey.fingerprint(title,artist))) {
           throw conflict("Identificador já utilizado com outra música.");
         }
       }
@@ -381,18 +392,29 @@ public class StageService {
       title = next.title();
       artist = next.artist();
     }
-    store.insert(
-        operation,
-        session,
-        participant,
-        expectedRequest,
-        title,
-        artist,
-        catalog.register(title, artist, actor, expectedRequest == null ? selectionToken : null));
+    var requested = expectedRequest==null?null:requests.list(session,actor).stream().filter(r->r.id().equals(expectedRequest)).findFirst().orElseThrow();
+    store.insert(operation,session,participant,expectedRequest,title,artist,
+        requested==null?catalog.register(title,artist,actor,selectionToken):requested.catalogSongId(),
+        requested==null?0:requested.semitones());
     store.consumeSkip(session);
     audit.record(actor, session, "CALL_CONFIRMED", operation);
+    events.publishEvent(new CallConfirmed(session,operation,title,artist));
     if (overridden) audit.record(actor, session, "CALL_PRIORITY_OVERRIDDEN", operation);
     return snapshot(session, actor);
+  }
+
+  @Transactional
+  public void recordPerformedKey(UUID session,String owner,String actor,UUID callId,long version,String key) {
+    sessions.lockOwned(session,owner,false);
+    key=MusicKey.normalize(key);
+    var call=store.calls(session).stream().filter(c->c.id().equals(callId)).findFirst().orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Apresentação não encontrada."));
+    if(!Set.of("CALLED","COMPLETED").contains(call.status()) || call.catalogSongId()==null)
+      throw conflict("Registre o tom de uma apresentação em andamento ou concluída.");
+    if(call.keyVersion()==version+1 && Objects.equals(key,call.performedKey())) return;
+    if(call.keyVersion()!=version) throw conflict("O tom foi atualizado por outro músico. Atualize a tela.");
+    if(Objects.equals(key,call.performedKey())) return;
+    store.performedKey(session,callId,key);
+    audit.record(actor,session,"PERFORMED_KEY_RECORDED",callId);
   }
 
   @Transactional

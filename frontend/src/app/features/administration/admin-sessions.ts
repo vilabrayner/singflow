@@ -1,5 +1,6 @@
+import { StageQueue } from '../stage/stage-queue';
 import { Router } from '@angular/router';
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, input, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { InputTextModule } from 'primeng/inputtext';
@@ -21,7 +22,15 @@ interface Detail extends Summary {
 }
 @Component({
   selector: 'app-admin-sessions',
-  imports: [SurfaceCard, OptionsMenu, ConfirmationDialog, StatusBadge, InputTextModule, DatePipe],
+  imports: [
+    StageQueue,
+    SurfaceCard,
+    OptionsMenu,
+    ConfirmationDialog,
+    StatusBadge,
+    InputTextModule,
+    DatePipe,
+  ],
   styleUrl: '../../shared/styles/admin-collections.css',
   styles: `
     :host {
@@ -232,34 +241,7 @@ interface Detail extends Summary {
           <section class="session-section" aria-label="Fila sugerida">
             <h3>Fila sugerida ({{ view.stage.suggestions.length }})</h3>
             <p>A ordem pode mudar até a confirmação pelo anfitrião.</p>
-            <ol class="session-queue">
-              @for (
-                person of view.stage.suggestions;
-                track person.participantId;
-                let index = $index
-              ) {
-                <li>
-                  <span class="session-position">{{ index + 1 }}</span>
-                  <div>
-                    <strong>{{ person.name }}</strong>
-                    <p>
-                      {{ person.title || 'Música a escolher' }}
-                      @if (person.artist) {
-                        · {{ person.artist }}
-                      }
-                    </p>
-                    <p>
-                      {{ person.completed }} apresentações
-                      @if (person.tableLabel) {
-                        · Mesa {{ person.tableLabel }}
-                      }
-                    </p>
-                  </div>
-                </li>
-              } @empty {
-                <li>Ninguém aguardando na fila sugerida.</li>
-              }
-            </ol>
+            <app-stage-queue [suggestions]="view.stage.suggestions" />
           </section>
           @if (view.stage.waits.length) {
             <section class="session-section" aria-label="Aguardando retorno">
@@ -276,9 +258,7 @@ interface Detail extends Summary {
               }
             </section>
           }
-        } @else if (reading()) {
-          <p role="status">Carregando dados da sessão…</p>
-        }
+        } @else if (reading()) {}
         <div class="sf-dialog-actions">
           <button type="button" class="sf-button sf-outline sf-full" (click)="close()">
             Fechar
@@ -322,13 +302,14 @@ export class AdminSessions implements OnInit, OnDestroy {
       command: () => void this.refresh(),
     },
   ];
+  readonly active = input(true);
   private timer?: ReturnType<typeof setInterval>;
   private generation = 0;
   private destroyed = false;
   ngOnInit() {
     void this.load();
     this.timer = setInterval(() => {
-      if (!this.document.hidden && this.selected()) void this.refresh();
+      if (!this.document.hidden && this.active() && this.selected()) void this.refresh(true);
     }, 4000);
   }
   ngOnDestroy() {
@@ -371,13 +352,15 @@ export class AdminSessions implements OnInit, OnDestroy {
     this.error.set('');
     this.reading.set(false);
   }
-  async refresh() {
+  async refresh(background = false) {
     const selected = this.selected();
     if (!selected || this.reading() || this.destroyed) return;
     const generation = this.generation;
     this.reading.set(true);
     try {
-      const detail = await this.api.get<Detail>('/admin/sessions/' + selected.session.id);
+      const detail = await this.api.get<Detail>('/admin/sessions/' + selected.session.id, {
+        background,
+      });
       if (generation !== this.generation || this.destroyed) return;
       this.detail.set(detail);
       this.error.set('');

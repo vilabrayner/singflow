@@ -20,10 +20,22 @@ import { StatusBadge } from './status-badge';
         @if (subtitle()) {
           <p>{{ subtitle() }}</p>
         }
+        @if (detail()) {
+          <p>{{ detail() }}</p>
+        }
+        <ng-content />
+        @if (statusBelow()) {
+          <app-status-badge [tone]="completed() ? 'positive' : 'neutral'">{{
+            status()
+          }}</app-status-badge>
+        }
       </div>
-      <app-status-badge [tone]="completed() ? 'positive' : 'neutral'">{{
-        status()
-      }}</app-status-badge>
+      @if (!statusBelow()) {
+        <app-status-badge [tone]="completed() ? 'positive' : 'neutral'">{{
+          status()
+        }}</app-status-badge>
+      }
+      <div class="history-actions"><ng-content select="[history-actions]" /></div>
     </div>
   </article>`,
 })
@@ -34,4 +46,6 @@ export class HistoryItem {
   readonly subtitle = input<string | null>(null);
   readonly status = input.required<string>();
   readonly completed = input(false);
+  readonly statusBelow = input(false);
+  readonly detail = input<string | null>(null);
 }

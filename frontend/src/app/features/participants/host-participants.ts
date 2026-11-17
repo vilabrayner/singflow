@@ -84,7 +84,7 @@ export class HostParticipants {
     const person = this.person();
     if (!person || this.session().status !== 'OPEN') return [];
     const items: MenuItem[] = [];
-    if (person.origin === 'ASSISTED' && person.status !== 'LEFT') {
+    if (person.status !== 'LEFT') {
       items.push({
         label: 'Acesso pelo celular',
         icon: 'fa-solid fa-qrcode',

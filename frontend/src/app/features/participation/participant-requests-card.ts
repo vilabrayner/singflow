@@ -27,6 +27,7 @@ export class ParticipantRequestsCard {
   readonly fixed = computed(() => this.songs().filter((s) => s.status !== 'PENDING'));
   readonly edited = output<SongRequest>();
   readonly cancelled = output<SongRequest>();
+  readonly configured = output<SongRequest>();
   readonly reordered = output<{ expectedOrder: string[]; order: string[] }>();
   readonly status = participantStatus;
   actions(song: SongRequest): MenuItem[] {
@@ -38,7 +39,13 @@ export class ParticipantRequestsCard {
           if (this.editable() && !this.busy()) this.edited.emit(song);
         },
       },
-      { label: 'Configurar', icon: 'fa-solid fa-gear', disabled: true },
+      {
+        label: 'Configurar',
+        icon: 'fa-solid fa-gear',
+        command: () => {
+          if (this.editable() && !this.busy()) this.configured.emit(song);
+        },
+      },
     ];
   }
   private dragOrder: string[] = [];

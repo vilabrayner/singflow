@@ -198,7 +198,7 @@ export class StagePanel {
         checking = true;
         const generation = this.generation;
         try {
-          const snapshot = await this.api.snapshot(session);
+          const snapshot = await this.api.snapshot(session, true);
           if (
             cancelled ||
             generation !== this.generation ||
@@ -246,7 +246,7 @@ export class StagePanel {
     this.choosingNext.set(null);
     this.pendingOutcome.set(null);
     try {
-      const next = await this.api.snapshot(session);
+      const next = await this.api.snapshot(session, !!this.state());
       if (generation === this.generation) {
         this.state.set(next);
       }

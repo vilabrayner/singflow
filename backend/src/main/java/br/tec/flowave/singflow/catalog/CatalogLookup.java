@@ -81,4 +81,27 @@ public class CatalogLookup {
         page + 1,
         remote.hasMore() && page < 999);
   }
+
+  public record AdminMatch(UUID id, String title, String artist, String status, String source, long version, String originalKey, String selectionToken) {}
+  public record AdminPage(List<AdminMatch> items, String nextSource, int nextPage, boolean hasMore) {}
+  public AdminPage adminSearch(String actor, String query, String status, String source, int page) {
+    catalog.admin(actor);
+    if (page<0 || page>999 || !Set.of("catalog","internet").contains(source))
+      throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST);
+    String text=catalog.clean(query,false);
+    if (text.length()<3) return new AdminPage(List.of(),source,page,false);
+    if (source.equals("catalog")) {
+      var local=catalog.list(actor,text,status,page,10);
+      boolean more=(page+1)*10<local.total();
+      if (local.items().isEmpty() && status.isEmpty() && lastfm.configured()) return adminSearch(actor,text,status,"internet",0);
+      return new AdminPage(local.items().stream().map(song -> new AdminMatch(song.id(),song.title(),song.artist(),song.status(),song.source(),song.version(),song.originalKey(),null)).toList(),
+          more?"catalog":"internet",more?page+1:0,more || (status.isEmpty() && lastfm.configured()));
+    }
+    // Filters refer to persisted catalogue entries; never offer unrelated external rows under one.
+    if (!status.isEmpty()) return new AdminPage(List.of(),"internet",page,false);
+    var remote=lastfm.searchPage(text,page+1);
+    return new AdminPage(remote.songs().stream().limit(10).map(song -> new AdminMatch(null,song.title(),song.artist(),"EXTERNAL","LASTFM",0,null,choices.issue(song))).toList(),
+        "internet",page+1,remote.hasMore() && page<999);
+  }
+
 }

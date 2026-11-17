@@ -58,6 +58,7 @@
           @if (song.artist) {
             <p>{{ song.artist }}</p>
           }
+          <p>Tom: {{ song.keyLabel || 'Original' }}</p>
           <app-status-badge tone="neutral">{{ status(song.status) }}</app-status-badge>
         </div>
         @if (editable()) {

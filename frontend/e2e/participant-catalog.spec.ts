@@ -9,7 +9,7 @@ async function openRequestSwap(page: Page, title: string) {
   const trigger = page.getByRole('button', { name: 'Opções de ' + title, exact: true });
   if (touch) await trigger.tap();
   else await trigger.click();
-  await expect(page.getByRole('menuitem', { name: 'Configurar', exact: true })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Configurar', exact: true })).toBeEnabled();
   const swap = page.getByRole('menuitem', { name: 'Trocar', exact: true });
   if (touch) await swap.tap();
   else await swap.click();
@@ -251,6 +251,7 @@ test('participant has three cards and drags pending choices without changing que
   await expect(page.getByText('Posição sugerida · 3º', { exact: true })).toBeVisible();
   const rows = page.getByRole('listitem');
   const handle = rows.nth(2).locator('.choice-grip');
+  await expect(page.locator('.sf-application-loading')).toBeHidden();
   await handle.scrollIntoViewIfNeeded();
   const from = await handle.boundingBox(),
     to = await rows.first().boundingBox();
@@ -629,6 +630,8 @@ test('participant drag keeps preview layout and scrolls the internal viewport at
   await workspaceFixture(page);
   const viewport = page.locator('.sf-participant-viewport');
   const handle = page.locator('.choice-grip').first();
+  await expect(handle).toBeVisible();
+  await expect(page.locator('.sf-application-loading')).toBeHidden();
   await handle.evaluate((el) => el.scrollIntoView({ block: 'start' }));
   const box = await handle.boundingBox(),
     viewportBox = await viewport.boundingBox();

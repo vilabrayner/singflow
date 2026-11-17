@@ -16,9 +16,11 @@ class MusicianEndpoints {
   record Member(@NotNull UUID musicianId) {}
 
   private final MusicianAccess access;
+  private final br.tec.flowave.singflow.catalog.CifraSearch cifraSearch;
 
-  MusicianEndpoints(MusicianAccess access) {
+  MusicianEndpoints(MusicianAccess access,br.tec.flowave.singflow.catalog.CifraSearch cifraSearch) {
     this.access = access;
+    this.cifraSearch=cifraSearch;
   }
 
   @GetMapping("/api/sessions/{session}/musicians")
@@ -57,4 +59,18 @@ class MusicianEndpoints {
   MusicianAccess.PerformanceView performance(@PathVariable UUID session, Authentication actor) {
     return access.performance(session, actor.getName(), host(actor));
   }
+  record PerformedKey(@NotNull @Min(0) Long version,@Size(max=4) String performedKey) {}
+  @PostMapping("/api/musicians/sessions/{session}/calls/{call}/key")
+  MusicianAccess.PerformanceView recordKey(@PathVariable UUID session,@PathVariable UUID call,Authentication actor,@Valid @RequestBody PerformedKey input) {
+    return access.recordKey(session,actor.getName(),call,input.version(),input.performedKey());
+  }
+
+  record Chord(@NotNull @Min(0) Long version,@Size(max=2048) String url) {}
+  @GetMapping("/api/musicians/sessions/{session}/songs/{song}/chords")
+  br.tec.flowave.singflow.catalog.CifraResources.Link chord(@PathVariable UUID session,@PathVariable UUID song,Principal actor){return access.chordContext(session,actor.getName(),song);}
+  @PostMapping("/api/musicians/sessions/{session}/songs/{song}/chords")
+  br.tec.flowave.singflow.catalog.CifraResources.Link saveChord(@PathVariable UUID session,@PathVariable UUID song,Principal actor,@Valid @RequestBody Chord input){return access.saveChord(session,actor.getName(),song,input.version(),input.url());}
+  @GetMapping("/api/musicians/sessions/{session}/songs/{song}/chords/search")
+  br.tec.flowave.singflow.catalog.CifraSearch.Page searchChords(@PathVariable UUID session,@PathVariable UUID song,Principal actor,@RequestParam(defaultValue="") String q,@RequestParam(defaultValue="1") int page){access.chordContext(session,actor.getName(),song);return cifraSearch.search(q,page);}
+
 }

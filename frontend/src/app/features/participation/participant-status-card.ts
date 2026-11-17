@@ -1,9 +1,10 @@
+import { ParticipantLyrics } from './participant-lyrics';
 import { Component, computed, input, output } from '@angular/core';
 import { SurfaceCard } from '../../shared/components/surface-card';
 import { OwnView } from './participant-view';
 @Component({
   selector: 'app-participant-status-card',
-  imports: [SurfaceCard],
+  imports: [SurfaceCard, ParticipantLyrics],
   templateUrl: './participant-status-card.html',
   host: { class: 'participant-card' },
 })

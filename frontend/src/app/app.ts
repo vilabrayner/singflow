@@ -1,3 +1,4 @@
+import { LoadingRegion } from './shared/components/loading-region';
 import { afterRenderEffect, Component, computed, ElementRef, inject } from '@angular/core';
 import { BrandLogo } from './shared/components/brand-logo';
 import { ToastModule } from 'primeng/toast';
@@ -8,7 +9,7 @@ import { filter, map } from 'rxjs';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ToastModule, BrandLogo],
+  imports: [LoadingRegion, RouterOutlet, RouterLink, RouterLinkActive, ToastModule, BrandLogo],
   templateUrl: './app.html',
 })
 export class App {

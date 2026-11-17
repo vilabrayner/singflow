@@ -111,7 +111,8 @@ test('an open session stays on the main screen while history is consulted and cl
   });
   await page.goto('/musico');
   const main = page.getByRole('region', { name: 'Painel do músico', exact: true });
-  await expect(main.getByRole('heading', { name: current.name, exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: current.name, exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'Fila', exact: true }).click();
   await expect(main).toContainText('Música de hoje');
   await page.getByRole('button', { name: 'Opções do músico' }).click();
   await page.getByRole('menuitem', { name: 'Trocar sessão', exact: true }).click();
@@ -122,7 +123,7 @@ test('an open session stays on the main screen while history is consulted and cl
   await expect(page.getByRole('dialog', { name: past.name, exact: true })).toContainText(
     'Música antiga',
   );
-  await expect(main.getByRole('heading', { name: current.name, exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: current.name, exact: true })).toBeVisible();
   await expect(main).not.toContainText('Música antiga');
   closed = true;
   await expect(
@@ -183,6 +184,6 @@ test('a session closed between list and detail never appears as the current sess
   await expect(
     main.getByRole('heading', { name: 'Aguardando novas sessões', exact: true }),
   ).toBeVisible();
-  await expect(main.getByRole('heading', { name: current.name, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: current.name, exact: true })).toHaveCount(0);
   await expect(main.getByRole('heading', { name: 'No palco', exact: true })).toHaveCount(0);
 });

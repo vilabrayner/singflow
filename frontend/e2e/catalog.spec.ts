@@ -1,3 +1,4 @@
+import { songDetails } from './helpers/song-details';
 import { test, expect, Page } from '@playwright/test';
 
 const provisional = {
@@ -8,6 +9,7 @@ const provisional = {
   source: 'REQUEST',
   mergedInto: null,
   version: 0,
+  originalKey: '',
 };
 const approved = {
   ...provisional,
@@ -40,9 +42,9 @@ async function auth(page: Page) {
 }
 async function enter(page: Page) {
   await page.goto('/admin');
-  await page.getByRole('button', { name: 'Catálogo', exact: true }).click();
+  await page.getByRole('tab', { name: 'Catálogo', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Catálogo de músicas', exact: true }),
+    page.getByRole('region', { name: 'Catálogo de músicas', exact: true }),
   ).toBeVisible();
 }
 
@@ -54,13 +56,22 @@ test('catalog admin edits and approves a provisional song and reads its audit hi
   const writes: Record<string, unknown>[] = [];
   await page.route('**/api/admin/catalog/songs**', async (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/details') && route.request().method() === 'GET')
+      return route.fulfill({ json: songDetails(song) });
     if (route.request().method() === 'POST') {
       expect(route.request().headers()['x-csrf-token']).toBe('csrf');
       const body = route.request().postDataJSON();
       writes.push(body);
       if (url.pathname.endsWith('/review'))
         song = { ...song, status: body.status, version: song.version + 1 };
-      else song = { ...song, title: body.title, artist: body.artist, version: song.version + 1 };
+      else
+        song = {
+          ...song,
+          title: body.title,
+          artist: body.artist,
+          originalKey: body.originalKey,
+          version: song.version + 1,
+        };
       return route.fulfill({ json: song });
     }
     if (url.pathname.endsWith('/history'))
@@ -80,13 +91,21 @@ test('catalog admin edits and approves a provisional song and reads its audit hi
   });
   await enter(page);
   await expect(page.getByRole('button', { name: 'Todas', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: /Equalize Pitty Provisória/ }).click();
+  await page.getByRole('button', { name: /Informações de Equalize.*Pitty/ }).click();
   let dialog = page.getByRole('dialog', { name: 'Detalhes da música', exact: true });
   await dialog.getByLabel('Título da música', { exact: true }).fill('Equalize corrigida');
-  await dialog.getByRole('button', { name: 'Salvar alterações', exact: true }).click();
+  await dialog.getByLabel('Tom original', { exact: true }).fill('D');
+  await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect.poll(() => writes.length).toBe(1);
-  expect(writes[0]).toEqual({ version: 0, title: 'Equalize corrigida', artist: 'Pitty' });
-  await page.getByRole('button', { name: /Equalize corrigida Pitty Provisória/ }).click();
+  expect(writes[0]).toEqual({
+    version: 0,
+    title: 'Equalize corrigida',
+    artist: 'Pitty',
+    originalKey: 'D',
+    references: {},
+  });
+  await page.getByRole('button', { name: /Informações de Equalize corrigida.*Pitty/ }).click();
+  await expect(dialog.getByLabel('Tom original', { exact: true })).toHaveValue('D');
   await dialog.getByRole('button', { name: 'Opções da música', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Aprovar música', exact: true }).click();
   await page
@@ -94,15 +113,15 @@ test('catalog admin edits and approves a provisional song and reads its audit hi
     .getByRole('button', { name: 'Confirmar aprovação', exact: true })
     .click();
   await expect(
-    page.getByRole('button', { name: /Equalize corrigida Pitty Aprovada/ }),
+    page.getByRole('button', { name: /Informações de Equalize corrigida.*Pitty/ }),
   ).toBeVisible();
+  await expect.poll(() => writes.length).toBe(2);
   expect(writes[1]).toEqual({ version: 1, status: 'APPROVED', reason: '' });
   await page.getByRole('button', { name: 'Todas', exact: true }).click();
   const filters = page.getByRole('dialog', { name: 'Filtrar catálogo', exact: true });
   await filters.getByRole('combobox', { name: 'Situação', exact: true }).selectOption('APPROVED');
   await filters.getByRole('button', { name: 'Aplicar filtros', exact: true }).click();
-  await page.getByRole('button', { name: 'Buscar no catálogo', exact: true }).click();
-  await page.getByRole('button', { name: /Equalize corrigida Pitty Aprovada/ }).click();
+  await page.getByRole('button', { name: /Informações de Equalize corrigida.*Pitty/ }).click();
   await dialog.getByRole('button', { name: 'Opções da música', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Histórico de alterações', exact: true }).click();
   const history = page.getByRole('dialog', { name: 'Histórico da música', exact: true });
@@ -124,6 +143,8 @@ test('catalog merge requires a destination and reason and preserves both version
   let payload: Record<string, unknown> | undefined;
   await page.route('**/api/admin/catalog/songs**', async (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/details') && route.request().method() === 'GET')
+      return route.fulfill({ json: songDetails(provisional) });
     if (route.request().method() === 'POST') {
       payload = route.request().postDataJSON();
       merged = true;
@@ -136,7 +157,7 @@ test('catalog merge requires a destination and reason and preserves both version
     return route.fulfill({ json: { items, total: items.length, page: 0, size: 25 } });
   });
   await enter(page);
-  await page.getByRole('button', { name: /Equalize Pitty Provisória/ }).click();
+  await page.getByRole('button', { name: /Informações de Equalize.*Pitty/ }).click();
   await page.getByRole('button', { name: 'Opções da música', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Unificar duplicata', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Unificar duplicata', exact: true });
@@ -165,6 +186,11 @@ test('catalog create safely retries lost responses and a stale edit stays visibl
   let created = false;
   const writes: Record<string, unknown>[] = [];
   await page.route('**/api/admin/catalog/songs**', async (route) => {
+    if (
+      new URL(route.request().url()).pathname.endsWith('/details') &&
+      route.request().method() === 'GET'
+    )
+      return route.fulfill({ json: songDetails(approved) });
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
       writes.push(body);
@@ -195,10 +221,10 @@ test('catalog create safely retries lost responses and a stale edit stays visibl
   await dialog.getByRole('button', { name: 'Cadastrar música', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   expect(writes[0].operationId).toBe(writes[1].operationId);
-  await page.getByRole('button', { name: /Equalize oficial Pitty Aprovada/ }).click();
+  await page.getByRole('button', { name: /Informações de Equalize oficial.*Pitty/ }).click();
   const detail = page.getByRole('dialog', { name: 'Detalhes da música', exact: true });
   await detail.getByLabel('Título da música', { exact: true }).fill('Correção concorrente');
-  await detail.getByRole('button', { name: 'Salvar alterações', exact: true }).click();
+  await detail.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(detail.getByRole('alert')).toContainText('A música mudou');
   await expect(detail.getByLabel('Título da música', { exact: true })).toHaveValue(
     'Correção concorrente',
