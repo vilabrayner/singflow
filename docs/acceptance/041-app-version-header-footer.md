@@ -14,7 +14,13 @@
 
 Build frontend e `./mvnw -B -DskipTests package` concluídos. Os 19 testes de
 configuração passaram, incluindo coerência da versão frontend/lock/backend.
-Testes de interface em validação.
+Os 58 cenários de contas, navegação e padronização foram validados em desktop e
+mobile: 56 passaram na rodada principal; os oito cenários dos quatro headers
+passaram na repetição com viewport menor para forçar a rolagem do menu longo.
+Incluem logout do admin pelo menu, texto de versão nos quatro painéis, altura do
+header preservada, rodapé fixo e retorno de foco ao fechar. `git diff --check`
+sem erros. O build mantém os avisos existentes de orçamento de bundle/CSS e
+CommonJS do QR Code.
 
 ## Ensaio
 
