@@ -1,5 +1,7 @@
 # Pipeline nativa AWS do SingFlow
 
+> **Etapa atual (17/11/2026):** [build remoto manual](build-remoto-aws.md), sem ativação automática nem implantação. O fluxo automático descrito abaixo permanece uma proposta futura.
+
 **Estado: arquitetura escolhida e proposta documentada; não provisionada nem ativa.** Ver ../../infra/aws/pipeline/README.md para recursos, custos e aprovações. Os workflows GitHub atuais não foram alterados.
 
 ## Termos usados

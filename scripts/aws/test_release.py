@@ -81,7 +81,7 @@ class ReleaseTests(unittest.TestCase):
             return types.SimpleNamespace(stdout="")
         with tempfile.TemporaryDirectory() as tmp:
             out = pathlib.Path(tmp)/"release.json"
-            with patch.object(release, "run", side_effect=runner), patch.object(release, "inspect_local"):
+            with patch.object(release, "run", side_effect=runner), patch.object(release, "inspect_local"), patch.object(release, "source_version", return_value="0.1.0-beta.1"):
                 with self.assertRaises(CalledProcessError):
                     release.build(pathlib.Path(tmp), "a"*40, out, "manual")
             self.assertFalse(out.exists())

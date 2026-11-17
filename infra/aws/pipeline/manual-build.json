@@ -1,0 +1,405 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Manual SingFlow cloud builds - test and publish immutable ECR releases without deployment permissions or GitHub federation.",
+  "Metadata": {
+    "AWSToolsMetrics": {
+      "AWSAgentToolkit": "aws-cloudformation@3"
+    },
+    "com.aws.cloudformation.Context": {
+      "ref": [
+        {
+          "at": "docs/deployment/build-remoto-aws.md",
+          "has": "Approval scope, manual build inputs and release procedure",
+          "scope": "shared"
+        }
+      ]
+    }
+  },
+  "Parameters": {
+    "ExpectedVersion": {
+      "Type": "String",
+      "Default": "0.1.0-beta.1",
+      "AllowedPattern": "[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?",
+      "Description": "Expected version; can also be overridden for an individual build."
+    }
+  },
+  "Resources": {
+    "BuildLogKey": {
+      "Type": "AWS::KMS::Key",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Encrypt build logs with a key restricted to the project log group.",
+          "must": [
+            "Retain key while retained logs may need it.",
+            "No access to application secrets."
+          ]
+        }
+      },
+      "Properties": {
+        "EnableKeyRotation": true,
+        "Description": "SingFlow manual build log encryption",
+        "KeyPolicy": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "AccountAdministration",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+                }
+              },
+              "Action": "kms:*",
+              "Resource": "*"
+            },
+            {
+              "Sid": "ProjectLogs",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": {
+                  "Fn::Sub": "logs.${AWS::Region}.amazonaws.com"
+                }
+              },
+              "Action": [
+                "kms:Encrypt",
+                "kms:Decrypt",
+                "kms:ReEncrypt*",
+                "kms:GenerateDataKey*",
+                "kms:DescribeKey"
+              ],
+              "Resource": "*",
+              "Condition": {
+                "ArnEquals": {
+                  "kms:EncryptionContext:aws:logs:arn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}-release"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BuildLogs": {
+      "Type": "AWS::Logs::LogGroup",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Bounded retention for isolated build/test output.",
+          "must": [
+            "Do not log production environment or credentials."
+          ]
+        }
+      },
+      "Properties": {
+        "LogGroupName": {
+          "Fn::Sub": "/aws/codebuild/${AWS::StackName}-release"
+        },
+        "RetentionInDays": 14,
+        "KmsKeyId": {
+          "Fn::GetAtt": [
+            "BuildLogKey",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "Artifacts": {
+      "Type": "AWS::S3::Bucket",
+      "DeletionPolicy": "Retain",
+      "UpdateReplacePolicy": "Retain",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Small published manifests only; images stay in ECR.",
+          "must": [
+            "Keep all public access blocked.",
+            "Keep encryption and versioning.",
+            "Do not upload images or application environment files."
+          ]
+        }
+      },
+      "Properties": {
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        },
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "VersioningConfiguration": {
+          "Status": "Enabled"
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "Id": "OldManifests",
+              "Status": "Enabled",
+              "Prefix": "releases/",
+              "ExpirationInDays": 90,
+              "NoncurrentVersionExpiration": {
+                "NoncurrentDays": 30
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ArtifactsPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "Artifacts"
+        },
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Sid": "TLSOnly",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Action": "s3:*",
+              "Resource": [
+                {
+                  "Fn::GetAtt": [
+                    "Artifacts",
+                    "Arn"
+                  ]
+                },
+                {
+                  "Fn::Sub": "${Artifacts.Arn}/*"
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "BuildRole": {
+      "Type": "AWS::IAM::Role",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "Ephemeral CodeBuild identity, scoped to two existing ECR repositories and build outputs.",
+          "must": [
+            "No EC2, SSM, IAM mutation or production secrets permissions.",
+            "Trust only this account and this build project."
+          ]
+        }
+      },
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "codebuild.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                  }
+                },
+                "ArnEquals": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:codebuild:${AWS::Region}:${AWS::AccountId}:project/${AWS::StackName}-release"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "PublishReleaseOnly",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Sid": "EcrLogin",
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecr:GetAuthorizationToken"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Sid": "TwoRepositories",
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecr:DescribeRepositories",
+                    "ecr:BatchGetImage",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:InitiateLayerUpload",
+                    "ecr:UploadLayerPart",
+                    "ecr:CompleteLayerUpload",
+                    "ecr:PutImage"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ecr:us-east-2:${AWS::AccountId}:repository/singflow/backend"
+                    },
+                    {
+                      "Fn::Sub": "arn:${AWS::Partition}:ecr:us-east-2:${AWS::AccountId}:repository/singflow/frontend"
+                    }
+                  ]
+                },
+                {
+                  "Sid": "BuildLogs",
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}-release:*"
+                  }
+                },
+                {
+                  "Sid": "ArtifactBucketMetadata",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetBucketAcl",
+                    "s3:GetBucketLocation"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "Artifacts",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Sid": "ManifestsOnly",
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetObjectVersion",
+                    "s3:PutObject"
+                  ],
+                  "Resource": {
+                    "Fn::Sub": "${Artifacts.Arn}/releases/*"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "BuildProject": {
+      "Type": "AWS::CodeBuild::Project",
+      "Metadata": {
+        "com.aws.cloudformation.Context": {
+          "why": "On-demand x86 build; explicitly initiated with expected version and main SHA. Public git clone needs no OAuth/OIDC or saved key.",
+          "must": [
+            "Never start on a push or webhook.",
+            "Validate pinned SHA against main before executing repository code.",
+            "Only publish after all tests pass.",
+            "Do not deploy or start an EC2."
+          ]
+        }
+      },
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${AWS::StackName}-release"
+        },
+        "Description": "Manual build and ECR publication only; no application deployment.",
+        "ServiceRole": {
+          "Fn::GetAtt": [
+            "BuildRole",
+            "Arn"
+          ]
+        },
+        "TimeoutInMinutes": 45,
+        "QueuedTimeoutInMinutes": 10,
+        "ConcurrentBuildLimit": 1,
+        "Source": {
+          "Type": "NO_SOURCE",
+          "BuildSpec": "version: 0.2\nphases:\n  install:\n    on-failure: ABORT\n    runtime-versions:\n      java: corretto21\n      nodejs: 24\n    commands:\n      - |\n        set -eu\n        test \"$AWS_DEFAULT_REGION\" = us-east-2\n        printf '%s' \"$SOURCE_REVISION\" | grep -Eq '^[0-9a-f]{40}$'\n        test -n \"$EXPECTED_VERSION\"\n        export GIT_TERMINAL_PROMPT=0\n        cd \"$CODEBUILD_SRC_DIR\"\n        git init\n        git remote add origin https://github.com/vilabrayner/singflow.git\n        git fetch --depth=1 origin refs/heads/main\n        test \"$(git rev-parse FETCH_HEAD)\" = \"$SOURCE_REVISION\"\n        git checkout --detach FETCH_HEAD\n  build:\n    on-failure: ABORT\n    commands:\n      - bash \"$CODEBUILD_SRC_DIR/infra/aws/pipeline/run-release.sh\"\nartifacts:\n  files:\n    - release.published.json\n  base-directory: /tmp/singflow-artifacts\n"
+        },
+        "Environment": {
+          "Type": "LINUX_CONTAINER",
+          "ComputeType": "BUILD_GENERAL1_MEDIUM",
+          "Image": "aws/codebuild/standard:8.0-26.10.28",
+          "ImagePullCredentialsType": "CODEBUILD",
+          "PrivilegedMode": true,
+          "EnvironmentVariables": [
+            {
+              "Name": "EXPECTED_VERSION",
+              "Type": "PLAINTEXT",
+              "Value": {
+                "Ref": "ExpectedVersion"
+              }
+            },
+            {
+              "Name": "SOURCE_REVISION",
+              "Type": "PLAINTEXT",
+              "Value": ""
+            }
+          ]
+        },
+        "Artifacts": {
+          "Type": "S3",
+          "Location": {
+            "Ref": "Artifacts"
+          },
+          "Path": "releases",
+          "NamespaceType": "BUILD_ID",
+          "Name": "release.zip",
+          "Packaging": "ZIP",
+          "EncryptionDisabled": false
+        },
+        "LogsConfig": {
+          "CloudWatchLogs": {
+            "Status": "ENABLED",
+            "GroupName": {
+              "Ref": "BuildLogs"
+            }
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ProjectName": {
+      "Description": "Manual project to start after approval; requires SOURCE_REVISION override.",
+      "Value": {
+        "Ref": "BuildProject"
+      }
+    },
+    "ArtifactBucket": {
+      "Description": "Private bucket for small publication receipts.",
+      "Value": {
+        "Ref": "Artifacts"
+      }
+    },
+    "BuildRoleArn": {
+      "Description": "Scoped publishing role; no deployment permissions.",
+      "Value": {
+        "Fn::GetAtt": [
+          "BuildRole",
+          "Arn"
+        ]
+      }
+    }
+  }
+}

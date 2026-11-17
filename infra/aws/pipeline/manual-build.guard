@@ -1,0 +1,23 @@
+# Selected controls for the manual publication project; not a full security audit.
+rule private_artifacts {
+  Resources.Artifacts.Properties.PublicAccessBlockConfiguration.BlockPublicAcls == true
+  Resources.Artifacts.Properties.PublicAccessBlockConfiguration.BlockPublicPolicy == true
+  Resources.Artifacts.Properties.PublicAccessBlockConfiguration.IgnorePublicAcls == true
+  Resources.Artifacts.Properties.PublicAccessBlockConfiguration.RestrictPublicBuckets == true
+  Resources.Artifacts.Properties.BucketEncryption.ServerSideEncryptionConfiguration[*].ServerSideEncryptionByDefault.SSEAlgorithm == 'AES256'
+  Resources.Artifacts.Properties.VersioningConfiguration.Status == 'Enabled'
+}
+rule encrypted_bounded_logs {
+  Resources.BuildLogs.Properties.KmsKeyId exists
+  Resources.BuildLogs.Properties.RetentionInDays == 14
+  Resources.BuildLogKey.Properties.EnableKeyRotation == true
+}
+rule manual_bounded_build {
+  Resources.BuildProject.Properties.Source.Type == 'NO_SOURCE'
+  Resources.BuildProject.Properties.TimeoutInMinutes == 45
+  Resources.BuildProject.Properties.ConcurrentBuildLimit == 1
+  Resources.BuildProject.Properties.Triggers !exists
+  Resources.BuildProject.Properties.VpcConfig !exists
+  Resources.BuildProject.Properties.Environment.ComputeType == 'BUILD_GENERAL1_MEDIUM'
+  Resources.BuildProject.Properties.Artifacts.EncryptionDisabled == false
+}

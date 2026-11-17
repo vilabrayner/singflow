@@ -25,12 +25,17 @@ def run(args, **kwargs):
 
 
 def validate(data):
-    if (data.get('schema') != 1 or data.get('account') != '505828739529'
+    if (data.get('schema') not in (1, 2) or data.get('account') != '505828739529'
             or data.get('region') != 'us-east-2' or data.get('published') is not True
             or data.get('platform') != 'linux/amd64'
             or not re.fullmatch(r'[0-9a-f]{40}', data.get('revision', ''))
             or set(data.get('digests', {})) != {'backend', 'frontend'}):
         raise ValueError('Invalid published release manifest')
+    if data['schema'] == 2:
+        version = data.get('version', '')
+        if (not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?', version)
+                or data.get('tag') != version or data.get('gitTag') != 'v' + version):
+            raise ValueError('Invalid release version identity')
     for name, ref in data['digests'].items():
         if not re.fullmatch(re.escape(REGISTRY + '/singflow/' + name) + r'@sha256:[0-9a-f]{64}', ref):
             raise ValueError('Invalid pinned image reference')
@@ -106,6 +111,8 @@ def deploy(data):
         info = json.loads(run(['docker', 'image', 'inspect', ref]))[0]
         if info['Os'] != 'linux' or info['Architecture'] != 'amd64' or (info['Config'].get('Labels') or {}).get('org.opencontainers.image.revision') != data['revision']:
             raise ValueError('Image architecture or revision mismatch: ' + name)
+        if data['schema'] == 2 and (info['Config'].get('Labels') or {}).get('org.opencontainers.image.version') != data['version']:
+            raise ValueError('Image version mismatch: ' + name)
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     backup = BASE / 'releases' / (stamp + '-' + data['revision'][:12])
     backup.mkdir(parents=True, exist_ok=False, mode=0o700)

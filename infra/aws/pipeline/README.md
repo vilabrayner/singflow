@@ -1,5 +1,7 @@
 # Pipeline nativa AWS do SingFlow
 
+> **Atualização de 17/11/2026:** o primeiro incremento preparado é o [build remoto manual via CodeBuild → ECR](../../../docs/deployment/build-remoto-aws.md). Ele não ativa gatilhos, CodePipeline, CodeConnections ou deploy automático. A proposta automática abaixo continua futura. Recursos novos ainda aguardam aprovação. A EC2 foi reativada posteriormente; o prazo de parada histórico abaixo não representa a operação atual.
+
 **Estado em 14/11/2026: arquitetura escolhida; proposta não provisionada nem ativada.** A escolha do usuário substitui a proposta GitHub Actions/OIDC. Nenhum recurso foi criado nesta preparação.
 
 ## Funcionamento escolhido

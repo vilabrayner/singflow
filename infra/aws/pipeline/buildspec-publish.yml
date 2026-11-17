@@ -19,7 +19,7 @@ phases:
   build:
     commands:
       - cd "$CODEBUILD_SRC_DIR"
-      - python3 scripts/aws/release.py build-source --source "$CODEBUILD_SRC_DIR" --revision "$CODEBUILD_RESOLVED_SOURCE_VERSION" --output /tmp/singflow-release.json
+      - python3 scripts/aws/release.py build-source --source "$CODEBUILD_SRC_DIR" --revision "$CODEBUILD_RESOLVED_SOURCE_VERSION" --expected-version "$EXPECTED_VERSION" --reuse-published --profile "" --output /tmp/singflow-release.json
   post_build:
     commands:
       - test "$CODEBUILD_BUILD_SUCCEEDING" = "1"
