@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 
-test('host registers and adds songs without duplicating participation', async ({ page }) => {
+test('host registers and adds songs without duplicating participation @release @release-desktop', async ({
+  page,
+}) => {
   let loggedIn = false;
   let current: { id: string; name: string; status: string; createdAt: string } | null = null;
   const participants: Record<string, unknown>[] = [];

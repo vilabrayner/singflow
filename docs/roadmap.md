@@ -2,6 +2,17 @@
 
 Cada etapa exige autorização antes de sua implementação. Documentação representa o plano, não a conclusão dos incrementos.
 
+## Próximas prioridades — atualização de 17/11/2026
+
+O responsável priorizou tempo real para reduzir consultas periódicas. Este registro define a ordem de discussão; não autoriza implementação, novos recursos ou envio de notificações. O segundo build remoto terminou com uma falha de UI; a seleção crítica de publicação foi revisada posteriormente conforme decisão do responsável.
+
+1. **WebSocket na fila e no palco:** atualizar anfitrião, participante e músico por eventos pertinentes, publicados após confirmação da transação. Preservar autenticação, autorização por sessão/participante, revogação, concorrência e idempotência. Ações continuam REST; sincronizar estado ao conectar/reconectar e ao retornar ao app. Consolidar eventos para evitar múltiplos GETs por ação. Polling de contingência deve ser moderado e usado somente quando necessário; heartbeat não deve consultar o banco.
+2. **Alertas no app e Web Push optativo:** próximo da fila, convocação, resposta à convocação e encerramento, com destinatários definidos por painel. WebSocket atende a interface ativa; notificação com app fechado/em segundo plano exige Web Push, service worker e permissão. Em iOS, considerar instalação na Tela de Início. Definir preferências, validade, deduplicação e abertura do contexto correto; aviso atrasado nunca substitui o estado atual do servidor. Avaliar este escopo antes de implementar.
+3. **Demais áreas de tempo real:** sincronização do catálogo e consulta administrativa das sessões, após consolidar fila/palco. A busca em APIs externas não deve ser disparada por notificações sem necessidade.
+4. **Suíte rápida de publicação (preparada e validada localmente):** 30 execuções críticas de interface (24 mobile e seis desktop), com regressão completa de 272 preservada em comando e workflow manual separados. Backend, migrations, configuração e scripts mantêm verificação integral. Todos os 30 casos passaram localmente em 1,3 minuto; pendentes commit/push e medição remota. Seleção e falha não bloqueante de foco: [Testes de publicação](deployment/testes-publicacao.md). Não excluir testes do repositório apenas pelo tempo; revisar o gate ao implementar tempo real.
+
+Levantamento atual no frontend: participante a cada 10 s; músico, consulta administrativa de sessão e descoberta de participantes na sessão vazia a cada 4 s; sincronização do catálogo a cada 2 s. Intervalos têm condições de visibilidade/estado e não representam necessariamente requisições contínuas em todas as telas. Verificar também o polling do painel de palco no desenho do contrato de eventos.
+
 ## Prioridade de desenvolvimento — atualização de 10/11/2026
 
 O responsável adiou a investigação de hospedagem/deploy para outro chat, mais tarde ou no dia seguinte. AWS, Aiven e orçamento permanecem em avaliação; não criar recursos nem continuar a migração neste trabalho.

@@ -27,7 +27,7 @@ npm run format:check
 npm run test:config
 npm run build
 npx playwright install --with-deps chromium
-npm test
+npm run test:release
 cd ..
 git diff --exit-code
 python3 scripts/aws/release.py build-source --source "$CODEBUILD_SRC_DIR" --revision "$SOURCE_REVISION" --expected-version "$EXPECTED_VERSION" --reuse-published --profile "" --output /tmp/singflow-release.json

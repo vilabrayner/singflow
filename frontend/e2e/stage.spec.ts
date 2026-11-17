@@ -142,7 +142,7 @@ async function callNext(page: Page, artist = '') {
   await expect(page.locator('.current-call')).toBeVisible();
 }
 
-test('concludes opportunity without request only after song is chosen', async ({
+test('concludes opportunity without request only after song is chosen @release @release-desktop', async ({
   page,
 }, testInfo) => {
   const requestsCreated = await setup(page);

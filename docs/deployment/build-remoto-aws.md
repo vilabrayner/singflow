@@ -1,6 +1,6 @@
 # Build remoto manual e release versionada
 
-Estado em 17/11/2026: infraestrutura autorizada e provisionada, stack `singflow-manual-build` em `CREATE_COMPLETE`. Arquivos publicados na main no commit `f4f84f70e2464bc3de3e10058dad6ff61fdaf0c6`. Nenhum build, tag, release GitHub ou deploy iniciado nesta etapa.
+Estado em 17/11/2026: infraestrutura autorizada e provisionada, stack `singflow-manual-build` em `CREATE_COMPLETE`. Arquivos publicados na main no commit `f4f84f70e2464bc3de3e10058dad6ff61fdaf0c6`. Duas execuções de build foram realizadas posteriormente e interrompidas pelos testes, antes da publicação. Nenhuma tag/release GitHub ou implantação foi realizada nesta etapa.
 
 Projeto: `singflow-manual-build-release`; bucket privado: `singflow-manual-build-artifacts-ci8ndzpd8xii`; logs: `/aws/codebuild/singflow-manual-build-release`. Operação CloudFormation: `2b5d0170-e2cb-11f1-81e0-0a605a67e8f7`. Validação de serviço sem eventos de erro e criação concluída. A leitura do projeto confirmou fonte manual, MEDIUM, concorrência 1, timeout 45 minutos e ausência de webhook; histórico de builds vazio. A consulta CloudTrail em Ohio não retornou trails; não foi configurada retenção durável de auditoria neste incremento.
 
@@ -69,7 +69,7 @@ Após autorização e provisionamento:
 6. Acompanhar Build history → execução → Build logs. O link CloudWatch mostra o mesmo fluxo de logs.
 7. Sucesso significa testes aprovados e ambas as imagens verificadas no ECR. Não significa implantação.
 
-O executor usa Java 21 e a versão Node de `.nvmrc`, executa testes dos scripts, `mvn verify` com PostgreSQL temporário e verificações/build/Playwright do frontend. Só então constrói e publica imagens. Nenhum teste acessa o banco de produção. Credenciais SMTP, APIs e banco não entram nas imagens, artefatos ou logs.
+O executor usa Java 21 e a versão Node de `.nvmrc`, executa testes dos scripts, `mvn verify` com PostgreSQL temporário e verificações/build e suíte crítica Playwright do frontend. Só então constrói e publica imagens. Nenhum teste acessa o banco de produção. Credenciais SMTP, APIs e banco não entram nas imagens, artefatos ou logs.
 
 Dependências e imagens-base são transferidas entre GitHub, registries e AWS. A conexão 5G fica apenas com comandos, console e pequeno recibo, sem upload/download local das imagens Docker.
 
@@ -95,3 +95,14 @@ Implantar fora do karaokê, após autorização. Migrations não são revertidas
 ## Verificações e limites
 
 Testes dos scripts sem rede/Docker reais; `bash -n`; cfn-lint; controles selecionados com cfn-guard oficial 3.2.2; CloudFormation ValidateTemplate. Essas verificações não comprovam permissões de criação ou sucesso do primeiro build. SCP pode negar uma operação futura; informar a negação e não contornar a política. A primeira execução real ainda precisa validar disponibilidade de dependências e duração dentro do timeout.
+
+## Revisão da suíte de publicação
+
+Após a primeira validação completa na AWS, a suíte de interface da publicação foi separada da regressão completa: 30 execuções críticas em vez de 272. Backend permanece com verificação integral. Seleção, justificativas, falha de UI pendente e comandos em [Testes de publicação](testes-publicacao.md). Essa alteração precisa estar na main antes de um novo build; não modifica a execução AWS já encerrada.
+
+### Primeiras execuções remotas
+
+- `6ca85098-c091-4c0e-8749-ada47abf9939`, SHA `f4f84f70e2464bc3de3e10058dad6ff61fdaf0c6`: falha no teste de concorrência de retorno à sessão (snapshot de atividade PostgreSQL). Correção de teste enviada na main pelo responsável.
+- `dcfa129f-d001-479e-abac-92692b576d26`, SHA `bc55b275838b4ac783d311e3261aa25c53641870`: backend 211/211 aprovado; interface 269 aprovados, dois ignorados e uma falha no foco de menu mobile. Interface completa em 8,8 minutos. Nenhuma publicação ECR ou implantação executada.
+
+Após a revisão solicitada, o gate de interface passa a usar 30 execuções críticas. Elas passaram localmente em 1,3 minuto; o resultado real na AWS ainda será medido após commit/push. A falha de foco continua documentada e disponível na regressão completa, sem bloqueio deste gate por decisão do responsável.

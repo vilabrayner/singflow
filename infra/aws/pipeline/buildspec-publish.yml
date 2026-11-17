@@ -15,7 +15,7 @@ phases:
       - cd "$CODEBUILD_SRC_DIR/frontend" && npm run format:check
       - cd "$CODEBUILD_SRC_DIR/frontend" && npm run test:config
       - cd "$CODEBUILD_SRC_DIR/frontend" && npm run build
-      - cd "$CODEBUILD_SRC_DIR/frontend" && npm test
+      - cd "$CODEBUILD_SRC_DIR/frontend" && npm run test:release
   build:
     commands:
       - cd "$CODEBUILD_SRC_DIR"

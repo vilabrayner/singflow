@@ -33,7 +33,7 @@ async function enter(page: Page) {
   await page.getByRole('tab', { name: 'Catálogo', exact: true }).click();
 }
 
-test('catalogue appends pages, keeps state after failure and blocks deletion with associations', async ({
+test('catalogue appends pages, keeps state after failure and blocks deletion with associations @release', async ({
   page,
 }, info) => {
   await shell(page);

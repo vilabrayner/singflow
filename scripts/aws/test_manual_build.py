@@ -38,7 +38,7 @@ class ManualBuildTests(unittest.TestCase):
 
     def test_tests_precede_publication_and_only_receipt_is_exported(self):
         script = (ROOT / 'infra/aws/pipeline/run-release.sh').read_text()
-        for check in ('./mvnw -B verify', 'npm run test:config', 'npm test'):
+        for check in ('./mvnw -B verify', 'npm run test:config', 'npm run test:release'):
             self.assertLess(script.index(check), script.index('release.py publish'))
         self.assertIn('--reuse-published', script)
         self.assertIn('--expected-version "$EXPECTED_VERSION"', script)

@@ -180,7 +180,9 @@ test('sync progress updates while paused runs resume and survives leaving the sc
   await page.getByRole('button', { name: 'Retomar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Catálogo de músicas', exact: true }).click();
-  await expect(page.getByText('Existem músicas pendentes de revisão', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Existem músicas pendentes de revisão', { exact: true }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Fechar notificação', exact: true }).click();
   await page.getByRole('tab', { name: 'Sincronizar', exact: true }).click();
   await expect(
@@ -254,7 +256,7 @@ test('sync correspondence shows before and after and requires explicit link conf
   expect(writes).toEqual([{ revision: 2, position: 0, targetId: 'song-target', targetVersion: 4 }]);
 });
 
-test('sync manual review keeps edits during polling and reports stale approval without false success', async ({
+test('sync manual review keeps edits during polling and reports stale approval without false success @release', async ({
   page,
 }) => {
   await shell(page);

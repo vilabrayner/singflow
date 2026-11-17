@@ -78,7 +78,7 @@ async function setup(page: Page, sessions: Session[] = [], signedIn = true) {
   };
 }
 
-test('login supports password visibility, failure and recovery without exposing the account menu', async ({
+test('login supports password visibility, failure and recovery without exposing the account menu @release', async ({
   page,
 }, testInfo) => {
   const api = await setup(page, [], false);
@@ -104,7 +104,7 @@ test('login supports password visibility, failure and recovery without exposing 
   await expect(page.getByRole('heading', { name: 'Vamos começar?' })).toBeVisible();
 });
 
-test('create, cancel, open and register empty session retain a mobile layout and deliberate transitions', async ({
+test('create, cancel, open and register empty session retain a mobile layout and deliberate transitions @release @release-desktop', async ({
   page,
 }, testInfo) => {
   const api = await setup(page);
@@ -280,7 +280,7 @@ test('floating session menu preserves layout and modal cancellation restores foc
   expect(api.counts().closes).toBe(0);
 });
 
-test('confirmation cannot dismiss or double submit while its operation is pending', async ({
+test('confirmation cannot dismiss or double submit while its operation is pending @release', async ({
   page,
 }) => {
   const session = { id: 'open-session', name: 'Café Tão', status: 'OPEN', createdAt: date };

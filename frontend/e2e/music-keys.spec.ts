@@ -13,7 +13,7 @@ const song = {
   keyLabel: 'D (Original)',
   createdAt: new Date().toISOString(),
 };
-test('participant configures semitones with buttons and typing, retaining input after conflict', async ({
+test('participant configures semitones with buttons and typing, retaining input after conflict @release', async ({
   page,
 }, info) => {
   let current = { ...song };
@@ -81,7 +81,7 @@ test('participant configures semitones with buttons and typing, retaining input 
   await modal.getByRole('button', { name: 'Voltar', exact: true }).click();
   await expect(page.locator('body')).not.toHaveClass(/p-overflow-hidden/);
 });
-test('musician sees calculated key and records actual key during and after a performance', async ({
+test('musician sees calculated key and records actual key during and after a performance @release', async ({
   page,
 }, info) => {
   let call = {

@@ -15,7 +15,9 @@
     "format": "prettier --write src scripts *.json *.ts",
     "test:config": "node --experimental-strip-types --test scripts/configure.test.mjs scripts/server.test.mjs scripts/version.test.mjs",
     "postbuild": "node scripts/prepare-hosting.mjs",
-    "start:prod": "node server.js"
+    "start:prod": "node server.js",
+    "test:release": "playwright test --config playwright.release.config.ts",
+    "test:full": "playwright test"
   },
   "private": true,
   "packageManager": "npm@11.6.2",

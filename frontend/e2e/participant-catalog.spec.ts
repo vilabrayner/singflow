@@ -33,7 +33,7 @@ const first = {
 };
 const second = { ...first, id: 'b', title: 'Música B', artist: 'Artista B' };
 
-test('participant chooses catalog and Lastfm songs, continues choosing and falls back to free text', async ({
+test('participant chooses catalog and Lastfm songs, continues choosing and falls back to free text @release', async ({
   page,
 }, testInfo) => {
   let requests = [first];
@@ -144,7 +144,7 @@ test('participant chooses catalog and Lastfm songs, continues choosing and falls
   await page.screenshot({ path: testInfo.outputPath('participant-choices.png'), fullPage: true });
 });
 
-test('participant reorders only pending choices and reserved song has no reorder controls', async ({
+test('participant reorders only pending choices and reserved song has no reorder controls @release @release-desktop', async ({
   page,
 }) => {
   let songs = [first, second];
@@ -275,7 +275,7 @@ test('participant has three cards and drags pending choices without changing que
   });
 });
 
-test('participant replaces a pending song in place and handles an already called song', async ({
+test('participant replaces a pending song in place and handles an already called song @release', async ({
   page,
 }) => {
   let song = { ...first };
@@ -590,7 +590,7 @@ test('participant workspace preserves tab scroll and catalogue state with fixed 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('participant call interrupts other tabs and returns to waiting after host completion without acceptance', async ({
+test('participant call interrupts other tabs and returns to waiting after host completion without acceptance @release', async ({
   page,
 }) => {
   const api = await workspaceFixture(page);

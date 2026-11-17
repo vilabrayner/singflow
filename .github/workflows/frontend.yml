@@ -2,6 +2,13 @@ name: Frontend
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Interface test suite
+        type: choice
+        options: [release, full]
+        default: release
 permissions:
   contents: read
 jobs:
@@ -24,6 +31,13 @@ jobs:
         env:
           PRIMEUI_LICENSE_KEY: ${{ secrets.PRIMEUI_LICENSE_KEY }}
       - run: npx playwright install --with-deps chromium
-      - run: npm test
+      - name: Critical release interface tests
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.suite != 'full' }}
+        run: npm run test:release
+        env:
+          PRIMEUI_LICENSE_KEY: ${{ secrets.PRIMEUI_LICENSE_KEY }}
+      - name: Full interface regression (manual)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
+        run: npm run test:full
         env:
           PRIMEUI_LICENSE_KEY: ${{ secrets.PRIMEUI_LICENSE_KEY }}

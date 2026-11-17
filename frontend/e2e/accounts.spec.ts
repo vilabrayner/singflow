@@ -113,7 +113,7 @@ test('email confirmation requires an explicit action and a pending login opens a
   await expect(page.getByRole('heading', { name: 'Aguardando uma sessão' })).toBeVisible();
 });
 
-test('an ordinary host cannot open administration', async ({ page }) => {
+test('an ordinary host cannot open administration @release', async ({ page }) => {
   await page.route('**/api/auth/me', (r) =>
     r.fulfill({ json: { ...pending, status: 'APPROVED' } }),
   );
@@ -122,7 +122,7 @@ test('an ordinary host cannot open administration', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Cadastros', exact: true })).toHaveCount(0);
 });
 
-test('administrator approves and suspends with confirmation, reason and account version', async ({
+test('administrator approves and suspends with confirmation, reason and account version @release @release-desktop', async ({
   page,
 }) => {
   let account = { ...pending };

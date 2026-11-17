@@ -244,7 +244,7 @@ test('participant details confirm pauses and returns without losing history', as
   );
 });
 
-test('host drags the active queue, calls outside the order and pauses or resumes participants', async ({
+test('host drags the active queue, calls outside the order and pauses or resumes participants @release', async ({
   page,
 }, testInfo) => {
   const api = await setup(page);

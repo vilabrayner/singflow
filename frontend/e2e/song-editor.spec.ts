@@ -110,7 +110,7 @@ async function fixture(page: Page, conflict = false, open = true) {
   const modal = page.getByRole('dialog', { name: 'Detalhes da música', exact: true });
   return { modal, writes, searches, refs, reads, providers };
 }
-test('one Save retains all tab drafts, clears links and writes every change in one request', async ({
+test('one Save retains all tab drafts, clears links and writes every change in one request @release', async ({
   page,
 }, info) => {
   const { modal, writes, searches, refs } = await fixture(page);

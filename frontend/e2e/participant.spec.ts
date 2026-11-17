@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 const session = '11111111-1111-4111-8111-111111111111';
 const url = `/participante/${session}/entry-code`;
 
-test('participant joins, leaves, returns safely with a new song and forgets access', async ({
+test('participant joins, leaves, returns safely with a new song and forgets access @release', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -244,7 +244,7 @@ test('participant joins, leaves, returns safely with a new song and forgets acce
   await expect(page.getByRole('heading', { name: 'Meus pedidos' })).not.toBeVisible();
 });
 
-test('closed session and expired access never offer a new registration silently', async ({
+test('closed session and expired access never offer a new registration silently @release', async ({
   page,
 }) => {
   await page.route('**/api/**', (route) => {
@@ -348,7 +348,7 @@ for (const state of ['OPEN', 'CLOSED']) {
   });
 }
 
-test('participant can skip without leaving and confirm a later call', async ({ page }) => {
+test('participant can skip without leaving and confirm a later call @release', async ({ page }) => {
   let active: { id: string; title: string; artist: string; acceptedAt: string | null } | null = {
     id: 'first',
     title: 'Equalize',
@@ -403,7 +403,7 @@ test('participant can skip without leaving and confirm a later call', async ({ p
   expect(skips).toBe(1);
 });
 
-test('host grants individual QR access and the phone confirms a replacement explicitly', async ({
+test('host grants individual QR access and the phone confirms a replacement explicitly @release', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -556,7 +556,7 @@ test('expired individual QR never offers another check-in', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Entrar com minha música' })).toHaveCount(0);
 });
 
-test('participant reopening restores the session and distinguishes position, next and called states', async ({
+test('participant reopening restores the session and distinguishes position, next and called states @release', async ({
   page,
   context,
 }) => {

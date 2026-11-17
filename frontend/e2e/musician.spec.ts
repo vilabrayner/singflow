@@ -7,7 +7,7 @@ const session = {
   createdAt: '2026-11-11T12:00:00Z',
 };
 
-test('musician signs in, receives a session, reads the full queue and tracks the stage', async ({
+test('musician signs in, receives a session, reads the full queue and tracks the stage @release @release-desktop', async ({
   page,
 }, testInfo) => {
   let loggedIn = false;
@@ -134,7 +134,7 @@ test('musician signs in, receives a session, reads the full queue and tracks the
   expect(writes).toEqual(['/api/auth/login', '/api/auth/logout']);
 });
 
-test('host grants musician access and confirms revocation without repeating a grant after failure', async ({
+test('host grants musician access and confirms revocation without repeating a grant after failure @release', async ({
   page,
 }) => {
   let granted = false;
