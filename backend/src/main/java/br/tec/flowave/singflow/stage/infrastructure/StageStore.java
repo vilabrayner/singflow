@@ -19,7 +19,7 @@ public class StageStore {
       Instant createdAt,
       Instant resolvedAt,
       Long resolutionOrder,
-      Instant acceptedAt) {}
+      Instant acceptedAt, UUID catalogSongId, int semitones, String originalKey, String performedKey, long keyVersion, String choiceFingerprint) {}
 
   public record Wait(UUID participantId, boolean manualRelease) {}
 
@@ -45,13 +45,12 @@ public class StageStore {
         rs.getTimestamp("created_at").toInstant(),
         resolved == null ? null : resolved.toInstant(),
         rs.getObject("resolution_order", Long.class),
-        accepted == null ? null : accepted.toInstant());
+        accepted == null ? null : accepted.toInstant(),rs.getObject("catalog_song_id",UUID.class),rs.getInt("semitones"),rs.getString("original_key"),rs.getString("performed_key"),rs.getLong("key_version"),rs.getString("choice_fingerprint"));
   }
 
   public List<Call> calls(UUID session) {
     return jdbc.sql(
-            "SELECT * FROM singflow.stage_calls WHERE session_id=:session ORDER BY created_at"
-                + " DESC,id DESC")
+            "SELECT c.*,s.title,nullif(s.artist,'') AS artist,s.original_key FROM singflow.stage_calls c LEFT JOIN singflow.catalog_songs s ON s.id=c.catalog_song_id WHERE c.session_id=:session ORDER BY c.created_at DESC,c.id DESC")
         .param("session", session)
         .query(this::map)
         .list();
@@ -64,18 +63,18 @@ public class StageStore {
       UUID request,
       String title,
       String artist,
-      UUID catalogSong) {
+      UUID catalogSong, int semitones) {
     jdbc.sql(
             "INSERT INTO"
-                + " singflow.stage_calls(id,session_id,participant_id,request_id,title,artist,status,created_at,catalog_song_id)"
+                + " singflow.stage_calls(id,session_id,participant_id,request_id,status,created_at,catalog_song_id,semitones,choice_fingerprint)"
                 + " VALUES"
-                + " (:id,:session,:participant,:request,:title,:artist,'CALLED',:created,:catalog)")
+                + " (:id,:session,:participant,:request,'CALLED',:created,:catalog,:semitones,:fingerprint)")
         .param("id", id)
         .param("session", session)
         .param("participant", participant)
         .param("request", request)
-        .param("title", title)
-        .param("artist", artist)
+        .param("semitones", semitones)
+        .param("fingerprint", title==null?null:br.tec.flowave.singflow.catalog.MusicKey.fingerprint(title,artist))
         .param("catalog", catalogSong)
         .param("created", Timestamp.from(Instant.now()))
         .update();
@@ -95,11 +94,10 @@ public class StageStore {
     int updated =
         jdbc.sql(
                 "UPDATE singflow.stage_calls SET"
-                    + " title=:title,artist=:artist,catalog_song_id=:catalog WHERE"
-                    + " session_id=:session AND id=:call AND status='CALLED' AND title IS NULL")
+                    + " catalog_song_id=:catalog,choice_fingerprint=:fingerprint WHERE"
+                    + " session_id=:session AND id=:call AND status='CALLED' AND catalog_song_id IS NULL")
             .param("catalog", catalogSong)
-            .param("title", title)
-            .param("artist", artist)
+            .param("fingerprint", br.tec.flowave.singflow.catalog.MusicKey.fingerprint(title,artist))
             .param("session", session)
             .param("call", call)
             .update();
@@ -110,16 +108,18 @@ public class StageStore {
     int updated =
         jdbc.sql(
                 "UPDATE singflow.stage_calls SET"
-                    + " status=:status,title=:title,artist=:artist,resolved_at=:resolved,resolution_order=nextval('singflow.stage_resolution_order_seq')"
+                    + " status=:status,resolved_at=:resolved,resolution_order=nextval('singflow.stage_resolution_order_seq')"
                     + " WHERE session_id=:session AND id=:call AND status='CALLED'")
             .param("status", status)
-            .param("title", title)
-            .param("artist", artist)
             .param("resolved", Timestamp.from(Instant.now()))
             .param("session", session)
             .param("call", call)
             .update();
     if (updated != 1) throw new IllegalStateException("Call was not active under session lock");
+  }
+
+  public void performedKey(UUID session,UUID call,String key) {
+    jdbc.sql("UPDATE singflow.stage_calls SET performed_key=?,key_version=key_version+1 WHERE session_id=? AND id=?").params(key,session,call).update();
   }
 
   public record QueueSkip(UUID sessionId, UUID participantId, UUID requestId) {}

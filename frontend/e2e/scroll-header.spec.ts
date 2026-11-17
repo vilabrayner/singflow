@@ -36,6 +36,7 @@ test('reload returns content below the fixed header and polling keeps the readin
   await page.goto('/musico');
   await expect(page.getByRole('heading', { name: session.name, exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Fila', exact: true }).click();
+  await expect(page.locator('.sf-application-loading')).toBeHidden();
   const viewport = page.locator('.sf-workspace-viewport');
   await viewport.evaluate((el) => {
     el.scrollTop = 120;
@@ -43,6 +44,7 @@ test('reload returns content below the fixed header and polling keeps the readin
   await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(120);
   await page.reload();
   await expect(page.getByRole('heading', { name: session.name, exact: true })).toBeVisible();
+  await expect(page.locator('.sf-application-loading')).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   const header = await page.locator('.sf-panel-header').boundingBox();
   const card = await page.locator('app-surface-card').first().boundingBox();
@@ -58,5 +60,6 @@ test('reload returns content below the fixed header and polling keeps the readin
   });
   await expect.poll(() => reads, { timeout: 10000 }).toBeGreaterThan(previousReads);
   await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(240);
+  await expect(page.locator('.sf-application-loading')).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });

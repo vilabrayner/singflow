@@ -28,6 +28,13 @@
     [railIcon]="order ? null : 'fa-solid fa-ban'"
     [title]="song.title || 'Música a escolher'"
     [subtitle]="song.artist"
+    [detail]="
+      song.performedKey
+        ? 'Tom cantado: ' + song.performedKey
+        : song.keyLabel
+          ? 'Tom: ' + song.keyLabel
+          : null
+    "
     [status]="status(song.status)"
     [completed]="song.status === 'COMPLETED'"
   />

@@ -722,3 +722,30 @@ input.entry-link {
     width: auto !important;
   }
 }
+
+/* Notifications must not block tab controls in a full-height music dialog. */
+body:has(.sf-song-fullscreen) .sf-toast :is(.p-toast-message, .p-toast-message-content) {
+  pointer-events: none;
+}
+body:has(.sf-song-fullscreen) .sf-toast .p-toast-close-button {
+  pointer-events: auto;
+}
+
+/* Monochrome brand mark inherits the same currentColor as theme icons. */
+.sf-cifra-icon {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  background: currentColor;
+  mask: url('/icons/cifra-club-icon.png') center / contain no-repeat;
+}
+.sf-icon-button:has(.sf-external-mark) {
+  position: relative;
+}
+.sf-external-mark {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  font-size: 9px;
+}

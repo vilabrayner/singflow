@@ -1,3 +1,4 @@
+import { ApplicationLoading } from '../../shared/application-loading';
 import { LinkClipboard } from '../../shared/link-clipboard';
 import { createOperationId } from '../../shared/operation-id';
 import { Notifications } from '../../shared/notifications';
@@ -120,9 +121,7 @@ import { ApiClient, apiError } from '../../core/http/api-client';
       @if (error() && !confirming()) {
         <p role="alert" class="sf-dialog-error">{{ error() }}</p>
       }
-      @if (busy() && !url()) {
-        <p role="status">Carregando QR Code…</p>
-      }
+      @if (busy() && !url()) {}
       @if (error() && !confirming()) {
         <button type="button" class="sf-button sf-outline" [disabled]="busy()" (click)="load()">
           Tentar gerar QR Code novamente
@@ -147,8 +146,9 @@ import { ApiClient, apiError } from '../../core/http/api-client';
         /></label>
         <p class="entry-link">
           <a [href]="link" target="_blank" rel="noopener noreferrer"
-            >Abrir entrada do participante</a
-          >
+            >Abrir entrada do participante
+            <i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i
+          ></a>
         </p>
       }
     </ng-template>
@@ -161,6 +161,7 @@ export class EntryShare implements OnInit {
   readonly returnFocus = input<string>();
   readonly showing = signal(false);
   private readonly api = inject(ApiClient);
+  private readonly loading = inject(ApplicationLoading);
   private readonly injector = inject(Injector);
   private readonly dialog = viewChild(ConfirmationDialog);
   readonly busy = signal(false);
@@ -200,6 +201,7 @@ export class EntryShare implements OnInit {
   }
   async load(rotate = false) {
     if (this.busy()) return;
+    const finish = this.loading.start();
     this.busy.set(true);
     this.error.set('');
     try {
@@ -226,6 +228,7 @@ export class EntryShare implements OnInit {
       this.error.set(apiError(error));
     } finally {
       this.busy.set(false);
+      finish();
     }
   }
   private readonly clipboard = inject(LinkClipboard);

@@ -194,3 +194,52 @@ Preparado servidor HTTP para a Hostinger, com entrega do Angular, fallback de ro
 Implementação autorizada para uniformizar a UI do MVP. Músico passa a Palco/Fila/Histórico; admin passa a Cadastros/Sessões/Catálogo. Header fixo, dock, ScrollArea, tipografia e itens compartilham o padrão atual. Sessões antigas do músico continuam em modal e o acesso permanece de consulta. Filtros administrativos são preservados entre abas; saída da sincronização mantém aviso de revisão pendente. Sem alteração de API, migrations ou regras da fila. Validação e roteiro em [Aceite 028](acceptance/028-musician-admin-workspaces.md). Aceite em aparelho físico pendente. Esta seção substitui o estado visual antigo da etapa 3C; WebSocket e demais evoluções seguem pendentes.
 
 Validação da padronização: build e formatação aprovados; 68 testes dos dois painéis e recarga aprovados com API simulada. A regressão geral e os timeouts de testes antigos estão discriminados no Aceite 028; não confundir emulação de celular com aceite físico.
+
+## Catálogo administrativo com abas — 15/11/2026
+
+Implementação autorizada: layout de catálogo do participante reaproveitado no admin, com abas Catálogo/Sincronizar, busca fixa, lista em ScrollArea e gestão existente preservada. Sem alteração de backend, migrations ou infraestrutura. Registro em [Aceite 029](acceptance/029-admin-catalog-tabs.md).
+
+
+## Gestão incremental do catálogo administrativo — 16/11/2026
+
+Itens alinhados ao catálogo do participante, informação e exclusão com confirmação, situação no diálogo de detalhes, carregamento incremental de dez itens e pesquisa automática com inclusão Last.fm comprovada pelo backend. Exclusão lógica somente sem associações de uso, preservando auditoria e bloqueando pedidos cancelados, apresentações, sincronizações e unificações. V18 acrescentada; migrations anteriores preservadas. Sincronização mostra somente pendências de intervenção e volta ao estado limpo na mesma aba quando o lote está totalmente resolvido, mantendo histórico no banco. Validação e ensaio em [Aceite 030](acceptance/030-admin-catalog-management.md). Sem commit ou publicação neste incremento.
+
+
+## Música canônica e configuração de tom — 16/11/2026
+
+Implementados catálogo como fonte única de título/artista, JOINs para exibição, transferência de todos os vínculos na unificação e remoção física dos registros absorvidos com auditoria/aliases preservados. V19 normaliza também unificações antigas. Participante configura semitons no pedido pendente; músico visualiza Tom no palco/fila/histórico e registra o tom efetivamente cantado durante ou após a apresentação. Trocar música limpa a configuração. Preferência pessoal persistente e sugestões baseadas no tom cantado ficam para cadastro de participantes. [ADR 005](decisions/005-canonical-music-and-performance-keys.md) e [Aceite 031](acceptance/031-canonical-music-and-keys.md). Sem commit ou deploy.
+
+
+## Cifra Club — 16/11/2026
+
+Implementados busca com sugestão principal `top_result` para confirmação, referência oficial administrativa e preferência pessoal do músico por perfil/música, com fallback ao catálogo. V20, auditoria, permissões, concorrência e preservação de alternativas na unificação validadas pelo responsável com BUILD SUCCESS. Interface pública do provedor isolada em adaptador, com cache, limites, flag e link manual. [ADR 006](decisions/006-cifra-club-references.md) e [Aceite 032](acceptance/032-cifra-club.md). Ensaio físico/integrado pendente; sem commit ou deploy. Spotify, YouTube, letras e WebSocket permanecem pendentes.
+
+
+## Referências de streaming — 16/11/2026
+
+Implementados contratos `StreamingSearch`/`StreamingReferenceStore`, registro por tipo, adaptador Spotify, escolha administrativa do link oficial e botões por plataforma no músico. Credenciais somente no backend; cache, limites, falhas e vínculo manual preservados. Sem migration nova. Backend validado pelo responsável com BUILD SUCCESS; build e 32 testes de interface passaram com API simulada. [ADR 007](decisions/007-streaming-search.md) e [Aceite 033](acceptance/033-streaming-search.md). Consulta assíncrona ao cadastrar pedidos está em análise, sem implementação automática. Deezer, player, YouTube, letras e WebSocket seguem pendentes. Sem commit ou deploy.
+
+
+## YouTube no streaming — 16/11/2026
+
+Adaptadores de busca/persistência YouTube integrados ao `StreamingSearch`, reutilizando a modal e os botões por tipo. Escolha administrativa, link oficial, coexistência com Spotify, paginação por tokens, cache e limite diário local. Coluna `youtube_url` existente, sem migration. Backend com banco validado pelo responsável com BUILD SUCCESS. [Aceite 034](acceptance/034-youtube-streaming.md). Sem publicação. Enriquecimento assíncrono, player, letras e WebSocket continuam separados deste incremento.
+
+
+## Letras do participante — prova de conceito LRCLIB, 16/11/2026
+
+Contrato `LyricsSearch` com adaptador LRCLIB, consulta protegida por convocação aceita e letra simples dentro do card de status. Rolagem manual, fonte/estados explícitos, cache temporário e descarte de resultados antigos; sem migration ou persistência permanente de letras. Build, sete testes focados e 32 cenários de interface passaram. Validação com PostgreSQL temporário solicitada ao responsável; [ADR 008](decisions/008-participant-lyrics.md) e [Aceite 035](acceptance/035-participant-lyrics.md). Sem publicação. Sincronização de letra/rolagem, edição e associação de versões seguem para incrementos posteriores.
+
+
+## Antecipação das letras na convocação — 16/11/2026
+
+Confirmar a convocação agenda a consulta LRCLIB após commit, em worker com fila limitada e deduplicação, sem bloquear a chamada ou gravar texto permanentemente. Participante continua vendo a letra só após aceitar, com consulta sob demanda como fallback. Cache compartilhado e leitura imediata de entradas já prontas; ausência de rede em rollback/idempotência. Compilação e 18 testes focados passaram; verificação completa com PostgreSQL temporário solicitada ao responsável. [ADR 008](decisions/008-participant-lyrics.md) e [Aceite 035](acceptance/035-participant-lyrics.md). Sem frontend, migration, commit ou deploy novos nesta antecipação.
+
+
+## Enriquecimento de músicas novas por pedido — 16/11/2026
+
+Fila persistida V21 por música/provedor, criada junto com um novo cadastro originado de pedido. Letra no cache; sugestões de cifra/Spotify/YouTube no banco para confirmação nas modais existentes. Reaproveitamento de músicas, retomada de claims, tentativas limitadas, preservação de oficiais e descarte de respostas antigas após correção/unificação. Backend validado pelo responsável com BUILD SUCCESS, incluindo a correção do teste de revogação de letras. Build final e 36 cenários de UI passaram. [ADR 009](decisions/009-request-resource-enrichment.md) e [Aceite 036](acceptance/036-request-resource-enrichment.md). Sem publicação/AWS. O resultado completo também conclui as verificações anteriores de letras e antecipação que estavam pendentes. Sincronização de letra, player e WebSocket continuam em etapas posteriores.
+
+
+## Cache de letras por sessão — 16/11/2026
+
+TTL positivo substituído por retenção durante a sessão aberta. Cache central associado às sessões consumidoras, compartilhamento seguro e limpeza após commit do encerramento; a última sessão consumidora libera a letra. Tarefas/consultas tardias não restauram entradas encerradas. Letras não encontradas/instrumentais mantêm dois minutos para nova tentativa. Adaptador HTTP separado do cache. Compilação e 22 testes focados passaram; integração com PostgreSQL temporário solicitada ao responsável. [ADR 008](decisions/008-participant-lyrics.md) e [Aceite 035](acceptance/035-participant-lyrics.md). Sem migration, frontend, commit ou deploy.

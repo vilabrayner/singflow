@@ -309,6 +309,7 @@ test('host drags the active queue, calls outside the order and pauses or resumes
   });
   await page.reload();
   await expect(page.getByRole('button', { name: 'Chamar Bruno', exact: true })).toBeEnabled();
+  await expect(page.locator('.sf-application-loading')).toBeHidden();
   await page.getByLabel('Buscar na fila').fill('Bruno');
   await expect(page.getByRole('button', { name: /^Ordenar Bruno/ })).toHaveAttribute(
     'aria-disabled',
@@ -584,6 +585,8 @@ test('host drag automatically scrolls the PrimeNG viewport near its lower edge',
   });
   const viewport = page.locator('.sf-host-tab-viewport');
   const handle = page.getByRole('button', { name: /^Ordenar Ana/ });
+  await expect(handle).toBeVisible();
+  await expect(page.locator('.sf-application-loading')).toBeHidden();
   await handle.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
   const source = await handle.boundingBox(),
     bounds = await viewport.boundingBox(),

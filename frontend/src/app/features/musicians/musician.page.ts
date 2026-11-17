@@ -1,3 +1,7 @@
+import { StreamingLink } from '../../shared/streaming';
+import { ChordActions } from '../../shared/components/chord-actions';
+import { ChordLinkDialog, ChordLink, ChordSong } from '../../shared/components/chord-link-dialog';
+import { Notifications } from '../../shared/notifications';
 import { PanelWorkspace } from '../../shared/components/panel-workspace';
 import { MenuPopover } from '../../shared/components/menu-popover';
 import { StageQueue } from '../stage/stage-queue';
@@ -21,7 +25,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { ApiClient, apiError } from '../../core/http/api-client';
 import { HostAuth } from '../identity/host-auth';
 import { KaraokeSession } from '../sessions/session-api';
-import { StageView } from '../stage/stage-api';
+import { StageView, StageCall } from '../stage/stage-api';
 import { PanelHeader } from '../../shared/components/panel-header';
 import { ConfirmationDialog } from '../../shared/components/confirmation-dialog';
 import { SurfaceCard } from '../../shared/components/surface-card';
@@ -30,6 +34,8 @@ import { StatusBadge } from '../../shared/components/status-badge';
 interface Performance {
   session: KaraokeSession;
   stage: StageView;
+  chords?: Record<string, ChordLink>;
+  streaming?: Record<string, StreamingLink[]>;
 }
 @Component({
   selector: 'app-musician-page',
@@ -37,6 +43,8 @@ interface Performance {
   styles:
     ':host { display:block; } .sf-musician-archive-section { margin-top:20px; padding-top:20px; border-top:1px solid var(--sf-border); }',
   imports: [
+    ChordActions,
+    ChordLinkDialog,
     PanelHeader,
     PanelWorkspace,
     MenuPopover,
@@ -53,6 +61,7 @@ interface Performance {
 })
 export class MusicianPage implements OnInit, OnDestroy {
   private readonly api = inject(ApiClient);
+  private readonly notifications = inject(Notifications);
   private readonly injector = inject(Injector);
   private readonly sessionDialog = viewChild<ConfirmationDialog>('sessionDialog');
   private readonly auth = inject(HostAuth);
@@ -92,6 +101,63 @@ export class MusicianPage implements OnInit, OnDestroy {
   changeTab(value: string) {
     if (this.navigationItems.some((item) => item.value === value)) this.activeTab.set(value);
   }
+  readonly choosingChord = signal<{ song: ChordSong; session: string } | null>(null);
+  openChord(song: ChordSong, session = this.selected()?.id) {
+    if (!session || !this.canRecordKey()) return;
+    this.choosingChord.set({ song, session });
+  }
+  chordSaved(link: ChordLink) {
+    const session = this.choosingChord()?.session;
+    if (this.selected()?.id === session)
+      this.performance.update((p) =>
+        p ? { ...p, chords: { ...p.chords, [link.songId]: link } } : p,
+      );
+    if (this.archiveSession()?.id === session)
+      this.archivePerformance.update((p) =>
+        p ? { ...p, chords: { ...p.chords, [link.songId]: link } } : p,
+      );
+  }
+  readonly canRecordKey = signal(false);
+  readonly editingKey = signal<{ session: string; call: StageCall } | null>(null);
+  readonly keyError = signal('');
+  readonly keyForm = this.fb.control('', [
+    Validators.pattern(/^[A-G](#|b)?m?$/),
+    Validators.maxLength(4),
+  ]);
+  openKey(call: StageCall, session = this.selected()?.id) {
+    if (!session || this.busy() || !this.canRecordKey()) return;
+    this.keyError.set('');
+    this.keyForm.setValue(call.performedKey ?? '');
+    this.editingKey.set({ session, call: { ...call } });
+  }
+  async saveKey() {
+    const editing = this.editingKey();
+    if (!editing || this.busy() || this.keyForm.invalid) return;
+    this.busy.set(true);
+    this.keyError.set('');
+    // Discard any in-flight polling snapshot started before this update.
+    this.generation++;
+    this.archiveGeneration++;
+    this.archiveLoading.set(false);
+    try {
+      const result = await this.api.post<Performance>(
+        `/musicians/sessions/${editing.session}/calls/${editing.call.id}/key`,
+        { version: editing.call.keyVersion ?? 0, performedKey: this.keyForm.value || null },
+      );
+      if (this.selected()?.id === editing.session) this.performance.set(result);
+      if (this.archiveSession()?.id === editing.session) this.archivePerformance.set(result);
+      this.editingKey.set(null);
+      this.notifications.success('Tom cantado atualizado.');
+    } catch (error) {
+      this.keyError.set(
+        error instanceof HttpErrorResponse && error.status === 404
+          ? 'Sessão indisponível para este músico.'
+          : apiError(error),
+      );
+    } finally {
+      this.busy.set(false);
+    }
+  }
   readonly updatedAt = signal<Date | null>(null);
   readonly locked = computed(() => this.busy() || this.loading());
   private timer?: ReturnType<typeof setInterval>;
@@ -102,6 +168,7 @@ export class MusicianPage implements OnInit, OnDestroy {
     try {
       const account = await this.auth.account();
       this.email.set(account.email);
+      this.canRecordKey.set(account.role === 'MUSICIAN');
       await this.load();
     } catch (error) {
       if (!(error instanceof HttpErrorResponse && error.status === 401))
@@ -111,7 +178,7 @@ export class MusicianPage implements OnInit, OnDestroy {
     }
     if (this.destroyed) return;
     this.timer = setInterval(() => {
-      if (!this.document.hidden && this.email()) void this.load();
+      if (!this.document.hidden && this.email()) void this.load(undefined, true);
     }, 4000);
   }
   ngOnDestroy() {
@@ -132,6 +199,7 @@ export class MusicianPage implements OnInit, OnDestroy {
       await this.auth.login(email, password);
       const account = await this.auth.account();
       this.email.set(account.email);
+      this.canRecordKey.set(account.role === 'MUSICIAN');
       this.form.controls.password.reset();
       this.showPassword.set(false);
       await this.load();
@@ -147,12 +215,12 @@ export class MusicianPage implements OnInit, OnDestroy {
       this.busy.set(false);
     }
   }
-  async load(preferred = this.selected()?.id) {
-    if (this.loading() || this.destroyed) return;
+  async load(preferred = this.selected()?.id, background = false) {
+    if (this.loading() || (this.editingKey() && this.busy()) || this.destroyed) return;
     this.loading.set(true);
     const generation = ++this.generation;
     try {
-      const sessions = await this.api.get<KaraokeSession[]>('/musicians/sessions');
+      const sessions = await this.api.get<KaraokeSession[]>('/musicians/sessions', { background });
       if (generation !== this.generation || this.destroyed) return;
       this.sessions.set(sessions);
       if (
@@ -172,7 +240,9 @@ export class MusicianPage implements OnInit, OnDestroy {
       }
       this.selected.set(selected);
       if (selected) {
-        const performance = await this.api.get<Performance>(`/musicians/sessions/${selected.id}`);
+        const performance = await this.api.get<Performance>(`/musicians/sessions/${selected.id}`, {
+          background,
+        });
         if (generation !== this.generation || this.destroyed) return;
         if (performance.session.status === 'OPEN') {
           this.performance.set(performance);
@@ -196,6 +266,7 @@ export class MusicianPage implements OnInit, OnDestroy {
       this.error.set(apiError(error));
       this.disconnected.set(true);
       if (error instanceof HttpErrorResponse && [401, 403, 404].includes(error.status)) {
+        this.choosingChord.set(null);
         this.performance.set(null);
         this.selected.set(null);
         this.activeTab.set('stage');
@@ -292,6 +363,7 @@ export class MusicianPage implements OnInit, OnDestroy {
       this.generation++;
       this.headerMenu.set(false);
       this.email.set('');
+      this.choosingChord.set(null);
       this.sessions.set([]);
       this.selected.set(null);
       this.performance.set(null);

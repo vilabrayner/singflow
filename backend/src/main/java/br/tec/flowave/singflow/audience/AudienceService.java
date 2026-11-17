@@ -144,7 +144,7 @@ public class AudienceService {
   @Transactional
   public MobileAccess mobileAccess(UUID session, String actor, UUID participant) {
     sessions.lockOwned(session, actor, true);
-    assisted(session, actor, participant);
+    linkableParticipant(session, actor, participant);
     return jdbc.sql(
             """
 SELECT EXISTS(SELECT 1 FROM singflow.participant_grants
@@ -160,7 +160,7 @@ SELECT EXISTS(SELECT 1 FROM singflow.participant_grants
   @Transactional
   public AccessInvite issueAccess(UUID session, String actor, UUID participant) {
     sessions.lockOwned(session, actor, true);
-    assisted(session, actor, participant);
+    linkableParticipant(session, actor, participant);
     String code = token();
     Instant expiry = Instant.now().plusSeconds(300);
     jdbc.sql(
@@ -176,12 +176,11 @@ SET token_hash=excluded.token_hash, expires_at=excluded.expires_at
     return new AccessInvite(appUrl + "/participante/" + session + "/vincular#" + code, expiry);
   }
 
-  private Participation.ParticipantView assisted(UUID session, String owner, UUID participant) {
+  private Participation.ParticipantView linkableParticipant(UUID session, String owner, UUID participant) {
     return participants.list(session, owner).stream()
         .filter(
             p ->
                 p.id().equals(participant)
-                    && p.origin().equals("ASSISTED")
                     && !p.status().equals("LEFT"))
         .findFirst()
         .orElseThrow(
@@ -226,7 +225,7 @@ LIMIT 1
   @Transactional
   public ClaimInfo claimInfo(UUID session, String code, String raw, String browser) {
     String owner = owner(session, true);
-    var target = assisted(session, owner, invited(session, code));
+    var target = linkableParticipant(session, owner, invited(session, code));
     UUID current =
         browserGrant(session, raw, browser)
             .map(BrowserGrant::participantId)
@@ -245,7 +244,7 @@ LIMIT 1
   @Transactional
   public Prepared claimAccess(UUID session, String code, String raw, String browser, UUID replace) {
     String owner = owner(session, true);
-    UUID target = assisted(session, owner, invited(session, code)).id();
+    UUID target = linkableParticipant(session, owner, invited(session, code)).id();
     var previous = browserGrant(session, raw, browser);
     UUID current =
         previous.map(BrowserGrant::participantId).filter(id -> !id.equals(target)).orElse(null);
@@ -516,6 +515,14 @@ WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR e
         artist,
         selectionToken);
     return me(session, raw);
+  }
+
+  @Transactional
+  public OwnView configure(UUID session,String raw,UUID request,long version,UUID song,int semitones) {
+    String owner=owner(session,true);
+    var g=grant(session,raw,true);
+    requests.configureSelf(session,owner,g.participantId(),request,version,song,semitones);
+    return me(session,raw);
   }
 
   @Transactional

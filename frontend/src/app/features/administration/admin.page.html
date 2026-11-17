@@ -18,7 +18,6 @@
     <p class="sf-dialog-error" role="alert">{{ error() }}</p>
   }
   @if (!ready()) {
-    <p role="status">Carregando acesso…</p>
   } @else if (!authorized()) {
     <div class="sf-centered-state">
       <app-surface-card labelledBy="admin-login-title">
@@ -100,6 +99,7 @@
       [items]="navigationItems"
       [value]="section()"
       label="Navegação administrativa"
+      [fill]="section() === 'catalog'"
       [disabled]="busy()"
       (valueChange)="selectSection($event)"
     >
@@ -155,11 +155,7 @@
           </form>
           <div class="admin-list-summary">
             <p role="status" aria-live="polite">
-              {{
-                busy()
-                  ? 'Atualizando cadastros…'
-                  : total() + (total() === 1 ? ' cadastro' : ' cadastros')
-              }}
+              {{ total() + (total() === 1 ? ' cadastro' : ' cadastros') }}
             </p>
             <button
               type="button"

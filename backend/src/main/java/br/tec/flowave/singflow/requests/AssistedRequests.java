@@ -2,6 +2,7 @@ package br.tec.flowave.singflow.requests;
 
 import br.tec.flowave.singflow.audit.AuditTrail;
 import br.tec.flowave.singflow.catalog.CatalogService;
+import br.tec.flowave.singflow.catalog.MusicKey;
 import br.tec.flowave.singflow.participants.Participation;
 import br.tec.flowave.singflow.requests.infrastructure.*;
 import br.tec.flowave.singflow.sessions.SessionAccess;
@@ -21,7 +22,7 @@ public class AssistedRequests {
       String artist,
       String status,
       Instant createdAt,
-      UUID catalogSongId) {}
+      UUID catalogSongId, String originalKey, int semitones, long settingsVersion, String keyLabel) {}
 
   public record Registration(Participation.ParticipantView participant, RequestView request) {}
 
@@ -47,17 +48,17 @@ public class AssistedRequests {
     this.jdbc = jdbc;
   }
 
-  private RequestView view(SongRequest r) {
-    return new RequestView(
-        r.id, r.participantId, r.title, r.artist, r.status, r.createdAt, r.catalogSongId);
+  private static final String REQUEST_SELECT = "SELECT r.*,s.title,nullif(s.artist,'') AS artist,s.original_key FROM singflow.song_requests r JOIN singflow.catalog_songs s ON s.id=r.catalog_song_id ";
+  private RequestView map(java.sql.ResultSet rs,int n) throws java.sql.SQLException {
+    return new RequestView(rs.getObject("id",UUID.class),rs.getObject("participant_id",UUID.class),rs.getString("title"),rs.getString("artist"),rs.getString("status"),rs.getTimestamp("created_at").toInstant(),rs.getObject("catalog_song_id",UUID.class),rs.getString("original_key"),rs.getInt("semitones"),rs.getLong("settings_version"),MusicKey.label(rs.getString("original_key"),rs.getInt("semitones")));
   }
-
-  @Transactional(readOnly = true)
-  public List<RequestView> list(UUID session, String actor) {
-    sessions.requireOwned(session, actor);
-    return repository.findBySessionIdOrderByRequestOrderAscCreatedAtAscIdAsc(session).stream()
-        .map(this::view)
-        .toList();
+  private RequestView view(SongRequest r) {
+    return jdbc.sql(REQUEST_SELECT+"WHERE r.id=?").param(r.id).query(this::map).single();
+  }
+  @Transactional(readOnly=true)
+  public List<RequestView> list(UUID session,String actor) {
+    sessions.requireOwned(session,actor);
+    return jdbc.sql(REQUEST_SELECT+"WHERE r.session_id=? ORDER BY r.request_order,r.created_at,r.id").param(session).query(this::map).list();
   }
 
   @Transactional
@@ -171,19 +172,19 @@ public class AssistedRequests {
       String origin,
       String selectionToken) {
     participation.requireActive(session, actor, participant);
+    catalog.lockReferences();
     String cleanArtist = artist == null || artist.isBlank() ? null : artist.strip();
     var previous = repository.findById(operation);
     if (previous.isPresent()) {
       var r = previous.get();
       if (!r.sessionId.equals(session)
           || !r.participantId.equals(participant)
-          || !r.title.equals(title.strip())
-          || !Objects.equals(r.artist, cleanArtist))
+          || !r.creationFingerprint.equals(MusicKey.fingerprint(title, cleanArtist)))
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Identificador já utilizado.");
       return view(r);
     }
-    var request = new SongRequest(operation, session, participant, title.strip(), cleanArtist);
-    request.catalogSongId = catalog.register(title, cleanArtist, auditActor, selectionToken);
+    var request = new SongRequest(operation, session, participant,
+        catalog.register(title, cleanArtist, auditActor, selectionToken), MusicKey.fingerprint(title,cleanArtist));
     var r = repository.saveAndFlush(request);
     audit.record(auditActor, session, origin + "_REQUEST_CREATED", operation);
     return view(r);
@@ -298,6 +299,7 @@ public class AssistedRequests {
       String artist,
       String selectionToken) {
     participation.requireActive(session, owner, participant);
+    catalog.lockReferences();
     var r =
         repository
             .findById(id)
@@ -310,19 +312,35 @@ public class AssistedRequests {
           HttpStatus.CONFLICT, "Somente pedidos pendentes podem ser alterados. Atualize a lista.");
     String cleanTitle = title.strip();
     String cleanArtist = artist == null || artist.isBlank() ? null : artist.strip();
-    if (r.title.equals(cleanTitle) && Objects.equals(r.artist, cleanArtist)) return;
+    var current = view(r);
+    if (current.title().equals(cleanTitle) && Objects.equals(current.artist(), cleanArtist)) return;
     String previousArtist =
         expectedArtist == null || expectedArtist.isBlank() ? null : expectedArtist.strip();
-    if (!r.title.equals(expectedTitle.strip()) || !Objects.equals(r.artist, previousArtist))
+    if (!current.title().equals(expectedTitle.strip()) || !Objects.equals(current.artist(), previousArtist))
       throw new ResponseStatusException(
           HttpStatus.CONFLICT,
           "Este pedido foi alterado. Atualize a lista antes de tentar novamente.");
     r.catalogSongId =
         catalog.register(cleanTitle, cleanArtist, "participant:" + participant, selectionToken);
-    r.title = cleanTitle;
-    r.artist = cleanArtist;
+    r.semitones = 0;
+    r.settingsVersion++;
     repository.flush();
     audit.record("participant:" + participant, session, "SELF_REQUEST_EDITED", id);
+  }
+
+  @Transactional
+  public void configureSelf(UUID session,String owner,UUID participant,UUID id,long expectedVersion,UUID expectedSong,int semitones) {
+    participation.requireActive(session,owner,participant);
+    catalog.lockReferences();
+    var r=repository.findById(id).filter(x->x.sessionId.equals(session)&&x.participantId.equals(participant)).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Pedido não encontrado."));
+    if(!r.status.equals("PENDING")) throw new ResponseStatusException(HttpStatus.CONFLICT,"Somente pedidos pendentes podem ser configurados.");
+    if(semitones < -24 || semitones > 24) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Use um valor inteiro entre -24 e +24 semitons.");
+    if(!r.catalogSongId.equals(expectedSong)) throw new ResponseStatusException(HttpStatus.CONFLICT,"A música mudou. Atualize o pedido.");
+    if(r.settingsVersion==expectedVersion+1 && r.semitones==semitones) return;
+    if(r.settingsVersion!=expectedVersion) throw new ResponseStatusException(HttpStatus.CONFLICT,"A configuração mudou. Atualize o pedido.");
+    r.semitones=semitones; r.settingsVersion++;
+    repository.flush();
+    audit.record("participant:"+participant,session,"REQUEST_KEY_CONFIGURED",id);
   }
 
   @Transactional

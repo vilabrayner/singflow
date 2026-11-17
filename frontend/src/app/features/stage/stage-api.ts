@@ -9,6 +9,10 @@ export interface Suggestion {
   title: string | null;
   artist: string | null;
   reason: string;
+  originalKey?: string | null;
+  semitones?: number;
+  keyLabel?: string;
+  catalogSongId?: string | null;
 }
 export interface StageCall {
   id: string;
@@ -21,6 +25,12 @@ export interface StageCall {
   createdAt: string;
   resolvedAt: string | null;
   acceptedAt: string | null;
+  originalKey?: string | null;
+  semitones?: number;
+  keyLabel?: string;
+  catalogSongId?: string | null;
+  performedKey?: string | null;
+  keyVersion?: number;
 }
 export interface StageWait {
   participantId: string;
@@ -38,8 +48,8 @@ export interface StageView {
 @Injectable({ providedIn: 'root' })
 export class StageApi {
   private readonly api = inject(ApiClient);
-  snapshot(session: string) {
-    return this.api.get<StageView>(`/sessions/${session}/stage`);
+  snapshot(session: string, background = false) {
+    return this.api.get<StageView>(`/sessions/${session}/stage`, { background });
   }
   confirm(
     session: string,

@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { HistoryItem } from '../../shared/components/history-item';
 import { StageCall, callStatus } from './stage-api';
 @Component({
@@ -22,9 +22,30 @@ import { StageCall, callStatus } from './stage-api';
           (call.title || 'Música não definida') + (call.artist ? ' — ' + call.artist : '')
         "
         [order]="calls().length - index"
+        [detail]="
+          call.performedKey
+            ? 'Tom cantado: ' + call.performedKey
+            : call.keyLabel
+              ? 'Tom: ' + call.keyLabel
+              : null
+        "
         [status]="labels(call.status)"
         [completed]="call.status === 'COMPLETED'"
-      />
+        [statusBelow]="statusBelow()"
+      >
+        @if (editable() && call.status === 'COMPLETED') {
+          <button
+            history-actions
+            type="button"
+            class="sf-icon-button"
+            title="Registrar tom cantado"
+            [attr.aria-label]="'Registrar tom cantado por ' + call.participantName"
+            (click)="keyEdited.emit(call)"
+          >
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+          </button>
+        }
+      </app-history-item>
     } @empty {
       <p>Nenhuma apresentação registrada nesta sessão.</p>
     }
@@ -33,4 +54,7 @@ import { StageCall, callStatus } from './stage-api';
 export class StageHistory {
   readonly calls = input.required<StageCall[]>();
   readonly labels = callStatus;
+  readonly editable = input(false);
+  readonly statusBelow = input(false);
+  readonly keyEdited = output<StageCall>();
 }

@@ -41,6 +41,7 @@
         >
           {{ call.title || 'Música a escolher' }}{{ call.artist ? ' - ' + call.artist : '' }}
         </p>
+        <p>Tom: {{ call.keyLabel || 'Original' }}</p>
         @if (open()) {
           @if (call.title) {
             <button
@@ -180,6 +181,7 @@
                 @if (suggestion.artist) {
                   <small>{{ suggestion.artist }}</small>
                 }
+                <small>Tom: {{ suggestion.keyLabel || 'Original' }}</small>
                 <small
                   >{{ suggestion.completed }} apresentações{{
                     suggestion.tableLabel ? ' · Mesa ' + suggestion.tableLabel : ''
@@ -368,9 +370,7 @@
         </div>
       }
     }
-  } @else if (!error()) {
-    <p role="status">Carregando palco…</p>
-  }
+  } @else if (!error()) {}
 </app-surface-card>
 
 @if (state(); as view) {
@@ -403,8 +403,6 @@
     <h2 id="host-stage-history-title">Histórico do palco</h2>
     @if (error()) {
       <p role="alert" class="host-error">{{ error() }}</p>
-    } @else {
-      <p role="status">Carregando histórico…</p>
-    }
+    } @else {}
   </app-surface-card>
 }

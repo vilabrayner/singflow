@@ -25,7 +25,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @Testcontainers
 @SpringBootTest(
-    properties = {
+    properties = {"SINGFLOW_ENRICHMENT_ENABLED=false","SINGFLOW_LYRICS_PREFETCH_ENABLED=false",
       "SINGFLOW_HOST_EMAIL=",
       "SINGFLOW_HOST_PASSWORD=",
       "LASTFM_API_KEY=",
@@ -45,7 +45,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(17);
+    assertThat(flyway.info().applied()).hasSize(21);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -671,6 +671,56 @@ class SingflowApplicationTests {
                 .content("{\"code\":\"" + code + "\",\"name\":\"Ana\",\"title\":\"Equalize\"}"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.participant.origin").value("SELF"));
+  }
+
+  @Test
+  void selfMobileRecoveryPreservesParticipationAndReplacesOnlyTheAccess() throws Exception {
+    String owner=host();
+    UUID session=UUID.randomUUID();
+    createOpen(session,owner);
+    String entry=code(session,owner);
+    var oldCookie=prepareGuest(session,entry,new MockHttpSession());
+    joinGuest(session,entry,oldCookie);
+    UUID participant=audience.me(session,oldCookie.getValue()).participant().id();
+    var call=callNext(session,owner);
+    var before=audience.me(session,oldCookie.getValue());
+    String hostPath="/api/sessions/"+session+"/participants/"+participant+"/mobile-access";
+    mvc.perform(get(hostPath).with(user(owner).roles("HOST")))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.linked").value(true));
+    mvc.perform(post(hostPath).with(user(host()).roles("HOST")).with(csrf()))
+        .andExpect(status().isNotFound());
+    mvc.perform(post(hostPath).with(user(owner).roles("HOST")))
+        .andExpect(status().isForbidden());
+    var issued=mvc.perform(post(hostPath).with(user(owner).roles("HOST")).with(csrf()))
+        .andExpect(status().isOk()).andReturn();
+    String url=new com.fasterxml.jackson.databind.ObjectMapper().readTree(issued.getResponse().getContentAsString()).get("url").asText();
+    String invite=java.net.URI.create(url).getFragment();
+    assertThat(audience.me(session,oldCookie.getValue()).active().id()).isEqualTo(call.id());
+    String claimPath="/api/participation/"+session+"/mobile-access";
+    String body="{\"code\":\""+invite+"\"}";
+    var newBrowser=new MockHttpSession();
+    mvc.perform(post(claimPath+"/preview").session(newBrowser).with(csrf()).contentType("application/json").content(body))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.name").value(before.participant().name()));
+    var recovered=mvc.perform(post(claimPath+"/claim").session(newBrowser).with(csrf()).contentType("application/json").content(body))
+        .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("SF_PARTICIPANT");
+    assertThat(recovered).isNotNull();
+    var after=audience.me(session,recovered.getValue());
+    assertThat(after.participant()).isEqualTo(before.participant());
+    assertThat(after.participant().origin()).isEqualTo("SELF");
+    assertThat(after.requests()).isEqualTo(before.requests());
+    assertThat(after.active().id()).isEqualTo(call.id());
+    assertThat(participation.list(session,owner)).hasSize(1);
+    mvc.perform(get("/api/participation/"+session+"/me").cookie(oldCookie)).andExpect(status().isUnauthorized());
+    mvc.perform(post(claimPath+"/claim").with(csrf()).contentType("application/json").content(body)).andExpect(status().isNotFound());
+    assertThat(audience.add(session,recovered.getValue(),UUID.randomUUID(),"Novo pedido",null).requests()).hasSize(2);
+    stage.resolve(session,owner,call.id(),"COMPLETED");
+    String late=java.net.URI.create(audience.issueAccess(session,owner,participant).url()).getFragment();
+    participation.leave(session,owner,participant);
+    mvc.perform(post(hostPath).with(user(owner).roles("HOST")).with(csrf())).andExpect(status().isNotFound());
+    assertThatThrownBy(()->audience.claimAccess(session,late,null,"late-browser",null))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    sessionAccess.transition(session,owner,"CLOSED");
+    mvc.perform(post(hostPath).with(user(owner).roles("HOST")).with(csrf())).andExpect(status().isConflict());
   }
 
   @Test
@@ -1888,16 +1938,16 @@ class SingflowApplicationTests {
                 .findFirst()
                 .orElseThrow()
                 .title())
-        .isEqualTo(title);
-    assertThat(stage.snapshot(session, owner).history().getFirst().title()).isEqualTo(title);
+        .isEqualTo(destination.title());
+    assertThat(stage.snapshot(session, owner).history().getFirst().title()).isEqualTo(destination.title());
     var later =
         assistedRequests.add(
             session, owner, registration.participant().id(), UUID.randomUUID(), title, "Artista");
     assertThat(later.catalogSongId()).isEqualTo(destination.id());
-    assertThat(catalog.history(admin, source))
+    assertThat(catalog.history(admin, destination.id()))
         .extracting(br.tec.flowave.singflow.catalog.CatalogService.Event::action)
         .contains("CREATED", "APPROVED", "EDITED", "MERGED");
-    assertThat(catalog.history(admin, source).getFirst().actor()).isEqualTo(admin);
+    assertThat(catalog.history(admin, destination.id()).getFirst().actor()).isEqualTo(admin);
   }
 
   @Test
@@ -2053,13 +2103,13 @@ class SingflowApplicationTests {
           var statement = connection.createStatement()) {
         try (var result =
             statement.executeQuery(
-                "SELECT r.title,r.artist,c.title,c.artist,r.catalog_song_id=c.catalog_song_id FROM"
-                    + " singflow.song_requests r CROSS JOIN singflow.stage_calls c")) {
+                "SELECT s.title,s.artist,s.title,s.artist,r.catalog_song_id=c.catalog_song_id FROM"
+                    + " singflow.song_requests r CROSS JOIN singflow.stage_calls c JOIN singflow.catalog_songs s ON s.id=c.catalog_song_id")) {
           assertThat(result.next()).isTrue();
           assertThat(result.getString(1)).isEqualTo("Equalize");
           assertThat(result.getString(2)).isEqualTo("Pitty");
-          assertThat(result.getString(3)).isEqualTo("  EQUALIZE  ");
-          assertThat(result.getString(4)).isEqualTo("pitty");
+          assertThat(result.getString(3)).isEqualTo("Equalize");
+          assertThat(result.getString(4)).isEqualTo("Pitty");
           assertThat(result.getBoolean(5)).isTrue();
         }
         try (var result =

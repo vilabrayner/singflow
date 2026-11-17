@@ -72,3 +72,18 @@
   outline: 3px solid var(--sf-purple);
   outline-offset: 3px;
 }
+
+.sf-workspace-content.sf-workspace-fill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: 16px;
+}
+:host ::ng-deep .sf-workspace-fill > app-admin-catalog:not([hidden]) {
+  flex: 1;
+  min-height: 0;
+}
+.sf-workspace-fill > .sf-dialog-error {
+  flex: none;
+}

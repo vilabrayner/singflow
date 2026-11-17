@@ -33,6 +33,7 @@ class AudienceEndpoints {
       @Size(max = 36) String selectionToken) {}
 
   private final AudienceService service;
+  private final AudienceLyrics lyrics;
   private final AudienceLimits limits;
   private final boolean secure;
   private final int joins;
@@ -41,12 +42,14 @@ class AudienceEndpoints {
 
   AudienceEndpoints(
       AudienceService service,
+      AudienceLyrics lyrics,
       AudienceLimits limits,
       @Value("${server.servlet.session.cookie.secure:false}") boolean secure,
       @Value("${SINGFLOW_ENTRY_LIMIT_PER_MINUTE:120}") int joins,
       @Value("${SINGFLOW_REQUEST_LIMIT_PER_MINUTE:20}") int writes,
       @Value("${SINGFLOW_READ_LIMIT_PER_MINUTE:120}") int reads) {
     this.service = service;
+    this.lyrics = lyrics;
     this.limits = limits;
     this.secure = secure;
     if (joins < 1 || writes < 1 || reads < 1)
@@ -219,6 +222,13 @@ class AudienceEndpoints {
         .body(view);
   }
 
+  @GetMapping("/api/participation/{session}/calls/{call}/lyrics")
+  ResponseEntity<br.tec.flowave.singflow.catalog.LyricsSearch.Result> lyrics(
+      @PathVariable UUID session,@PathVariable UUID call,HttpServletRequest request){
+    return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+        .body(lyrics.get(session,credential(session,request,false),call));
+  }
+
   @PostMapping("/api/participation/{session}/requests")
   AudienceService.OwnView add(
       @PathVariable UUID session, @Valid @RequestBody Song input, HttpServletRequest request) {
@@ -269,6 +279,12 @@ class AudienceEndpoints {
         input.title(),
         input.artist(),
         input.selectionToken());
+  }
+
+  record ConfigureSong(@NotNull @Min(0) Long version,@NotNull UUID catalogSongId,@NotNull @Min(-24) @Max(24) @Digits(integer=2,fraction=0) java.math.BigDecimal semitones) {}
+  @PostMapping("/api/participation/{session}/requests/{song}/configure")
+  AudienceService.OwnView configure(@PathVariable UUID session,@PathVariable UUID song,@Valid @RequestBody ConfigureSong input,HttpServletRequest request) {
+    return service.configure(session,credential(session,request,true),song,input.version(),input.catalogSongId(),input.semitones().intValueExact());
   }
 
   @PostMapping("/api/participation/{session}/requests/{song}/cancel")

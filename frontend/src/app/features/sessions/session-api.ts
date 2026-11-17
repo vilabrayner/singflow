@@ -25,6 +25,11 @@ export interface SongRequest {
   participantId: string;
   title: string;
   artist: string | null;
+  catalogSongId?: string;
+  originalKey?: string | null;
+  semitones?: number;
+  settingsVersion?: number;
+  keyLabel?: string;
   status: 'PENDING' | 'RESERVED' | 'COMPLETED' | 'SUSPENDED' | 'CANCELLED';
   createdAt: string;
 }
@@ -39,8 +44,8 @@ export interface RegistrationInput {
 @Injectable({ providedIn: 'root' })
 export class SessionApi {
   private readonly api = inject(ApiClient);
-  list() {
-    return this.api.get<KaraokeSession[]>('/sessions');
+  list(background = false) {
+    return this.api.get<KaraokeSession[]>('/sessions', { background });
   }
   create(name: string, operationId: string) {
     return this.api.post<KaraokeSession>('/sessions', { name, operationId });
@@ -48,11 +53,11 @@ export class SessionApi {
   transition(id: string, action: 'open' | 'close') {
     return this.api.post<KaraokeSession>(`/sessions/${id}/${action}`);
   }
-  participants(id: string) {
-    return this.api.get<Participant[]>(`/sessions/${id}/participants`);
+  participants(id: string, background = false) {
+    return this.api.get<Participant[]>(`/sessions/${id}/participants`, { background });
   }
-  requests(id: string) {
-    return this.api.get<SongRequest[]>(`/sessions/${id}/requests`);
+  requests(id: string, background = false) {
+    return this.api.get<SongRequest[]>(`/sessions/${id}/requests`, { background });
   }
   register(id: string, input: RegistrationInput) {
     return this.api.post(`/sessions/${id}/participants`, input);

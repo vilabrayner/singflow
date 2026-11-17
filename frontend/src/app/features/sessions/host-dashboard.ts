@@ -133,6 +133,9 @@ export class HostDashboard implements OnInit {
   readonly stageRevision = signal(0);
   readonly ready = signal(false);
   readonly email = signal('');
+  private foregroundGeneration = 0;
+  private backgroundRefreshing = false;
+  private backgroundQueued = false;
   readonly busy = signal(false);
   readonly error = signal('');
   private readonly notifications = inject(Notifications);
@@ -178,9 +181,9 @@ export class HostDashboard implements OnInit {
         if (checking || this.locked() || this.creatingSession() || this.document.hidden) return;
         checking = true;
         try {
-          const people = await this.api.participants(session.id);
+          const people = await this.api.participants(session.id, true);
           if (!cancelled && people.length && !this.locked() && !this.creatingSession()) {
-            await this.refresh();
+            await this.refresh(true);
           }
         } catch {
           // Retry the background check on the next interval.
@@ -210,6 +213,7 @@ export class HostDashboard implements OnInit {
   private async run(action: () => Promise<void>) {
     if (this.busy()) return;
     this.busy.set(true);
+    this.foregroundGeneration++;
     this.error.set('');
     try {
       await action();
@@ -221,6 +225,7 @@ export class HostDashboard implements OnInit {
       }
     } finally {
       this.busy.set(false);
+      this.flushBackground();
     }
   }
   private clearSession() {
@@ -370,7 +375,60 @@ export class HostDashboard implements OnInit {
       this.focus('host-session-title');
     });
   }
-  async refresh() {
+  childWorking(kind: 'participants' | 'stage', working: boolean) {
+    if (working) this.foregroundGeneration++;
+    if (kind === 'participants') this.participantBusy.set(working);
+    else this.stageBusy.set(working);
+    if (!working) this.flushBackground();
+  }
+  private flushBackground() {
+    if (this.backgroundQueued && !this.locked() && !this.backgroundRefreshing) {
+      this.backgroundQueued = false;
+      void this.refresh(true);
+    }
+  }
+  async refresh(background = false) {
+    if (background) {
+      if (this.backgroundRefreshing) {
+        this.backgroundQueued = true;
+        return;
+      }
+      if (this.locked()) {
+        this.backgroundQueued = true;
+        return;
+      }
+      this.backgroundRefreshing = true;
+      const generation = this.foregroundGeneration,
+        id = this.selected()?.id;
+      try {
+        const sessions = await this.api.list(true);
+        const session = sessions.find((s) => s.id === id);
+        const data = session
+          ? await Promise.all([
+              this.api.participants(session.id, true),
+              this.api.requests(session.id, true),
+            ])
+          : null;
+        if (generation !== this.foregroundGeneration || this.locked() || id !== this.selected()?.id)
+          return;
+        this.sessions.set(sessions);
+        if (session && data) {
+          this.selected.set(session);
+          this.participants.set(data[0]);
+          this.requests.set(data[1]);
+          this.stageRevision.update((v) => v + 1);
+        } else this.clearSession();
+      } catch {
+        /* Keep the current view; manual refresh remains available. */
+      } finally {
+        this.backgroundRefreshing = false;
+        if (this.backgroundQueued) {
+          this.backgroundQueued = false;
+          void this.refresh(true);
+        }
+      }
+      return;
+    }
     await this.run(async () => {
       const id = this.selected()?.id;
       await this.loadSessions();

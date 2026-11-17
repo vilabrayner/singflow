@@ -6,6 +6,7 @@ import {
   inject,
   output,
   signal,
+  input,
   afterNextRender,
   Injector,
   viewChild,
@@ -109,6 +110,7 @@ interface ItemPage {
   styleUrls: ['../../shared/styles/admin-collections.css', './catalog-sync.css'],
 })
 export class CatalogSync implements OnInit, OnDestroy {
+  readonly embedded = input(false);
   readonly closed = output<void>();
   private readonly api = inject(ApiClient);
   private readonly document = inject(DOCUMENT);
@@ -123,7 +125,7 @@ export class CatalogSync implements OnInit, OnDestroy {
   readonly rows = signal<Item[]>([]);
   readonly total = signal(0);
   readonly page = signal(0);
-  readonly view = signal<'activity' | 'review'>('activity');
+  readonly view = signal<'activity' | 'review'>('review');
   readonly loading = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
@@ -194,12 +196,26 @@ export class CatalogSync implements OnInit, OnDestroy {
       return;
     this.completedNavigation = true;
     this.notifications.info('Sincronização finalizada com sucesso');
-    this.closed.emit();
+    this.resetWorkspace();
+  }
+  private resetWorkspace() {
+    this.runId.set('');
+    this.runs.set([]);
+    this.progress.set(null);
+    this.rows.set([]);
+    this.total.set(0);
+    this.page.set(0);
+    this.latestPending = 0;
+    this.detail.set(null);
+    this.preview.set(null);
+    this.reviewError.set('');
+    this.error.set('');
+    this.operation = createOperationId();
   }
   ngOnInit() {
     void this.loadRuns();
     this.timer = setInterval(() => {
-      if (!this.document.hidden && !this.busy() && !this.loading()) void this.refresh();
+      if (!this.document.hidden && !this.busy() && !this.loading()) void this.refresh(true);
     }, 2000);
   }
   ngOnDestroy() {
@@ -274,16 +290,20 @@ export class CatalogSync implements OnInit, OnDestroy {
     this.loading.set(true);
     this.error.set('');
     try {
-      const runs = await this.api.get<Run[]>(`${this.base}/runs`);
+      const workspace = await this.api.get<{ current: Progress | null }>(`${this.base}/workspace`);
       if (this.destroyed || generation !== this.generation) return;
-      this.progress.set(null);
       this.rows.set([]);
-      this.runs.set(runs);
-      this.runId.set(
-        (runs.find((r) => r.status === 'RUNNING' || r.status === 'PAUSED') ?? runs[0])?.id ?? '',
-      );
+      this.page.set(0);
+      if (!workspace.current) {
+        this.resetWorkspace();
+        return;
+      }
+      this.progress.set(workspace.current);
+      this.runs.set([workspace.current.run]);
+      this.runId.set(workspace.current.run.id);
+      this.latestPending = this.outstanding(workspace.current);
     } catch (error) {
-      if (!this.destroyed) this.failed(error);
+      if (!this.destroyed && generation === this.generation) this.failed(error);
     } finally {
       if (!this.destroyed && generation === this.generation) this.loading.set(false);
     }
@@ -300,21 +320,23 @@ export class CatalogSync implements OnInit, OnDestroy {
     this.rows.set([]);
     void this.refresh();
   }
-  async refresh() {
+  async refresh(background = false) {
     const id = this.runId();
     if (!id || this.busy() || this.loading() || this.destroyed) return;
     const generation = ++this.generation;
     this.loading.set(true);
     try {
       const [progress, items] = await Promise.all([
-        this.api.get<Progress>(`${this.base}/runs/${id}`),
-        this.api.get<ItemPage>(
-          `${this.base}/runs/${id}/items?view=${this.view()}&page=${this.page()}`,
-        ),
+        this.api.get<Progress>(`${this.base}/runs/${id}`, { background }),
+        this.api.get<ItemPage>(`${this.base}/runs/${id}/items?view=attention&page=${this.page()}`, {
+          background,
+        }),
       ]);
       if (generation !== this.generation || this.destroyed) return;
       this.progress.set(progress);
-      this.rows.set(items.items);
+      this.rows.set(
+        items.items.filter((item) => ['REVIEW', 'FAILED', 'SKIPPED'].includes(item.state)),
+      );
       this.total.set(items.total);
       this.error.set('');
       this.runs.update((runs) => runs.map((r) => (r.id === id ? progress.run : r)));
@@ -338,6 +360,7 @@ export class CatalogSync implements OnInit, OnDestroy {
     void this.refresh();
   }
   askStart() {
+    if (this.progress() || this.busy()) return;
     this.operation = createOperationId();
     this.starting.set(true);
     this.error.set('');
@@ -356,7 +379,8 @@ export class CatalogSync implements OnInit, OnDestroy {
       this.latestPending = null;
       this.runId.set(run.id);
       this.page.set(0);
-      this.view.set('activity');
+      this.view.set('review');
+      this.completedNavigation = false;
       this.starting.set(false);
       this.progress.set(null);
       this.rows.set([]);

@@ -158,16 +158,14 @@ test('admin dock retains each collection filter and uses bordered items without 
   await page.getByRole('tab', { name: 'Sessões', exact: true }).click();
   await page.getByLabel('Buscar sessão ou anfitrião').fill('Café');
   await page.getByRole('tab', { name: 'Catálogo', exact: true }).click();
-  await page.getByLabel('Buscar música ou artista', { exact: true }).fill('Equalize');
+  await page.getByLabel('Buscar música ou artista', { exact: true }).fill('Eq');
   await page.getByRole('tab', { name: 'Cadastros', exact: true }).click();
   await expect(page.getByLabel('Buscar cadastro', { exact: true })).toHaveValue('Músico');
   await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(300);
   await page.getByRole('tab', { name: 'Sessões', exact: true }).click();
   await expect(page.getByLabel('Buscar sessão ou anfitrião')).toHaveValue('Café');
   await page.getByRole('tab', { name: 'Catálogo', exact: true }).click();
-  await expect(page.getByLabel('Buscar música ou artista', { exact: true })).toHaveValue(
-    'Equalize',
-  );
+  await expect(page.getByLabel('Buscar música ou artista', { exact: true })).toHaveValue('Eq');
   expect(calls.filter((path) => path.endsWith('/admin/catalog/songs'))).toHaveLength(1);
   await page.setViewportSize({ width: 320, height: 740 });
   await geometry(page);

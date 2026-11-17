@@ -71,9 +71,7 @@
       Tentar novamente
     </button>
   }
-  @if (!ready()) {
-    <p role="status">Carregando sua participação…</p>
-  }
+  @if (!ready()) {}
   @if (departed()) {
     <app-surface-card labelledBy="participant-forgotten-title">
       <h2 id="participant-forgotten-title">Acesso esquecido neste aparelho</h2>
@@ -204,6 +202,7 @@
               [editable]="view.session.status === 'OPEN' && view.participant.status === 'ACTIVE'"
               [busy]="busy()"
               (edited)="openSongEdit($event)"
+              (configured)="openConfiguration($event)"
               (reordered)="reorderSongs($event)"
               (cancelled)="cancellingSong.set($event)"
             />
@@ -211,7 +210,7 @@
           @if (catalogVisited()) {
             <app-surface-card
               label="Catálogo"
-              class="sf-participant-catalog-card"
+              class="sf-participant-catalog-card sf-catalog-card"
               [hidden]="activeTab() !== 'catalog'"
             >
               @if (view.session.status === 'OPEN' && view.participant.status === 'ACTIVE') {
@@ -398,3 +397,74 @@
     />
   }
 </section>
+
+@if (configuringSong(); as song) {
+  <app-confirmation-dialog
+    title="Configurar música"
+    [busy]="busy()"
+    [error]="error()"
+    (dismissed)="configuringSong.set(null)"
+  >
+    <p>
+      <strong>{{ song.title }}</strong>
+    </p>
+    <p>Tom original: {{ song.originalKey || 'Não informado' }}</p>
+    <form class="host-form" (submit)="$event.preventDefault(); saveConfiguration()">
+      <label for="request-key-offset">Mudar tom</label>
+      <div style="display: flex; gap: 12px; align-items: center">
+        <button
+          type="button"
+          class="sf-icon-button"
+          aria-label="Diminuir um semitom"
+          [disabled]="busy() || semitones.value <= -24"
+          (click)="stepKey(-1)"
+        >
+          <i class="fa-solid fa-caret-down" aria-hidden="true"></i>
+        </button>
+        <input
+          pInputText
+          id="request-key-offset"
+          type="number"
+          step="1"
+          min="-24"
+          max="24"
+          inputmode="numeric"
+          [formControl]="semitones"
+          [readOnly]="busy()"
+          style="min-width: 0; width: 100%; text-align: center"
+          aria-describedby="request-key-help"
+        />
+        <button
+          type="button"
+          class="sf-icon-button"
+          aria-label="Aumentar um semitom"
+          [disabled]="busy() || semitones.value >= 24"
+          (click)="stepKey(1)"
+        >
+          <i class="fa-solid fa-caret-up" aria-hidden="true"></i>
+        </button>
+      </div>
+      <small id="request-key-help">Cada passo altera um semitom. Zero mantém o tom original.</small>
+      @if (semitones.invalid && semitones.dirty) {
+        <p class="sf-dialog-error" role="alert">Use um inteiro entre -24 e +24.</p>
+      }
+      <div class="sf-dialog-actions">
+        <button
+          type="submit"
+          class="sf-button sf-primary sf-full"
+          [disabled]="busy() || semitones.invalid"
+        >
+          Salvar
+        </button>
+        <button
+          type="button"
+          class="sf-button sf-outline sf-full"
+          [disabled]="busy()"
+          (click)="configuringSong.set(null)"
+        >
+          Voltar
+        </button>
+      </div>
+    </form>
+  </app-confirmation-dialog>
+}

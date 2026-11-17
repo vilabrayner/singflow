@@ -227,6 +227,7 @@ export class AdminPage implements OnInit {
       );
     } catch (error) {
       this.error.set(apiError(error));
+    } finally {
     }
   }
   actions(a: Account) {

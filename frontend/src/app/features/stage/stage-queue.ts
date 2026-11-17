@@ -1,9 +1,13 @@
+import { StreamingLink } from '../../shared/streaming';
 import { Component, computed, effect, input, signal } from '@angular/core';
+import { ChordActions } from '../../shared/components/chord-actions';
+import { ChordLink, ChordSong } from '../../shared/components/chord-link-dialog';
+import { output } from '@angular/core';
 import { InputTextModule } from 'primeng/inputtext';
 import { Suggestion } from './stage-api';
 @Component({
   selector: 'app-stage-queue',
-  imports: [InputTextModule],
+  imports: [InputTextModule, ChordActions],
   styleUrls: ['../../shared/styles/song-panels.css', '../../shared/styles/history-items.css'],
   styles: `
     :host {
@@ -59,6 +63,22 @@ import { Suggestion } from './stage-api';
                 <br />{{ row.person.artist }}
               }
             </p>
+            <p>Tom: {{ row.person.keyLabel || 'Original' }}</p>
+            @if (row.person.catalogSongId && chordsEnabled()) {
+              <app-chord-actions
+                [song]="{
+                  id: row.person.catalogSongId!,
+                  title: row.person.title ?? 'Música',
+                  artist: row.person.artist,
+                }"
+                [link]="chords()[row.person.catalogSongId!]"
+                [streaming]="streaming()[row.person.catalogSongId!] ?? []"
+                [originalKey]="row.person.originalKey"
+                [semitones]="row.person.semitones"
+                [editable]="chordsEditable()"
+                (chosen)="chordChosen.emit($event)"
+              />
+            }
             @if (row.person.tableLabel) {
               <small>Mesa {{ row.person.tableLabel }}</small>
             }
@@ -73,6 +93,11 @@ import { Suggestion } from './stage-api';
   `,
 })
 export class StageQueue {
+  readonly chordsEnabled = input(false);
+  readonly chordsEditable = input(false);
+  readonly chords = input<Record<string, ChordLink>>({});
+  readonly streaming = input<Record<string, StreamingLink[]>>({});
+  readonly chordChosen = output<ChordSong>();
   readonly suggestions = input.required<Suggestion[]>();
   readonly searchable = input(false);
   readonly search = signal('');

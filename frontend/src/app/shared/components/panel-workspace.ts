@@ -28,7 +28,9 @@ import { BottomNavigation, BottomNavigationItem } from './bottom-navigation';
           [attr.aria-label]="activeLabel()"
           class="sf-workspace-viewport"
         >
-          <p-scrollarea-content class="sf-workspace-content"><ng-content /></p-scrollarea-content>
+          <p-scrollarea-content class="sf-workspace-content" [class.sf-workspace-fill]="fill()"
+            ><ng-content
+          /></p-scrollarea-content>
         </p-scrollarea-viewport>
         <p-scrollarea-scrollbar orientation="vertical"
           ><p-scrollarea-handle
@@ -51,6 +53,7 @@ export class PanelWorkspace {
   readonly label = input.required<string>();
   readonly disabled = input(false);
   readonly resetKey = input('');
+  readonly fill = input(false);
   readonly valueChange = output<string>();
   readonly dockHeight = signal(64);
   readonly activeLabel = computed(

@@ -21,7 +21,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @Testcontainers
 @SpringBootTest(
-    properties = {
+    properties = {"SINGFLOW_ENRICHMENT_ENABLED=false","SINGFLOW_LYRICS_PREFETCH_ENABLED=false",
       "spring.application.name=singflow-sync-tests",
       "SINGFLOW_HOST_EMAIL=",
       "SINGFLOW_HOST_PASSWORD=",
@@ -48,6 +48,7 @@ class CatalogSyncIntegrationTests {
     jdbc.sql("DELETE FROM singflow.catalog_sync_runs").update();
     jdbc.sql("DELETE FROM singflow.catalog_audit").update();
     jdbc.sql("DELETE FROM singflow.catalog_aliases").update();
+    jdbc.sql("DELETE FROM singflow.catalog_redirects").update();
     jdbc.sql("DELETE FROM singflow.catalog_songs").update();
     admin = account(true);
     when(search.configured()).thenReturn(true);
@@ -155,16 +156,16 @@ class CatalogSyncIntegrationTests {
     conflict(() -> sync.approve(admin, item.id(), choice, null, null));
     assertThat(songStatus(source.id())).isEqualTo("PENDING");
     sync.approve(admin, item.id(), choice, target.id(), target.version());
-    assertThat(songStatus(source.id())).isEqualTo("MERGED");
+    assertThat(jdbc.sql("SELECT count(*) FROM singflow.catalog_songs WHERE id=?").param(source.id()).query(Long.class).single()).isZero();
     assertThat(
             jdbc.sql("SELECT singflow.catalog_root(?)")
                 .param(source.id())
                 .query(UUID.class)
                 .single())
         .isEqualTo(target.id());
-    assertThat(catalog.history(admin, source.id()))
+    assertThat(catalog.history(admin, target.id()))
         .extracting(CatalogService.Event::action)
-        .contains("SYNC_LINKED");
+        .contains("MERGED", "ABSORBED");
   }
 
   @Test

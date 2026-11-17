@@ -149,6 +149,40 @@ export class ParticipantPage implements OnInit, OnDestroy {
   readonly error = signal('');
   private readonly notifications = inject(Notifications);
   readonly departed = signal(false);
+  readonly configuringSong = signal<SongRequest | null>(null);
+  readonly semitones = this.fb.control(0, [
+    Validators.required,
+    Validators.min(-24),
+    Validators.max(24),
+    Validators.pattern(/^-?\d+$/),
+  ]);
+  openConfiguration(song: SongRequest) {
+    if (this.busy()) return;
+    this.error.set('');
+    this.semitones.setValue(song.semitones ?? 0);
+    this.configuringSong.set({ ...song });
+  }
+  stepKey(delta: number) {
+    const value = Number(this.semitones.value);
+    this.semitones.setValue(
+      Math.max(-24, Math.min(24, (Number.isInteger(value) ? value : 0) + delta)),
+    );
+  }
+  async saveConfiguration() {
+    const song = this.configuringSong();
+    if (!song || this.semitones.invalid) return;
+    await this.run(async () => {
+      this.accept(
+        await this.update(`/requests/${song.id}/configure`, {
+          version: song.settingsVersion ?? 0,
+          catalogSongId: song.catalogSongId,
+          semitones: Number(this.semitones.value),
+        }),
+      );
+      this.configuringSong.set(null);
+      this.notifications.success('Tom do pedido atualizado.');
+    });
+  }
   readonly cancellingSong = signal<SongRequest | null>(null);
   readonly editingSong = signal<SongRequest | null>(null);
   readonly chosenSongs = computed(
@@ -219,7 +253,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
   private destroyed = false;
   private songOperation: { body: string; operationId: string } | null = null;
   private readonly visible = () => {
-    if (!document.hidden) void this.refresh();
+    if (!document.hidden) void this.refresh(true);
   };
   async ngOnInit() {
     if (!/^[0-9a-f-]{36}$/i.test(this.session) || !this.code) {
@@ -247,7 +281,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
       this.ready.set(true);
     }
     this.timer = setInterval(() => {
-      if (!document.hidden) void this.refresh();
+      if (!document.hidden) void this.refresh(true);
     }, 10000);
     document.addEventListener('visibilitychange', this.visible);
   }
@@ -287,6 +321,14 @@ export class ParticipantPage implements OnInit, OnDestroy {
       this.songOperation = null;
       this.returnOperation = null;
     }
+    const configuring = this.configuringSong();
+    if (
+      configuring &&
+      (view.session.status !== 'OPEN' ||
+        view.participant.status !== 'ACTIVE' ||
+        !view.requests.some((s) => s.id === configuring.id && s.status === 'PENDING'))
+    )
+      this.configuringSong.set(null);
     this.own.set(view);
     if (previous && previous.participant.id !== view.participant.id) {
       this.tabScroll = {};
@@ -320,21 +362,22 @@ export class ParticipantPage implements OnInit, OnDestroy {
     this.lastUpdated.set(new Date());
     this.disconnected.set(false);
   }
-  private async load() {
+  private async load(background = false) {
     const generation = this.viewGeneration;
-    const view = await this.api.get<OwnView>(`${this.base}/me`);
+    const view = await this.api.get<OwnView>(`${this.base}/me`, { background });
     if (generation === this.viewGeneration) this.accept(view);
   }
-  async refresh() {
+  async refresh(background = false) {
     if (!this.own() || this.busy() || this.loading || this.departed()) return;
     this.loading = true;
     try {
-      await this.load();
+      await this.load(background);
       if (!this.editingSong()) this.error.set('');
     } catch (error) {
       this.disconnected.set(true);
       this.error.set(this.message(error));
       if (error instanceof HttpErrorResponse && [401, 410].includes(error.status)) {
+        this.configuringSong.set(null);
         this.own.set(null);
         this.memory.forget(this.session);
       }
@@ -352,6 +395,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
     } catch (error) {
       this.error.set(this.message(error));
       if (error instanceof HttpErrorResponse && [401, 410].includes(error.status)) {
+        this.configuringSong.set(null);
         this.own.set(null);
         this.entry.set(null);
         this.memory.forget(this.session);

@@ -61,7 +61,6 @@
     <p class="sf-dialog-error" role="alert">{{ error() }}</p>
   }
   @if (!ready()) {
-    <p role="status">Carregando seu painel…</p>
   } @else if (!email()) {
     <div class="sf-centered-state">
       <app-surface-card labelledBy="musician-login-title">
@@ -153,13 +152,49 @@
                     — {{ call.artist }}
                   }
                 </p>
+                @if (call.catalogSongId) {
+                  <app-chord-actions
+                    [song]="{
+                      id: call.catalogSongId,
+                      title: call.title ?? 'Música',
+                      artist: call.artist,
+                    }"
+                    [link]="view.chords?.[call.catalogSongId]"
+                    [streaming]="view.streaming?.[call.catalogSongId] ?? []"
+                    [originalKey]="call.originalKey"
+                    [semitones]="call.semitones"
+                    [editable]="canRecordKey()"
+                    (chosen)="openChord($event, view.session.id)"
+                  />
+                }
+                <p>Tom: {{ call.keyLabel || 'Original' }}</p>
+                @if (call.performedKey) {
+                  <p>Tom cantado: {{ call.performedKey }}</p>
+                }
+                @if (canRecordKey()) {
+                  <button
+                    type="button"
+                    class="sf-button sf-outline sf-full"
+                    [disabled]="busy()"
+                    (click)="openKey(call)"
+                  >
+                    Registrar tom cantado
+                  </button>
+                }
               </div>
             } @else {
               <p>Aguardando a próxima convocação do anfitrião.</p>
             }
             @if (view.stage.suggestions[0]; as next) {
               <h3 class="sf-subtitle">Próximo na fila</h3>
-              <app-stage-queue [suggestions]="[next]" />
+              <app-stage-queue
+                [suggestions]="[next]"
+                [chordsEnabled]="true"
+                [chordsEditable]="canRecordKey()"
+                [chords]="view.chords ?? {}"
+                [streaming]="view.streaming ?? {}"
+                (chordChosen)="openChord($event, view.session.id)"
+              />
             }
             @if (updatedAt(); as updated) {
               <p class="sf-musician-update">Atualizado às {{ updated | date: 'HH:mm:ss' }}</p>
@@ -173,13 +208,23 @@
               [suggestions]="view.stage.suggestions"
               [resetKey]="view.session.id"
               [searchable]="true"
+              [chordsEnabled]="true"
+              [chordsEditable]="canRecordKey()"
+              [chords]="view.chords ?? {}"
+              [streaming]="view.streaming ?? {}"
+              (chordChosen)="openChord($event, view.session.id)"
             />
           </app-surface-card>
         </div>
         <div [hidden]="activeTab() !== 'history'">
           <app-surface-card labelledBy="musician-history-title">
             <h2 id="musician-history-title">Histórico do palco</h2>
-            <app-stage-history [calls]="view.stage.history" />
+            <app-stage-history
+              [statusBelow]="true"
+              [calls]="view.stage.history"
+              [editable]="canRecordKey()"
+              (keyEdited)="openKey($event, view.session.id)"
+            />
           </app-surface-card>
         </div>
       </app-panel-workspace>
@@ -253,13 +298,18 @@
         Criada em {{ session.createdAt | date: 'dd/MM/yyyy HH:mm' }}. Consulta da sessão anterior.
       </p>
       @if (archiveLoading()) {
-        <p role="status">Carregando dados da sessão…</p>
+        <div class="sf-loading-placeholder"></div>
       }
       @if (archivePerformance(); as view) {
         <section class="sf-musician-archive-section" aria-label="Apresentações da sessão">
           <h3>Histórico do palco</h3>
           <div role="region" aria-label="Registros da sessão anterior">
-            <app-stage-history [calls]="view.stage.history" />
+            <app-stage-history
+              [statusBelow]="true"
+              [calls]="view.stage.history"
+              [editable]="canRecordKey()"
+              (keyEdited)="openKey($event, view.session.id)"
+            />
           </div>
         </section>
         <section class="sf-musician-archive-section" aria-label="Fila ao encerrar">
@@ -321,4 +371,63 @@
       </button>
     </div>
   </app-confirmation-dialog>
+}
+
+@if (editingKey(); as editing) {
+  <app-confirmation-dialog
+    title="Tom cantado"
+    [busy]="busy()"
+    [error]="keyError()"
+    (dismissed)="editingKey.set(null)"
+  >
+    <p>
+      <strong>{{ editing.call.participantName }}</strong> · {{ editing.call.title }}
+    </p>
+    <p>Tom: {{ editing.call.keyLabel || 'Original' }}</p>
+    <form class="host-form" (submit)="$event.preventDefault(); saveKey()">
+      <label for="performed-key">Tom cantado</label>
+      <input
+        pInputText
+        id="performed-key"
+        [formControl]="keyForm"
+        maxlength="4"
+        placeholder="Ex.: C, D#, Bb ou Am"
+        [readOnly]="busy()"
+        aria-describedby="performed-key-help"
+      />
+      <small id="performed-key-help"
+        >Informe o tom efetivamente cantado. Deixe vazio para remover o registro.</small
+      >
+      @if (keyForm.invalid && keyForm.dirty) {
+        <p class="sf-dialog-error" role="alert">Informe um tom como C, D#, Bb ou Am.</p>
+      }
+      <div class="sf-dialog-actions">
+        <button
+          type="submit"
+          class="sf-button sf-primary sf-full"
+          [disabled]="busy() || keyForm.invalid"
+        >
+          Salvar
+        </button>
+        <button
+          type="button"
+          class="sf-button sf-outline sf-full"
+          [disabled]="busy()"
+          (click)="editingKey.set(null)"
+        >
+          Voltar
+        </button>
+      </div>
+    </form>
+  </app-confirmation-dialog>
+}
+
+@if (choosingChord(); as selection) {
+  <app-chord-link-dialog
+    [song]="selection.song"
+    mode="musician"
+    [session]="selection.session"
+    (saved)="chordSaved($event)"
+    (dismissed)="choosingChord.set(null)"
+  />
 }

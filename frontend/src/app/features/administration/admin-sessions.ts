@@ -258,9 +258,7 @@ interface Detail extends Summary {
               }
             </section>
           }
-        } @else if (reading()) {
-          <p role="status">Carregando dados da sessão…</p>
-        }
+        } @else if (reading()) {}
         <div class="sf-dialog-actions">
           <button type="button" class="sf-button sf-outline sf-full" (click)="close()">
             Fechar
@@ -311,7 +309,7 @@ export class AdminSessions implements OnInit, OnDestroy {
   ngOnInit() {
     void this.load();
     this.timer = setInterval(() => {
-      if (!this.document.hidden && this.active() && this.selected()) void this.refresh();
+      if (!this.document.hidden && this.active() && this.selected()) void this.refresh(true);
     }, 4000);
   }
   ngOnDestroy() {
@@ -354,13 +352,15 @@ export class AdminSessions implements OnInit, OnDestroy {
     this.error.set('');
     this.reading.set(false);
   }
-  async refresh() {
+  async refresh(background = false) {
     const selected = this.selected();
     if (!selected || this.reading() || this.destroyed) return;
     const generation = this.generation;
     this.reading.set(true);
     try {
-      const detail = await this.api.get<Detail>('/admin/sessions/' + selected.session.id);
+      const detail = await this.api.get<Detail>('/admin/sessions/' + selected.session.id, {
+        background,
+      });
       if (generation !== this.generation || this.destroyed) return;
       this.detail.set(detail);
       this.error.set('');

@@ -1,4 +1,24 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page, Route } from '@playwright/test';
+
+async function fulfill(route: Route, options: { json?: any; status?: number }) {
+  if (new URL(route.request().url()).pathname.endsWith('/workspace') && options.json?.run) {
+    const p = options.json;
+    const pending =
+      p.pendingReview ??
+      p.counts.review + p.counts.failed + p.counts.queued + p.counts.processing + p.counts.skipped;
+    options = {
+      ...options,
+      json: {
+        current:
+          p.run.status === 'COMPLETED' && pending === 0 && !p.counts.queued && !p.counts.processing
+            ? null
+            : p,
+      },
+    };
+  }
+  return route.fulfill(options);
+}
+
 const base = '/api/admin/catalog/sync';
 const run = {
   id: 'run-one',
@@ -75,7 +95,7 @@ async function shell(page: Page) {
 async function enter(page: Page) {
   await page.goto('/admin');
   await page.getByRole('tab', { name: 'Catálogo', exact: true }).click();
-  await page.getByRole('button', { name: 'Sincronizar provisórias', exact: true }).click();
+  await page.getByRole('tab', { name: 'Sincronizar', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Sincronizar provisórias', exact: true }),
   ).toBeVisible();
@@ -92,21 +112,22 @@ test('sync progress updates while paused runs resume and survives leaving the sc
   await page.route('**/api/admin/catalog/sync/**', async (route) => {
     const url = new URL(route.request().url()),
       path = url.pathname;
+    if (path.endsWith('/workspace') && !started) return fulfill(route, { json: { current: null } });
     if (route.request().method() === 'POST') {
       expect(route.request().headers()['x-csrf-token']).toBe('csrf');
       if (path === base + '/runs') {
         started = true;
         starts++;
-        return route.fulfill({ json: { ...run, status } });
+        return fulfill(route, { json: { ...run, status } });
       }
       if (path.endsWith('/pause')) status = 'PAUSED';
       else if (path.endsWith('/resume')) status = 'RUNNING';
-      return route.fulfill({ json: { ...run, status } });
+      return fulfill(route, { json: { ...run, status } });
     }
     if (path === base + '/runs')
-      return route.fulfill({ json: started ? [{ ...run, status }] : [] });
+      return fulfill(route, { json: started ? [{ ...run, status }] : [] });
     if (path.endsWith('/items'))
-      return route.fulfill({
+      return fulfill(route, {
         json: {
           items: phase
             ? [
@@ -125,7 +146,7 @@ test('sync progress updates while paused runs resume and survives leaving the sc
           size: 20,
         },
       });
-    return route.fulfill({
+    return fulfill(route, {
       json: {
         run: { ...run, status },
         counts: phase
@@ -142,21 +163,29 @@ test('sync progress updates while paused runs resume and survives leaving the sc
     .getByRole('dialog', { name: 'Iniciar sincronização?', exact: true })
     .getByRole('button', { name: 'Confirmar início', exact: true })
     .click();
-  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+  await expect(
+    page.getByRole('progressbar', { name: 'Progresso da sincronização', exact: true }),
+  ).toHaveAttribute('aria-valuenow', '0');
   phase = 1;
-  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2', {
+  await expect(
+    page.getByRole('progressbar', { name: 'Progresso da sincronização', exact: true }),
+  ).toHaveAttribute('aria-valuenow', '2', {
     timeout: 7000,
   });
-  await expect(page.getByRole('list', { name: 'Atividade da sincronização' })).toContainText(
+  await expect(page.getByRole('list', { name: 'Músicas para revisão' })).not.toContainText(
     'Aprovada automaticamente',
   );
   await page.getByRole('button', { name: 'Pausar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Retomar', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Retomar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Voltar ao catálogo', exact: true }).click();
-  await page.getByRole('button', { name: 'Sincronizar provisórias', exact: true }).click();
-  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
+  await page.getByRole('tab', { name: 'Catálogo de músicas', exact: true }).click();
+  await expect(page.getByText('Existem músicas pendentes de revisão', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Fechar notificação', exact: true }).click();
+  await page.getByRole('tab', { name: 'Sincronizar', exact: true }).click();
+  await expect(
+    page.getByRole('progressbar', { name: 'Progresso da sincronização', exact: true }),
+  ).toHaveAttribute('aria-valuenow', '2');
   expect(starts).toBe(1);
   await page.screenshot({ path: testInfo.outputPath('sync-progress.png'), fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -175,7 +204,7 @@ test('sync correspondence shows before and after and requires explicit link conf
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
       if (path.endsWith('/preview'))
-        return route.fulfill({
+        return fulfill(route, {
           json: {
             item,
             title: candidate.title,
@@ -187,17 +216,18 @@ test('sync correspondence shows before and after and requires explicit link conf
         });
       writes.push(body);
       approved = true;
-      return route.fulfill({
+      return fulfill(route, {
         json: { item: { ...item, state: 'MERGED', revision: 3 }, candidates: [] },
       });
     }
-    if (path === base + '/runs') return route.fulfill({ json: [run] });
+    if (path === base + '/runs') return fulfill(route, { json: [run] });
     if (path.endsWith('/items'))
-      return route.fulfill({
+      return fulfill(route, {
         json: { items: approved ? [] : [item], total: approved ? 0 : 1, page: 0, size: 20 },
       });
-    if (path.includes('/items/')) return route.fulfill({ json: { item, candidates: [candidate] } });
-    return route.fulfill({
+    if (path.includes('/items/'))
+      return fulfill(route, { json: { item, candidates: [candidate] } });
+    return fulfill(route, {
       json: {
         run,
         counts: counts({ review: approved ? 0 : 1, approved: approved ? 1 : 0 }),
@@ -206,7 +236,6 @@ test('sync correspondence shows before and after and requires explicit link conf
     });
   });
   await enter(page);
-  await page.getByRole('button', { name: 'Precisam de revisão', exact: true }).click();
   await page
     .getByRole('button', { name: /Equalize Artista não informado Precisa de revisão/ })
     .click();
@@ -238,7 +267,7 @@ test('sync manual review keeps edits during polling and reports stale approval w
       if (path.endsWith('/preview')) {
         previews++;
         const body = route.request().postDataJSON();
-        return route.fulfill({
+        return fulfill(route, {
           json: {
             item: empty,
             title: body.title,
@@ -250,16 +279,16 @@ test('sync manual review keeps edits during polling and reports stale approval w
         });
       }
       approvals++;
-      return route.fulfill({
+      return fulfill(route, {
         status: 409,
         json: { detail: 'O cadastro foi alterado. Consulte novamente antes de aprovar.' },
       });
     }
-    if (path === base + '/runs') return route.fulfill({ json: [run] });
+    if (path === base + '/runs') return fulfill(route, { json: [run] });
     if (path.endsWith('/items'))
-      return route.fulfill({ json: { items: [empty], total: 1, page: 0, size: 20 } });
-    if (path.includes('/items/')) return route.fulfill({ json: { item: empty, candidates: [] } });
-    return route.fulfill({ json: { run, counts: counts(), currentTitle: '' } });
+      return fulfill(route, { json: { items: [empty], total: 1, page: 0, size: 20 } });
+    if (path.includes('/items/')) return fulfill(route, { json: { item: empty, candidates: [] } });
+    return fulfill(route, { json: { run, counts: counts(), currentTitle: '' } });
   });
   await enter(page);
   await page
@@ -306,17 +335,18 @@ test('sync failed lookup can be retried and reopening keeps the pending batch', 
     if (route.request().method() === 'POST') {
       expect(route.request().postDataJSON()).toEqual({ revision: 6 });
       retried = true;
-      return route.fulfill({
+      return fulfill(route, {
         json: { item: { ...failure, state: 'QUEUED', revision: 7 }, candidates: [] },
       });
     }
-    if (path === base + '/runs') return route.fulfill({ json: [currentRun] });
+    if (path === base + '/runs') return fulfill(route, { json: [currentRun] });
     if (path.endsWith('/items'))
-      return route.fulfill({
+      return fulfill(route, {
         json: { items: retried ? [] : [failure], total: retried ? 0 : 1, page: 0, size: 20 },
       });
-    if (path.includes('/items/')) return route.fulfill({ json: { item: failure, candidates: [] } });
-    return route.fulfill({
+    if (path.includes('/items/'))
+      return fulfill(route, { json: { item: failure, candidates: [] } });
+    return fulfill(route, {
       json: {
         run: currentRun,
         counts: counts({
@@ -356,10 +386,10 @@ test('sync refined lookup uses the draft and keeps approval explicit', async ({ 
       if (path.endsWith('/search')) {
         queries.push(body);
         searched = true;
-        return route.fulfill({ json: { item: refined, candidates: [match] } });
+        return fulfill(route, { json: { item: refined, candidates: [match] } });
       }
       if (path.endsWith('/preview'))
-        return route.fulfill({
+        return fulfill(route, {
           json: {
             item: refined,
             title: match.title,
@@ -371,15 +401,15 @@ test('sync refined lookup uses the draft and keeps approval explicit', async ({ 
         });
       approved = true;
       approvals.push(body);
-      return route.fulfill({ json: { item: { ...refined, state: 'APPROVED' }, candidates: [] } });
+      return fulfill(route, { json: { item: { ...refined, state: 'APPROVED' }, candidates: [] } });
     }
-    if (path === base + '/runs') return route.fulfill({ json: [run] });
+    if (path === base + '/runs') return fulfill(route, { json: [run] });
     if (path.endsWith('/items'))
-      return route.fulfill({
+      return fulfill(route, {
         json: { items: approved ? [] : [original], total: approved ? 0 : 1, page: 0, size: 20 },
       });
     if (path.includes('/items/'))
-      return route.fulfill({
+      return fulfill(route, {
         json: {
           item: searched ? refined : original,
           candidates: searched
@@ -387,7 +417,7 @@ test('sync refined lookup uses the draft and keeps approval explicit', async ({ 
             : [{ ...candidate, title: 'Gis', artist: 'Outro artista', existing: null }],
         },
       });
-    return route.fulfill({ json: { run, counts: counts(), currentTitle: '' } });
+    return fulfill(route, { json: { run, counts: counts(), currentTitle: '' } });
   });
   await enter(page);
   await page.getByRole('button', { name: /Gis Artista não informado Precisa de revisão/ }).click();
@@ -426,15 +456,15 @@ test('sync refined failure keeps the draft and no matches still allows manual ap
       if (path.endsWith('/search')) {
         if (fail) {
           fail = false;
-          return route.fulfill({
+          return fulfill(route, {
             status: 503,
             json: { detail: 'Busca temporariamente indisponível.' },
           });
         }
-        return route.fulfill({ json: { item: { ...original, revision: 3 }, candidates: [] } });
+        return fulfill(route, { json: { item: { ...original, revision: 3 }, candidates: [] } });
       }
       manual = route.request().postDataJSON();
-      return route.fulfill({
+      return fulfill(route, {
         json: {
           item: { ...original, revision: 3 },
           title: 'Giz',
@@ -445,12 +475,12 @@ test('sync refined failure keeps the draft and no matches still allows manual ap
         },
       });
     }
-    if (path === base + '/runs') return route.fulfill({ json: [run] });
+    if (path === base + '/runs') return fulfill(route, { json: [run] });
     if (path.endsWith('/items'))
-      return route.fulfill({ json: { items: [original], total: 1, page: 0, size: 20 } });
+      return fulfill(route, { json: { items: [original], total: 1, page: 0, size: 20 } });
     if (path.includes('/items/'))
-      return route.fulfill({ json: { item: original, candidates: [old] } });
-    return route.fulfill({ json: { run, counts: counts(), currentTitle: '' } });
+      return fulfill(route, { json: { item: original, candidates: [old] } });
+    return fulfill(route, { json: { run, counts: counts(), currentTitle: '' } });
   });
   await enter(page);
   await page.getByRole('button', { name: /Gis Artista não informado Precisa de revisão/ }).click();
@@ -476,7 +506,9 @@ test('sync refined failure keeps the draft and no matches still allows manual ap
   expect(manual).toEqual({ revision: 3, position: null, title: 'Giz', artist: 'Legião Urbana' });
 });
 
-test('sync last approval returns to catalog with one info notification', async ({ page }) => {
+test('sync last approval clears the workspace for a new run with one info notification', async ({
+  page,
+}) => {
   await shell(page);
   let approved = false;
   const original = { ...item, title: 'Giz', artist: '' };
@@ -484,7 +516,7 @@ test('sync last approval returns to catalog with one info notification', async (
     const path = new URL(route.request().url()).pathname;
     if (route.request().method() === 'POST') {
       if (path.endsWith('/preview'))
-        return route.fulfill({
+        return fulfill(route, {
           json: {
             item: original,
             title: 'Giz',
@@ -495,16 +527,16 @@ test('sync last approval returns to catalog with one info notification', async (
           },
         });
       approved = true;
-      return route.fulfill({ json: { item: { ...original, state: 'APPROVED' }, candidates: [] } });
+      return fulfill(route, { json: { item: { ...original, state: 'APPROVED' }, candidates: [] } });
     }
-    if (path === base + '/runs') return route.fulfill({ json: [run] });
+    if (path === base + '/runs') return fulfill(route, { json: [run] });
     if (path.endsWith('/items'))
-      return route.fulfill({
+      return fulfill(route, {
         json: { items: approved ? [] : [original], total: approved ? 0 : 1, page: 0, size: 20 },
       });
     if (path.includes('/items/'))
-      return route.fulfill({ json: { item: original, candidates: [] } });
-    return route.fulfill({
+      return fulfill(route, { json: { item: original, candidates: [] } });
+    return fulfill(route, {
       json: {
         run,
         counts: counts({
@@ -526,8 +558,15 @@ test('sync last approval returns to catalog with one info notification', async (
   await modal.getByLabel('Artista', { exact: true }).fill('Legião Urbana');
   await modal.getByRole('button', { name: 'Usar dados manuais', exact: true }).click();
   await page.getByRole('button', { name: 'Confirmar aprovação', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Sincronizar', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
   await expect(
-    page.getByRole('heading', { name: 'Catálogo de músicas', exact: true }),
+    page.getByRole('progressbar', { name: 'Progresso da sincronização', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('heading', { name: 'Vamos organizar o catálogo?', exact: true }),
   ).toBeVisible();
   await expect(page.locator('.p-toast-message-info')).toContainText(
     'Sincronização finalizada com sucesso',
@@ -545,10 +584,10 @@ for (const exit of ['back', 'tab'] as const) {
     await page.route('**/api/admin/catalog/sync/**', async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (route.request().method() === 'POST') writes.push(path);
-      if (path === base + '/runs') return route.fulfill({ json: [run] });
+      if (path === base + '/runs') return fulfill(route, { json: [run] });
       if (path.endsWith('/items'))
-        return route.fulfill({ json: { items: [item], total: 1, page: 0, size: 20 } });
-      return route.fulfill({
+        return fulfill(route, { json: { items: [item], total: 1, page: 0, size: 20 } });
+      return fulfill(route, {
         json: {
           run,
           counts: counts({ total: 1, processed: 1, automatic: 0, review: 1, failed: 0 }),
@@ -558,9 +597,11 @@ for (const exit of ['back', 'tab'] as const) {
       });
     });
     await enter(page);
-    await expect(page.getByRole('progressbar')).toBeVisible();
+    await expect(
+      page.getByRole('progressbar', { name: 'Progresso da sincronização', exact: true }),
+    ).toBeVisible();
     if (exit === 'back')
-      await page.getByRole('button', { name: 'Voltar ao catálogo', exact: true }).click();
+      await page.getByRole('tab', { name: 'Catálogo de músicas', exact: true }).click();
     else await page.getByRole('tab', { name: 'Cadastros', exact: true }).click();
     await expect(page.locator('.p-toast-message-warn')).toHaveCount(1);
     await expect(page.locator('.p-toast-message-warn')).toContainText(
@@ -577,12 +618,12 @@ test('sync does not finish while skipped catalog entries remain provisional', as
   await shell(page);
   await page.route('**/api/admin/catalog/sync/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    if (path === base + '/runs') return route.fulfill({ json: [run] });
+    if (path === base + '/runs') return fulfill(route, { json: [run] });
     if (path.endsWith('/items'))
-      return route.fulfill({
+      return fulfill(route, {
         json: { items: [{ ...item, state: 'SKIPPED' }], total: 1, page: 0, size: 20 },
       });
-    return route.fulfill({
+    return fulfill(route, {
       json: {
         run,
         counts: counts({ total: 1, processed: 1, automatic: 0, review: 0, failed: 0, skipped: 1 }),
@@ -592,15 +633,45 @@ test('sync does not finish while skipped catalog entries remain provisional', as
     });
   });
   await enter(page);
-  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
+  await expect(
+    page.getByRole('progressbar', { name: 'Progresso da sincronização', exact: true }),
+  ).toHaveAttribute('aria-valuenow', '1');
   await expect(
     page.getByRole('heading', { name: 'Sincronizar provisórias', exact: true }),
   ).toBeVisible();
   await expect(page.getByText('Sincronização finalizada com sucesso', { exact: true })).toHaveCount(
     0,
   );
-  await page.getByRole('button', { name: 'Voltar ao catálogo', exact: true }).click();
+  await page.getByRole('tab', { name: 'Catálogo de músicas', exact: true }).click();
   await expect(page.locator('.p-toast-message-warn')).toContainText(
     'Existem músicas pendentes de revisão',
   );
+});
+
+test('automatic synchronization refresh does not block the review workspace', async ({ page }) => {
+  await page.clock.install();
+  await shell(page);
+  let reads = 0;
+  let release!: () => void;
+  const pending = new Promise<void>((r) => (release = r));
+  const progress = {
+    run: { ...run, status: 'RUNNING' },
+    counts: counts({ processed: 0, automatic: 0, review: 0, failed: 0, queued: 2, processing: 1 }),
+    pendingReview: 3,
+  };
+  await page.route('**/api/admin/catalog/sync/**', async (r) => {
+    const path = new URL(r.request().url()).pathname;
+    if (path.endsWith('/workspace')) return r.fulfill({ json: { current: progress } });
+    if (path.endsWith('/items'))
+      return r.fulfill({ json: { items: [], total: 0, page: 0, size: 25 } });
+    reads++;
+    if (reads > 1) await pending;
+    return r.fulfill({ json: progress });
+  });
+  await enter(page);
+  await expect(page.locator('p-progress-spinner')).toHaveCount(0);
+  await page.clock.fastForward(2200);
+  await expect.poll(() => reads).toBeGreaterThanOrEqual(2);
+  await expect(page.locator('p-progress-spinner')).toHaveCount(0);
+  release();
 });
