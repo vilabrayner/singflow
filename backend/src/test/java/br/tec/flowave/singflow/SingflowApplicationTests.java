@@ -1448,10 +1448,14 @@ class SingflowApplicationTests {
                   long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                   boolean waiting = false;
                   while (System.nanoTime() < deadline) {
+                    // PostgreSQL caches activity within this transaction; refresh before polling.
+                    jdbc.sql("SELECT pg_stat_clear_snapshot()")
+                        .query((rs, rowNum) -> true)
+                        .single();
                     waiting =
                         jdbc.sql(
                                 "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE"
-                                    + " cardinality(pg_blocking_pids(pid))>0 AND query LIKE"
+                                    + " pg_backend_pid() = ANY(pg_blocking_pids(pid)) AND query LIKE"
                                     + " '%sessions%')")
                             .query(Boolean.class)
                             .single();

@@ -1,6 +1,8 @@
 # Build remoto manual e release versionada
 
-Estado em 17/11/2026: arquivos preparados e validados localmente; infraestrutura e primeira execução ainda não autorizadas. Nenhum commit, tag ou release foi criado nesta preparação.
+Estado em 17/11/2026: infraestrutura autorizada e provisionada, stack `singflow-manual-build` em `CREATE_COMPLETE`. Arquivos publicados na main no commit `f4f84f70e2464bc3de3e10058dad6ff61fdaf0c6`. Nenhum build, tag, release GitHub ou deploy iniciado nesta etapa.
+
+Projeto: `singflow-manual-build-release`; bucket privado: `singflow-manual-build-artifacts-ci8ndzpd8xii`; logs: `/aws/codebuild/singflow-manual-build-release`. Operação CloudFormation: `2b5d0170-e2cb-11f1-81e0-0a605a67e8f7`. Validação de serviço sem eventos de erro e criação concluída. A leitura do projeto confirmou fonte manual, MEDIUM, concorrência 1, timeout 45 minutos e ausência de webhook; histórico de builds vazio. A consulta CloudTrail em Ohio não retornou trails; não foi configurada retenção durável de auditoria neste incremento.
 
 ## Fluxo deste incremento
 
