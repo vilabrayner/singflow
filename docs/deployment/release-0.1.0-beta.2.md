@@ -114,3 +114,18 @@ Referência oficial do console: [Executar build com overrides](https://docs.aws.
 O build remoto reconheceu beta.2 e foi interrompido nos testes dos scripts: dois cenários usavam arquivos da aplicação real, mas esperavam beta.1. Os testes passaram a criar package, lock e POM próprios em diretórios temporários; os cenários verificam divergência de cada metadado e reaproveitamento das imagens em beta.1, beta.2 e 1.0.0. Não foi relaxada a validação de versão no build real, nem desabilitado teste.
 
 Mensagens com SHA `aaaaaaaa…`, `release-url` e rollback durante `unittest` vêm de executores simulados. Essa etapa não implanta na EC2. Depois de enviar a correção e fazer merge, informar o **novo SHA completo da main** ao iniciar o próximo build; não repetir o SHA da execução que falhou. A versão segue beta.2 porque esta falha ocorreu antes da construção/publicação das imagens.
+
+
+## Limite de pulls anônimos Docker Hub — 18/11/2026
+
+O log do CodeBuild confirmou HTTP 429 `toomanyrequests` ao buscar `postgres:17.6`, antes de iniciar os testes de integração. O aviso inicial sobre ausência de config de autenticação não é a falha em si: Ryuk iniciou, mas o download do PostgreSQL foi recusado. Não foi falha de regra do app, migration ou banco de produção.
+
+Correção: o executor remoto ativa `PublicRegistryImageSubstitutor`, presente apenas nas fontes de teste. Ele mantém a versão e a compatibilidade PostgreSQL, buscando a imagem oficial em `public.ecr.aws/docker/library/postgres`; Ryuk vem de `ghcr.io/testcontainers/ryuk`, publicado pelo próprio projeto. Outras imagens, registros explícitos e referências por digest não são reescritos. Localmente o hook só é ativado se a variável for definida; não se configura um prefixo global que produziria caminhos inválidos para Ryuk.
+
+Os quatro FROM dos Dockerfiles também usam o namespace Docker Official Images no ECR Public, com as mesmas tags de Maven, Temurin, Node e Nginx. Nenhum teste é ignorado, Ryuk permanece habilitado, não há login Docker Hub, segredo novo ou alteração de IAM/infraestrutura. ECR Public e GHCR também têm limites e disponibilidade próprios; não há promessa de pulls ilimitados. Uma consulta isolada Maven recebeu 429 no ECR Public e a repetição respondeu 200. As seis tags foram verificadas por consulta de metadados, sem baixar camadas pela conexão local.
+
+Depois de merge/push desta correção, usar o novo SHA completo da main e manter `EXPECTED_VERSION=0.1.0-beta.2`. A execução mostrada falhou antes da construção/publicação do par de imagens. A validação completa em Linux/CodeBuild continua necessária; não se reconstruiu Docker localmente.
+
+Referências: [substituição de imagens Testcontainers](https://java.testcontainers.org/features/image_name_substitution/), [publicação oficial Ryuk em GHCR](https://github.com/testcontainers/moby-ryuk/blob/main/.github/workflows/publish-docker-image.yml) e [limites Docker Hub](https://docs.docker.com/docker-hub/troubleshoot/).
+
+Validação local da correção: 27 testes dos scripts, três testes de substituição de imagens e um de arquitetura aprovados; `bash -n` e `git diff --check` sem erros. Não foi executado build Docker local, pull de camadas, commit, push, novo build AWS ou implantação.

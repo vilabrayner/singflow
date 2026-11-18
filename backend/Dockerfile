@@ -1,10 +1,10 @@
-FROM maven:3.9.11-eclipse-temurin-21 AS build
+FROM public.ecr.aws/docker/library/maven:3.9.11-eclipse-temurin-21 AS build
 WORKDIR /workspace
 COPY pom.xml ./
 COPY src ./src
 RUN mvn -B -DskipTests package
 
-FROM eclipse-temurin:21-jre
+FROM public.ecr.aws/docker/library/eclipse-temurin:21-jre
 WORKDIR /app
 RUN groupadd --system singflow && useradd --system --gid singflow singflow
 COPY --from=build --chown=singflow:singflow /workspace/target/singflow-*.jar app.jar

@@ -19,6 +19,8 @@ if ! docker info >/dev/null 2>&1; then
 fi
 python3 -c 'import pathlib,sys; sys.path.insert(0,"scripts/aws"); import release; print("Release version:", release.source_version(pathlib.Path("."), __import__("os").environ["EXPECTED_VERSION"]))'
 python3 -m unittest discover -s scripts/aws -p 'test_*.py'
+# Avoid Docker Hub anonymous pull limits without changing local developer defaults.
+export TESTCONTAINERS_IMAGE_SUBSTITUTOR=br.tec.flowave.singflow.testsupport.PublicRegistryImageSubstitutor
 cd backend
 ./mvnw -B verify
 cd ../frontend

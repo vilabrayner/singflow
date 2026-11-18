@@ -45,3 +45,15 @@ class ManualBuildTests(unittest.TestCase):
         self.assertIn('base-directory: /tmp/singflow-artifacts', self.resources['BuildProject']['Properties']['Source']['BuildSpec'])
         self.assertEqual(script.count('cp '), 1)
         self.assertIn('cp /tmp/singflow-release.published.json', script)
+
+
+    def test_remote_build_uses_official_registries_without_hub_login(self):
+        script = (ROOT / 'infra/aws/pipeline/run-release.sh').read_text()
+        hook = 'export TESTCONTAINERS_IMAGE_SUBSTITUTOR=br.tec.flowave.singflow.testsupport.PublicRegistryImageSubstitutor'
+        self.assertIn(hook, script)
+        self.assertLess(script.index(hook), script.index('./mvnw -B verify'))
+        self.assertNotIn('TESTCONTAINERS_RYUK_DISABLED', script)
+        for folder in ('backend', 'frontend'):
+            bases = [line.split()[1] for line in (ROOT / folder / 'Dockerfile').read_text().splitlines() if line.startswith('FROM ')]
+            self.assertTrue(bases)
+            self.assertTrue(all(base.startswith('public.ecr.aws/docker/library/') for base in bases))
