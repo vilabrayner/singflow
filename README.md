@@ -158,7 +158,7 @@ O [modelo consolidado de ambiente](.env.example) agrupa comuns, backend e fronte
 
 ### Publicação e versões
 
-- [Próxima versão: 0.1.0-beta.2 — roteiro de publicação](docs/deployment/release-0.1.0-beta.2.md).
+- [Próxima versão: 0.1.0-beta.3 — notas e publicação](docs/deployment/release-0.1.0-beta.3.md).
 - [Build remoto manual: CodeBuild → ECR](docs/deployment/build-remoto-aws.md).
 - [Implantação e acompanhamento na EC2 pelo Systems Manager](docs/deployment/acompanhar-deploy-aws.md).
 - [Alternativa: build e publicação pela máquina local](docs/deployment/primeiro-build-local.md).

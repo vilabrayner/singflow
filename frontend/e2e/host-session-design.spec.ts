@@ -1,3 +1,4 @@
+import { installPresentationSelection, openSessionWithPresentation } from './helpers/presentation';
 import { expect, Page, test } from '@playwright/test';
 
 type Session = { id: string; name: string; status: string; createdAt: string };
@@ -126,7 +127,8 @@ test('create, cancel, open and register empty session retain a mobile layout and
     0,
   );
   await expect(page.getByRole('button', { name: 'Excluir rascunho' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Abrir sessão', exact: true }).click();
+  await installPresentationSelection(page);
+  await openSessionWithPresentation(page);
   await expect(page.locator('#host-session-title')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Criar participante', exact: true })).toHaveCount(
     0,

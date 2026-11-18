@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>br.tec.flowave</groupId>
 	<artifactId>singflow</artifactId>
-	<version>0.1.0-beta.2</version>
+	<version>0.1.0-beta.3</version>
 	<name>SingFlow</name>
 	<description>Gestão de karaokê ao vivo</description>
 	<url/>

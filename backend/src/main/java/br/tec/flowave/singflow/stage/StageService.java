@@ -42,6 +42,21 @@ public class StageService {
       Instant resolvedAt,
       Instant acceptedAt, String originalKey, int semitones, String keyLabel, String performedKey, long keyVersion, UUID catalogSongId) {}
 
+  public record TelevisionCue(String name,String title,String artist,boolean called,boolean accepted) {}
+
+  @Transactional
+  public TelevisionCue televisionCue(UUID session,String actor){
+    sessions.lockOwned(session,actor,true);
+    var people=participants.list(session,actor);
+    var call=active(session);
+    if(call.isPresent()){
+      var current=call.get();
+      String name=people.stream().filter(p->p.id().equals(current.participantId())).map(Participation.ParticipantView::name).findFirst().orElse("Participante");
+      return new TelevisionCue(name,current.title(),current.artist(),true,current.acceptedAt()!=null);
+    }
+    return ranked(session,actor).stream().findFirst().map(c->new TelevisionCue(c.name(),c.title(),c.artist(),false,false)).orElse(null);
+  }
+
   public record WaitView(UUID participantId, String name, boolean manualRelease, int remaining) {}
 
   public record StageView(

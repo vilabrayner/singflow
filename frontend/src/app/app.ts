@@ -1,3 +1,5 @@
+import { Pwa } from './core/pwa/pwa';
+import { PwaStatus } from './shared/components/pwa-controls';
 import { LoadingRegion } from './shared/components/loading-region';
 import { afterRenderEffect, Component, computed, ElementRef, inject } from '@angular/core';
 import { BrandLogo } from './shared/components/brand-logo';
@@ -9,7 +11,15 @@ import { filter, map } from 'rxjs';
 
 @Component({
   selector: 'app-root',
-  imports: [LoadingRegion, RouterOutlet, RouterLink, RouterLinkActive, ToastModule, BrandLogo],
+  imports: [
+    PwaStatus,
+    LoadingRegion,
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    ToastModule,
+    BrandLogo,
+  ],
   templateUrl: './app.html',
 })
 export class App {
@@ -32,12 +42,18 @@ export class App {
       this.routePath(),
     ),
   );
+  readonly televisionPanel = computed(() => this.routePath().startsWith('/tv/'));
   readonly compactPanel = computed(
     () =>
-      this.hostPanel() || this.participantPanel() || this.musicianPanel() || this.accountPanel(),
+      this.hostPanel() ||
+      this.participantPanel() ||
+      this.musicianPanel() ||
+      this.accountPanel() ||
+      this.televisionPanel(),
   );
 
   constructor() {
+    inject(Pwa).start();
     afterRenderEffect((onCleanup) => {
       this.routePath();
       const header = this.element.querySelector<HTMLElement>('.sf-panel-header, .site-header');

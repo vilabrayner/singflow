@@ -36,6 +36,8 @@ class RealtimeIntegrationTests {
   @Autowired SessionAccess sessions;
   @Autowired MusicianAccess musicians;
   @Autowired AuditTrail audit;
+  @Autowired br.tec.flowave.singflow.television.Television television;
+  @Autowired br.tec.flowave.singflow.branding.BrandingRegistry branding;
   @Autowired PlatformTransactionManager transactions;
   @Autowired PasswordEncoder passwords;
   @Autowired ObjectMapper json;
@@ -55,6 +57,21 @@ class RealtimeIntegrationTests {
     jdbc.sql("INSERT INTO singflow.host_accounts(email,password_hash,role) VALUES(?,?,?)").params(email,passwords.encode("test-password-only"),role).update();
     return email;
   }
+  @Test void publicTvReceivesOnlyItsSessionAndStopsWhenDisabled()throws Exception{
+    var venue=branding.save(host,UUID.randomUUID(),"VENUE","Local TV",null,null,"",0);
+    var project=branding.save(host,UUID.randomUUID(),"PROJECT","Projeto TV",null,null,"",0);
+    var configuration=television.configure(session,host,new br.tec.flowave.singflow.television.Television.Settings(true,venue.id(),project.id(),0));
+    var browser=new Browser(null);
+    assertThat(browser.post("/api/public/tv/"+session+"/realtime/tickets","{}",false,"application/json").statusCode()).isEqualTo(401);
+    var response=browser.post("/api/public/tv/"+session+"/realtime/tickets","{}",true,"application/json");assertThat(response.statusCode()).isEqualTo(200);
+    var wire=open(browser,json.readTree(response.body()));assertThat(wire.next()).contains("ready");
+    UUID unrelated=UUID.randomUUID();sessions.create(host,"Outra sessão TV",unrelated);wire.quiet();
+    new TransactionTemplate(transactions).executeWithoutResult(tx->audit.record(host,session,"TV_TEST_CHANGE",session));assertThat(wire.next()).contains("changed");
+    television.configure(session,host,new br.tec.flowave.singflow.television.Television.Settings(false,venue.id(),project.id(),configuration.version()));
+    assertThat(wire.next()).contains("ended");assertThat(wire.closed.get(5,TimeUnit.SECONDS)).isEqualTo(4001);
+    assertThat(browser.post("/api/public/tv/"+session+"/realtime/tickets","{}",true,"application/json").statusCode()).isEqualTo(403);
+  }
+
   @AfterEach void cleanup(){wires.forEach(w->w.socket.abort());}
 
   class Browser {

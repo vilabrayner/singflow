@@ -3,6 +3,12 @@ import { publicDocumentLinks } from './features/information/public-documents';
 import { resumeParticipation } from './features/participation/participation-memory';
 
 export const routes: Routes = [
+  {
+    path: 'tv/:session',
+    title: 'Karaokê Som Na Caixa · TV',
+    loadComponent: () =>
+      import('./features/television/television.page').then((m) => m.TelevisionPage),
+  },
   ...publicDocumentLinks.map((link) => ({
     path: link.path.slice(1),
     title: link.label + ' · SingFlow',

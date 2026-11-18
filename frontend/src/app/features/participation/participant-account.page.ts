@@ -1,3 +1,4 @@
+import { PwaInstall } from '../../shared/components/pwa-controls';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -32,6 +33,7 @@ interface Capabilities {
 }
 @Component({
   imports: [
+    PwaInstall,
     PanelHeader,
     SurfaceCard,
     RouterLink,
@@ -110,6 +112,7 @@ interface Capabilities {
       }
     </app-panel-header>
     <main class="profile-main">
+      <app-pwa-install />
       @if (error()) {
         <p class="sf-dialog-error" role="alert">{{ error() }}</p>
       }

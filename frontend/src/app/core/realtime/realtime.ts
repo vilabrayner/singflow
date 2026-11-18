@@ -13,6 +13,7 @@ interface Watch {
   body?: unknown;
   headers?: Record<string, string>;
   update: () => Promise<void>;
+  connectionChanged?: (connected: boolean) => void;
   blocked?: () => boolean;
 }
 
@@ -74,6 +75,7 @@ export class Realtime {
     const disconnect = () => {
       generation++;
       connected = false;
+      options.connectionChanged?.(false);
       clearTimeout(authentication);
       authentication = undefined;
       const previous = socket;
@@ -148,6 +150,7 @@ export class Realtime {
             const message = JSON.parse(event.data) as { type?: string };
             if (message.type === 'ready') {
               connected = true;
+              options.connectionChanged?.(true);
               attempts = 0;
               clearTimeout(authentication);
               clearTimeout(fallback);
@@ -162,6 +165,7 @@ export class Realtime {
         active.onclose = (event) => {
           if (disposed || current !== generation) return;
           connected = false;
+          options.connectionChanged?.(false);
           clearTimeout(authentication);
           authentication = undefined;
           if (event.code === 4001) terminal();

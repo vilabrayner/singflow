@@ -84,6 +84,13 @@ public class AudienceService {
     this.appUrl = appUrl.replaceAll("/+$", "");
   }
 
+  @Transactional(readOnly=true)
+  public String televisionEntry(UUID session){
+    if(!sessions.audienceContext(session).session().status().equals("OPEN"))return null;
+    return jdbc.sql("SELECT code FROM singflow.entry_links WHERE session_id=?").param(session).query(String.class).optional()
+      .map(code->appUrl+"/participante/"+session+"/"+code).orElse(null);
+  }
+
   private String token() {
     byte[] bytes = new byte[32];
     random.nextBytes(bytes);

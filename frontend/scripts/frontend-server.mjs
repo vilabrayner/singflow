@@ -240,7 +240,7 @@ export function createFrontendServer({
       'Content-Type': contentTypes[extension] ?? 'application/octet-stream',
       'Content-Length': statSync(file).size,
       'Cache-Control':
-        extension === '.html'
+        extension === '.html' || path === '/notifications-sw.js' || path === '/version.json'
           ? 'no-cache'
           : /-[a-zA-Z0-9_-]{8,}\.(js|css|woff2?)$/.test(file)
             ? 'public, max-age=31536000, immutable'
