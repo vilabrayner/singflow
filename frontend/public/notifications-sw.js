@@ -1,4 +1,44 @@
-/* No app-shell caching: normal deploy/update behavior remains unchanged. */
+/* Only a generic offline page and public logo are cached. No APIs, sessions or app shell. */
+const OFFLINE_CACHE = 'singflow-public-offline-v1';
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(OFFLINE_CACHE);
+      await cache.addAll([
+        new Request('/offline.html', { cache: 'reload', credentials: 'omit' }),
+        new Request('/brand/singflow-logo-144.webp', { cache: 'reload', credentials: 'omit' }),
+      ]);
+    })(),
+  );
+});
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+});
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  if (
+    event.request.method !== 'GET' ||
+    url.origin !== self.location.origin ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/actuator/')
+  )
+    return;
+  if (event.request.mode === 'navigate')
+    event.respondWith(
+      fetch(event.request).catch(async () => {
+        const cache = await caches.open(OFFLINE_CACHE);
+        return (await cache.match('/offline.html')) || Response.error();
+      }),
+    );
+  else if (url.pathname === '/brand/singflow-logo-144.webp')
+    event.respondWith(
+      fetch(event.request).catch(async () => {
+        const cache = await caches.open(OFFLINE_CACHE);
+        return (await cache.match(url.pathname)) || Response.error();
+      }),
+    );
+});
 self.addEventListener('push', (event) => {
   event.waitUntil(
     (async () => {

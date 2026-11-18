@@ -116,6 +116,9 @@
       @if (error()) {
         <p class="sf-dialog-error" role="alert">{{ error() }}</p>
       }
+      @if (section() === 'branding') {
+        <app-admin-branding />
+      }
       @if (catalogVisited()) {
         <app-admin-catalog [active]="section() === 'catalog'" [hidden]="section() !== 'catalog'" />
       }

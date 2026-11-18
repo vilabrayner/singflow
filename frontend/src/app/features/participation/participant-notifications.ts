@@ -1,9 +1,11 @@
+import { Pwa } from '../../core/pwa/pwa';
 import { inject, Injectable } from '@angular/core';
 import { ApiClient } from '../../core/http/api-client';
 
 @Injectable({ providedIn: 'root' })
 export class ParticipantNotifications {
   private readonly api = inject(ApiClient);
+  private readonly pwa = inject(Pwa);
   private assertSupported() {
     if (
       !isSecureContext ||
@@ -26,14 +28,9 @@ export class ParticipantNotifications {
   }
   private async registration() {
     this.assertSupported();
-    const previous = await navigator.serviceWorker.getRegistration('/');
-    if (previous?.active && new URL(previous.active.scriptURL).pathname !== '/notifications-sw.js')
-      throw new Error(
-        'Este aparelho usa outro serviço do aplicativo. Atualize antes de ativar os avisos.',
-      );
-    await navigator.serviceWorker.register('/notifications-sw.js', { scope: '/' });
-    return navigator.serviceWorker.ready;
+    return this.pwa.ensureWorker();
   }
+
   async enable(publicKey: string) {
     // Called only from an explicit tap. Permission is never requested on page load.
     this.assertSupported();

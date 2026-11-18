@@ -75,7 +75,7 @@ class RealtimeHub extends TextWebSocketHandler {
     Set<String> changedAccounts=new HashSet<>();for(var id:accounts)if(accounts.remove(id))changedAccounts.add(id);
     for(Client c:clients.values()){
       var scope=c.scope;if(scope==null)continue;
-      boolean relevant=scope.kind().equals("participant")?changes.contains(scope.session()):!changes.isEmpty() || changedAccounts.contains(scope.actor());
+      boolean relevant=Set.of("participant","tv").contains(scope.kind())?changes.contains(scope.session()):!changes.isEmpty() || changedAccounts.contains(scope.actor());
       if(!relevant)continue;
       try{
         if(!c.httpActive()){close(c,new CloseStatus(4000,"Reauthenticate"));continue;}

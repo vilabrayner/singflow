@@ -1,3 +1,4 @@
+import { installPresentationSelection, openSessionWithPresentation } from './helpers/presentation';
 import { test, expect } from '@playwright/test';
 
 test('host registers and adds songs without duplicating participation @release @release-desktop', async ({
@@ -105,7 +106,8 @@ test('host registers and adds songs without duplicating participation @release @
   await page.getByRole('button', { name: 'Criar sessão', exact: true }).click();
   await page.getByLabel('Nome da sessão').fill('Ensaio assistido');
   await page.getByRole('button', { name: 'Criar sessão', exact: true }).click();
-  await page.getByRole('button', { name: 'Abrir sessão', exact: true }).click();
+  await installPresentationSelection(page);
+  await openSessionWithPresentation(page);
   await page.getByRole('tab', { name: 'Participantes', exact: true }).click();
   await page.getByRole('button', { name: 'Criar participante', exact: true }).click();
   await page.getByLabel('Nome do participante', { exact: true }).fill('Ana');

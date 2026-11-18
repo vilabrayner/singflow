@@ -31,6 +31,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       fileURLToPath(new URL('../public/', import.meta.url)),
       loadBuildEnvironment(fileURLToPath(new URL('../', import.meta.url))),
     );
+    const version = JSON.parse(
+      readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+    ).version;
+    writeFileSync(
+      new URL('../public/version.json', import.meta.url),
+      JSON.stringify({ version }) + '\n',
+    );
     console.log(
       `SingFlow: config.json ${state === 'created' ? 'criado a partir do modelo' : 'preservado'}.`,
     );

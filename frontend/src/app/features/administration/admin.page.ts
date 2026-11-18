@@ -1,5 +1,6 @@
 import { MenuPopover } from '../../shared/components/menu-popover';
 import { PanelWorkspace } from '../../shared/components/panel-workspace';
+import { AdminBranding } from './admin-branding';
 import { AdminCatalog } from './admin-catalog';
 import { afterNextRender, Component, inject, Injector, OnInit, signal } from '@angular/core';
 import { DatePipe, DOCUMENT } from '@angular/common';
@@ -37,6 +38,7 @@ interface Event {
     PanelWorkspace,
     AdminSessions,
     AdminCatalog,
+    AdminBranding,
     SurfaceCard,
     StatusBadge,
     ConfirmationDialog,
@@ -66,19 +68,20 @@ export class AdminPage implements OnInit {
   private readonly notifications = inject(Notifications);
   readonly showPassword = signal(false);
   readonly headerMenu = signal(false);
-  readonly section = signal<'accounts' | 'sessions' | 'catalog'>('accounts');
+  readonly section = signal<'accounts' | 'sessions' | 'catalog' | 'branding'>('accounts');
   readonly navigationItems = [
     { value: 'accounts', label: 'Cadastros', icon: 'fa-solid fa-users' },
     { value: 'sessions', label: 'Sessões', icon: 'fa-solid fa-calendar-days' },
     { value: 'catalog', label: 'Catálogo', icon: 'fa-solid fa-book' },
+    { value: 'branding', label: 'Locais e projetos', icon: 'fa-solid fa-location-dot' },
   ];
   readonly catalogVisited = signal(false);
   readonly sessionsVisited = signal(false);
   selectSection(section: string) {
-    if (this.busy() || !['accounts', 'sessions', 'catalog'].includes(section)) return;
+    if (this.busy() || !['accounts', 'sessions', 'catalog', 'branding'].includes(section)) return;
     if (section === 'catalog') this.catalogVisited.set(true);
     if (section === 'sessions') this.sessionsVisited.set(true);
-    this.section.set(section as 'accounts' | 'sessions' | 'catalog');
+    this.section.set(section as 'accounts' | 'sessions' | 'catalog' | 'branding');
   }
   readonly authorized = signal(false);
   readonly forbidden = signal(false);

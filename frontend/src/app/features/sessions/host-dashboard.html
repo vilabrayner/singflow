@@ -37,6 +37,7 @@
             >
               <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Atualizar sessão
             </button>
+            <app-television-settings [session]="session.id" [disabled]="locked()" />
             @if (session.status !== 'CLOSED') {
               <button
                 type="button"
@@ -267,14 +268,12 @@
             <h1 id="host-session-title" tabindex="-1">{{ session.name }}</h1>
             <app-status-badge tone="neutral">Rascunho</app-status-badge>
             <p>Abra para começar as inscrições.</p>
-            <button
-              type="button"
-              class="sf-button sf-primary sf-full"
+            <app-television-settings
+              [session]="session.id"
+              [opening]="true"
               [disabled]="locked()"
-              (click)="transition('open')"
-            >
-              <i class="fa-solid fa-play" aria-hidden="true"></i>Abrir sessão
-            </button>
+              (opened)="sessionOpened($event)"
+            />
           </app-surface-card>
         </div>
       }

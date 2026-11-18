@@ -1,0 +1,83 @@
+<section class="tv-screen" [class.tv-artwork]="artwork()" aria-label="TV do karaokê">
+  @if (artwork()) {
+    <img
+      class="tv-background"
+      [src]="view()!.backgroundUrl"
+      alt=""
+      (error)="brokenBackground.set(true)"
+    />
+  }
+  <button
+    type="button"
+    class="tv-fullscreen"
+    aria-label="Alternar tela cheia"
+    (click)="fullscreen()"
+  >
+    <i class="fa-solid fa-expand" aria-hidden="true"></i>
+  </button>
+  @if (view(); as session) {
+    <section class="tv-band tv-top" aria-label="Participação">
+      @if (session.status === 'OPEN' && session.cue && connected() && !error()) {
+        <img
+          class="tv-cue-art"
+          src="images/proximo-palco.png"
+          [alt]="session.cue!.called ? '' : 'Próximo no palco'"
+          width="1280"
+          height="1280"
+        />
+      }
+      <div class="tv-performance" aria-live="polite" aria-atomic="true">
+        @if (error() || (session.status === 'OPEN' && !connected())) {
+          <p class="tv-eyebrow">Aguardando conexão</p>
+          <h1>Voltamos já.</h1>
+          <p class="tv-song">Sincronizando a sessão.</p>
+        } @else if (session.status === 'OPEN') {
+          @if (session.cue; as cue) {
+            @if (cue.called) {
+              <p class="tv-eyebrow">{{ cue.accepted ? 'No palco agora' : 'É a sua vez!' }}</p>
+            }
+            <h1>{{ cue.name }}</h1>
+            <p class="tv-song">{{ cue.title || 'Música a escolher' }}</p>
+            @if (cue.artist) {
+              <p class="tv-artist">{{ cue.artist }}</p>
+            }
+          } @else {
+            <p class="tv-eyebrow">O palco está esperando</p>
+            <h1>Sua voz aqui!</h1>
+            <p class="tv-song">Escolha sua música e entre na fila.</p>
+          }
+        } @else if (session.status === 'CLOSED') {
+          <p class="tv-eyebrow">Até a próxima!</p>
+          <h1>Foi um prazer ouvir você.</h1>
+          <p class="tv-song">Sessão encerrada.</p>
+        } @else {
+          <p class="tv-eyebrow">Logo mais…</p>
+          <h1>Karaokê {{ session.projectName }}!</h1>
+          <p class="tv-song">Prepare a voz. O palco é seu.</p>
+        }
+      </div>
+    </section>
+    <aside class="tv-band tv-sidebar" aria-label="Entrada na sessão e redes sociais">
+      @if (session.status === 'OPEN' && connected() && !error() && qr()) {
+        <div class="tv-qr">
+          <img [src]="qr()" alt="QR Code para entrar nesta sessão" />
+          <h2>Entre na fila</h2>
+        </div>
+      }
+      @if (instagramQr()) {
+        <div class="tv-qr tv-instagram">
+          <img [src]="instagramQr()" [alt]="'QR Code do Instagram ' + session.instagram" />
+          <h2>@{{ session.instagram }}</h2>
+        </div>
+      }
+      <app-brand-logo class="tv-signature" />
+    </aside>
+  } @else {
+    <div class="tv-band tv-top tv-unavailable">
+      <p class="tv-eyebrow">Karaokê</p>
+      <h1>{{ error() ? 'TV indisponível' : 'Preparando o palco…' }}</h1>
+      <p role="status">{{ error() || 'Conectando à sessão.' }}</p>
+    </div>
+    <div class="tv-band tv-sidebar"></div>
+  }
+</section>

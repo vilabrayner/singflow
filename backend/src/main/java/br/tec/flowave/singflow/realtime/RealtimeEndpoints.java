@@ -15,6 +15,12 @@ class RealtimeEndpoints {
   private final RealtimeAccess access;
   private final RealtimeTickets tickets;
   RealtimeEndpoints(RealtimeAccess access,RealtimeTickets tickets){this.access=access;this.tickets=tickets;}
+  @PostMapping("/api/public/tv/{session}/realtime/tickets")
+  ResponseEntity<Connection> television(@PathVariable UUID session,HttpServletRequest request){
+    var scope=access.television(session);
+    return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+      .body(new Connection(tickets.issue(scope,request.getSession().getId()),"/realtime/ws"));
+  }
   @PostMapping("/api/realtime/tickets")
   ResponseEntity<Connection> staff(@Valid @RequestBody Request input,Principal actor,HttpServletRequest request){
     var scope=access.staff(actor.getName(),input.perspective());

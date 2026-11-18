@@ -1,3 +1,4 @@
+import { PwaInstall } from '../../shared/components/pwa-controls';
 import { publicDocumentLinks } from '../information/public-documents';
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -6,7 +7,7 @@ import { BackendStatus } from '../../shared/components/backend-status';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, TagModule, BackendStatus],
+  imports: [PwaInstall, RouterLink, TagModule, BackendStatus],
   template: `
     <section class="hero page-width">
       <div class="hero-copy">
@@ -63,6 +64,7 @@ import { BackendStatus } from '../../shared/components/backend-status';
         }
       </div>
     </section>
+    <div class="page-width" style="max-width:460px;padding:16px"><app-pwa-install /></div>
     <nav
       class="public-home-links page-width"
       aria-label="Privacidade, segurança e informações"

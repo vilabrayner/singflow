@@ -282,3 +282,33 @@ O gesto deve começar no primeiro `SurfaceCard` visível dentro do viewport prin
 
 
 O responsável confirmou o efeito elástico no iOS e no Android em 18/11/2026. A conclusão de apresentação com letra aberta teve revisão específica do transporte, registrada em `docs/websocket-review.md`.
+
+
+## TV e PWA — 18/11/2026
+
+A TV é uma exceção ao workspace com header/dock: rota pública `/tv/:session`,
+tela inteira com composição 16:9. Layout em L: topo de 1600 × 300 px para
+participante/música e lateral esquerda de 400 × 1080 px para os QRs, em referência
+1920 × 1080. O canto superior é compartilhado e a arte ocupa o restante livre. Não repetir as marcas do
+local/projeto nas faixas; manter apenas a assinatura SingFlow no rodapé esquerdo. Fundo usa `object-fit: contain`.
+Não colocar contatos, e-mails, mesa ou controles administrativos nessa tela.
+
+Admin usa o dock Locais e projetos, com as abas compartilhadas `sf-song-tabs`.
+Local tem somente nome, marca e fundo de TV. Projeto tem nome, marca e Instagram
+opcional. Não criar seletor de bandas por e-mail ou vínculo obrigatório do anfitrião.
+
+`PwaInstall` concentra instalação/instruções; `PwaStatus` concentra conexão e
+nova versão, sem sobrepor o dock e sem aparecer na TV. Atualizar a versão exige
+confirmação para preservar formulários. Não duplicar workers, prompts de permissão
+ou lógica de instalação por painel. O worker de push é o mesmo do PWA.
+
+Fluxos e roteiro: [TV e PWA](../television-pwa.md).
+
+
+### Arte de chamada na TV
+
+`public/images/proximo-palco.png` ocupa o canto esquerdo da faixa superior
+quando existe participante visível. Reservar 400 px da referência Full HD para
+a arte e iniciar os textos em 448 px (48 px de folga). Tudo escala com a composição
+16:9. A ilustração é decorativa: o status textual continua informando próximo,
+convocado ou no palco. Em espera, encerramento ou desconexão, esconder a arte.

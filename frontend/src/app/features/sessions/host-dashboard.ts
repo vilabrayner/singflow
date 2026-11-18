@@ -22,6 +22,7 @@ import {
   viewChild,
   signal,
 } from '@angular/core';
+import { TelevisionSettings } from '../television/television-settings';
 import { EntryShare } from '../participation/entry-share';
 import { StagePanel } from '../stage/stage-panel';
 import { HostParticipants } from '../participants/host-participants';
@@ -53,6 +54,7 @@ import { apiError } from '../../core/http/api-client';
     StagePanel,
     HostParticipants,
     EntryShare,
+    TelevisionSettings,
     PanelHeader,
     SurfaceCard,
     StatusBadge,
@@ -429,6 +431,13 @@ export class HostDashboard implements OnInit {
       const session = this.sessions().find((s) => s.id === id);
       if (session) await this.loadSession(session);
       else this.clearSession();
+    });
+  }
+  async sessionOpened(session: KaraokeSession) {
+    await this.run(async () => {
+      await this.loadSessions();
+      await this.loadSession(session);
+      this.notifications.success('Sessão aberta.');
     });
   }
   async transition(action: 'open' | 'close') {

@@ -5,6 +5,11 @@ Cada etapa exige autorização antes de sua implementação. Documentação repr
 
 ## Visão consolidada — 18/11/2026
 
+Preparação da **0.1.0-beta.3**: TV e PWA implementados localmente e metadados
+versionados para o próximo commit/merge do responsável. Layout TV aprovado; aceite
+do PWA instalado em HTTPS pendente. [Notas e publicação](deployment/release-0.1.0-beta.3.md).
+Esta preparação não cria release nem confirma implantação na AWS.
+
 Este resumo substitui os estados antigos dos registros históricos abaixo. **Implementado não significa publicado ou validado em produção.** A beta.2 está em processo de publicação. O bloqueio inicial dos scripts presos à beta.1 foi corrigido. O build seguinte foi interrompido por HTTP 429 do Docker Hub ao obter o PostgreSQL temporário. A correção local usa os registros públicos dos publicadores nas dependências, preservando o ECR privado do app; 27 testes dos scripts e quatro testes Java focados passaram. Será necessário novo commit/merge e novo SHA antes de repetir o build. Não há confirmação de implantação da beta.2 neste registro.
 
 ### WebSocket, Web Push e PWA são diferentes
@@ -13,9 +18,9 @@ Este resumo substitui os estados antigos dos registros históricos abaixo. **Imp
 | --- | --- | --- |
 | WebSocket | Avisar a interface ativa de alterações e atualizar os dados autorizados sem polling frequente | Implementado para anfitrião, participante e músico; teste local e em aparelhos confirmado pelo responsável |
 | Web Push | Notificação do sistema para participante autorizado, inclusive em segundo plano quando suportado pelo navegador/sistema | Implementado para convocação; recebimento real validado localmente pelo responsável; falta validação em HTTPS no ambiente publicado e em celulares |
-| PWA | Experiência de app web instalável: ícone, janela própria, ciclo de atualização e comportamento planejado com conexão instável | Parcial: manifest, ícone e service worker de push presentes; instalação e experiência de atualização/conectividade ainda não encerradas como etapa |
+| PWA | Experiência de app web instalável: ícone, janela própria, ciclo de atualização e comportamento planejado com conexão instável | Implementado localmente: instalação orientada, ícones, atualização com confirmação, aviso de conexão e página offline genérica; aceite em app instalado/HTTPS pendente |
 
-WebSocket não instala o aplicativo nem garante alertas com ele fechado. Web Push não substitui a recuperação do estado atual da fila. O service worker atual **não faz cache offline da interface ou das APIs**; ele atende push e revalida a convocação antes de mostrar um aviso. Ter manifest e push não encerra automaticamente o escopo PWA.
+WebSocket não instala o aplicativo nem garante alertas com ele fechado. Web Push não substitui a recuperação do estado atual da fila. O service worker compartilhado mantém somente uma página offline genérica e a logo pública; não armazena páginas autenticadas nem APIs. O push continua revalidando a convocação antes de mostrar um aviso. Ter manifest e push não encerra automaticamente o escopo PWA.
 
 ### Implementado na base atual
 
@@ -35,8 +40,8 @@ Detalhes: [contas e avisos](participant-accounts-notifications.md), [páginas Me
 
 1. **Concluir a publicação e o aceite da beta.2.** Enviar correção dos testes e link da home, construir o SHA exato da main, publicar imagens, criar tag/prerelease e implantar em momento sem uso. Conferir V22, versão/saúde, proxy WebSocket no domínio público, cadastro, recuperação e fluxo completo de palco. Operações de build/deploy continuam sujeitas à autorização; não foram executadas por esta revisão.
 2. **Validar os canais reais de aviso.** Configurar VAPID e testar push em HTTPS/Android/iPhone; no iOS, Tela de Início. Configurar/verificar webhook Meta, número e template, confirmar opt-in/opt-out e testar convocação com destinatário próprio autorizado. Hoje o envio implementado é de convocação; avisos push de próximo da fila, encerramento e outros destinatários exigem recorte posterior.
-3. **Fechar o incremento PWA.** Revisar manifest e ícones adequados à instalação, orientar instalação em Android/iPhone, validar retomada da conta/participação no app instalado, detectar/disponibilizar nova versão sem perder formulários e definir estados de indisponibilidade/reconexão. Qualquer cache deve ter escopo explícito, limpeza segura e não confirmar pedidos/convocações offline. Não prometer operação completa do karaokê sem internet.
-4. **Painel público de TV `/tv`.** Existe esboço, não implementação: antes de abrir, marcas Som Na Caixa/local e “Logo mais... Karaokê Som Na Caixa!”; aberta, próximo participante, música/artista, QR da sessão e Instagram `@karaoke.somnacaixa` com QR. Receber as marcas, definir escolha/acesso da sessão sem expor dados pessoais e validar tela horizontal com atualização em tempo real.
+3. **Aceite do PWA em aparelhos.** Implementação local concluída; validar instalação Android/iPhone, retomada de conta/participação, atualização confirmada e indisponibilidade em HTTPS. O cache limita-se à página offline e à logo; não há ações offline. Ver [guia TV/PWA](television-pwa.md).
+4. **Aceite da TV `/tv/<sessão>`.** Implementada localmente com cadastros administrativos de locais/projetos, escolha pelo anfitrião, habilitação explícita e WebSocket isolado por sessão. Layout em L: topo 1600 × 300 e lateral esquerda 400 × 1080 sobre referência Full HD, fundo sem recorte. Validar legibilidade e leitura dos QRs em uma TV real. V23 preservada e evolução V24; não publicado por este incremento. Ver [guia TV/PWA](television-pwa.md).
 5. **Personalização do participante cadastrado.** Ativar favoritas e mais cantadas pessoais nas abas já desenhadas, histórico musical entre sessões e preferências de tom por música, com base no tom solicitado/cantado. O cadastro entregue não significa que essas funcionalidades já existem.
 6. **Inteligência do catálogo e métricas.** Top 10 músicas, contagem de pedidos/apresentações com critério explícito, sugestões e recomendações; ampliar visão administrativa conforme necessidade. Rankings e benefícios não alteram prioridade por assiduidade.
 7. **Tempo real nas áreas administrativas.** Acompanhamento de sincronização e consulta administrativa de sessões, preservando economia de APIs externas e permissões. O polling dessas áreas não foi removido pelo incremento dos painéis operacionais.

@@ -29,7 +29,7 @@ O primeiro incremento exige o número remetente no webhook para confirmar o tele
 - `SINGFLOW_WEB_PUSH_ENABLED=true` exige par VAPID público/privado válido e `SINGFLOW_WEB_PUSH_SUBJECT=mailto:contato@flowave.tec.br`. A chave privada nunca é retornada pela API.
 - Para gerar um par local, executar na pasta frontend `node scripts/generate-push-keys.mjs /caminho/privado/singflow-web-push.env`. O diretório deve existir. O comando grava arquivo novo com permissão 0600 e imprime somente o caminho; não sobrescreve chaves. Preservar o par entre deploys. Não versionar o arquivo gerado.
 - Permissão é solicitada apenas pelo botão de ativação. Exige HTTPS, exceto localhost quando aceito pelo navegador. No iPhone/iPad, adicionar à Tela de Início e abrir por lá; o acesso HTTP por IP na rede local não habilita Web Push.
-- Service worker próprio, sem cache de páginas, assets ou APIs. A entrega revalida o cookie, sessão aberta e chamada ainda pendente antes de exibir a notificação. Expirada, concluída, aceita ou revogada não vira uma convocação antiga.
+- Service worker compartilhado com o PWA. O cache offline contém somente a página genérica de indisponibilidade e a logo pública; páginas autenticadas, APIs e dados de participação não são armazenados nele. A entrega revalida o cookie, sessão aberta e chamada ainda pendente antes de exibir a notificação. Expirada, concluída, aceita ou revogada não vira uma convocação antiga.
 - Cada aparelho tem sua inscrição; remover um aparelho não remove os demais. Alterar o par VAPID exige reativação pelo usuário. Os endpoints permitidos são de provedores de push conhecidos, sem redirecionamentos ou destinos arbitrários.
 
 ## Processamento e limites
