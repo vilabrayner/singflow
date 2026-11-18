@@ -23,6 +23,25 @@ def manifest(published=True):
 
 
 class VersionedReleaseTests(unittest.TestCase):
+    def setUp(self):
+        # Unit fixtures must not inherit the release version of the checked-out app.
+        temporary = tempfile.TemporaryDirectory(prefix='singflow-release-test-')
+        self.addCleanup(temporary.cleanup)
+        self.source = pathlib.Path(temporary.name)
+        self.write_source('0.1.0-beta.1')
+
+    def write_source(self, version):
+        frontend = self.source / 'frontend'
+        backend = self.source / 'backend'
+        frontend.mkdir(exist_ok=True)
+        backend.mkdir(exist_ok=True)
+        (frontend / 'package.json').write_text(json.dumps({'version': version}))
+        (frontend / 'package-lock.json').write_text(json.dumps({
+            'version': version, 'packages': {'': {'version': version}}}))
+        (backend / 'pom.xml').write_text(
+            '<project xmlns="http://maven.apache.org/POM/4.0.0">'
+            '<version>' + version + '</version></project>')
+
     def test_identity_and_validation(self):
         release.validate_manifest(manifest())
         for change in ({'version': '0.1.0-beta.2'}, {'gitTag': 'vother'}, {'tag': 'latest'}, {'schema': 3}):
@@ -32,12 +51,27 @@ class VersionedReleaseTests(unittest.TestCase):
             self.assertFalse(release.valid_version(version))
 
     def test_metadata_drift_and_expected_version_stop_before_build(self):
-        source = pathlib.Path(__file__).resolve().parents[2]
+        source = self.source
         self.assertEqual(release.source_version(source), '0.1.0-beta.1')
-        with patch.object(release, 'run') as runner:
+        with patch.object(release, 'run') as runner, patch.object(release, 'check_destinations') as destinations:
             with self.assertRaises(ValueError):
-                release.build(source, 'a'*40, pathlib.Path('/tmp/unused.json'), 'ci', expected='0.1.0-beta.9')
+                release.build(source, 'a'*40, source/'unused.json', 'ci', expected='0.1.0-beta.9')
+            for field in ('package', 'lock-root', 'lock-package', 'backend'):
+                with self.subTest(field=field):
+                    self.write_source('0.1.0-beta.2')
+                    if field == 'backend':
+                        path = source/'backend/pom.xml'
+                        path.write_text(path.read_text().replace('beta.2', 'beta.3'))
+                    else:
+                        path = source/'frontend'/('package.json' if field == 'package' else 'package-lock.json')
+                        data = json.loads(path.read_text())
+                        target = data['packages'][''] if field == 'lock-package' else data
+                        target['version'] = '0.1.0-beta.3'
+                        path.write_text(json.dumps(data))
+                    with self.assertRaises(ValueError):
+                        release.build(source, 'a'*40, source/'unused.json', 'ci', reuse=True)
             runner.assert_not_called()
+            destinations.assert_not_called()
 
     def test_version_label_must_match_not_just_the_commit(self):
         info = {'Os': 'linux', 'Architecture': 'amd64', 'Id': 'sha256:config',
@@ -48,18 +82,22 @@ class VersionedReleaseTests(unittest.TestCase):
                 release.inspect_local('image', 'a'*40, '0.1.0-beta.1')
 
     def test_complete_existing_pair_is_reused_without_rebuilding(self):
-        source = pathlib.Path(__file__).resolve().parents[2]
-        with tempfile.TemporaryDirectory() as directory:
-            out = pathlib.Path(directory)/'release.json'
-            with patch.object(release, 'check_destinations'), patch.object(release, 'docker_login'), patch.object(release, 'existing_image', return_value={'present': True}), patch.object(release, 'inspect_local'), patch.object(release, 'run') as runner:
-                release.build(source, 'a'*40, out, 'ci', expected='0.1.0-beta.1', reuse=True)
-            calls = [c.args[0] for c in runner.call_args_list]
-            self.assertEqual(sum(c[:2] == ['docker', 'pull'] for c in calls), 2)
-            self.assertFalse(any(c[:3] == ['docker', 'buildx', 'build'] for c in calls))
-            self.assertEqual(json.loads(out.read_text())['gitTag'], 'v0.1.0-beta.1')
+        source = self.source
+        for version in ('0.1.0-beta.1', '0.1.0-beta.2', '1.0.0'):
+            with self.subTest(version=version):
+                self.write_source(version)
+                out = source/('release-' + version + '.json')
+                with patch.object(release, 'check_destinations'), patch.object(release, 'docker_login'), patch.object(release, 'existing_image', return_value={'present': True}), patch.object(release, 'inspect_local') as inspect, patch.object(release, 'run') as runner:
+                    release.build(source, 'a'*40, out, 'ci', expected=version, reuse=True)
+                calls = [c.args[0] for c in runner.call_args_list]
+                self.assertEqual(sum(c[:2] == ['docker', 'pull'] for c in calls), 2)
+                self.assertFalse(any(c[:3] == ['docker', 'buildx', 'build'] for c in calls))
+                self.assertEqual(json.loads(out.read_text())['gitTag'], 'v'+version)
+                self.assertEqual(inspect.call_count, 2)
+                self.assertTrue(all(c.args[2] == version for c in inspect.call_args_list))
 
     def test_existing_wrong_commit_stops_before_building_missing_image(self):
-        source = pathlib.Path(__file__).resolve().parents[2]
+        source = self.source
         with tempfile.TemporaryDirectory() as directory, patch.object(release, 'check_destinations'), patch.object(release, 'docker_login'), patch.object(release, 'existing_image', side_effect=[{'present': True}, None]), patch.object(release, 'inspect_local', side_effect=ValueError('wrong commit')), patch.object(release, 'run') as runner:
             with self.assertRaises(ValueError):
                 release.build(source, 'a'*40, pathlib.Path(directory)/'release.json', 'ci', reuse=True)

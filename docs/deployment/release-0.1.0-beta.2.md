@@ -107,3 +107,10 @@ Não executar uma segunda implantação enquanto a primeira estiver em andamento
 Depois, registrar SHA, build ID, recibo/digests, tag GitHub, comando SSM, backup e resultado dos testes reais. Até isso acontecer, esta versão permanece **preparada localmente, não publicada**.
 
 Referência oficial do console: [Executar build com overrides](https://docs.aws.amazon.com/codebuild/latest/userguide/run-build-console.html).
+
+
+## Correção do teste dos scripts — 18/11/2026
+
+O build remoto reconheceu beta.2 e foi interrompido nos testes dos scripts: dois cenários usavam arquivos da aplicação real, mas esperavam beta.1. Os testes passaram a criar package, lock e POM próprios em diretórios temporários; os cenários verificam divergência de cada metadado e reaproveitamento das imagens em beta.1, beta.2 e 1.0.0. Não foi relaxada a validação de versão no build real, nem desabilitado teste.
+
+Mensagens com SHA `aaaaaaaa…`, `release-url` e rollback durante `unittest` vêm de executores simulados. Essa etapa não implanta na EC2. Depois de enviar a correção e fazer merge, informar o **novo SHA completo da main** ao iniciar o próximo build; não repetir o SHA da execução que falhou. A versão segue beta.2 porque esta falha ocorreu antes da construção/publicação das imagens.

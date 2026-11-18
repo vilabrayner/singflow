@@ -90,7 +90,7 @@ export class HomePage {
   readonly bars = [14, 25, 39, 53, 32, 62, 43, 28, 48, 35, 19];
   readonly roles = [
     {
-      path: '/participante',
+      path: '/minha-conta',
       title: 'Quero cantar',
       description:
         'Seu próximo momento no palco começa por aqui. Check-in, músicas e acompanhamento da sua vez.',
