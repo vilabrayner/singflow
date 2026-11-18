@@ -45,7 +45,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(21);
+    assertThat(flyway.info().applied()).hasSize(22);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 

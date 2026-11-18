@@ -1,5 +1,7 @@
 # Build remoto manual e release versionada
 
+> Para a próxima publicação, seguir o [roteiro da 0.1.0-beta.2](release-0.1.0-beta.2.md). Os registros beta.1 abaixo são históricos e devem ser preservados.
+
 Estado em 17/11/2026: infraestrutura autorizada e provisionada, stack `singflow-manual-build` em `CREATE_COMPLETE`. Arquivos publicados na main no commit `f4f84f70e2464bc3de3e10058dad6ff61fdaf0c6`. As duas primeiras execuções foram interrompidas pelos testes. A terceira publicou `0.1.0-beta.1` no ECR com sucesso, conforme registro abaixo. A tag/prerelease GitHub foi criada posteriormente; implantação ainda pendente, conforme registro abaixo.
 
 Projeto: `singflow-manual-build-release`; bucket privado: `singflow-manual-build-artifacts-ci8ndzpd8xii`; logs: `/aws/codebuild/singflow-manual-build-release`. Operação CloudFormation: `2b5d0170-e2cb-11f1-81e0-0a605a67e8f7`. Validação de serviço sem eventos de erro e criação concluída. A leitura do projeto confirmou fonte manual, MEDIUM, concorrência 1, timeout 45 minutos e ausência de webhook; histórico de builds vazio. A consulta CloudTrail em Ohio não retornou trails; não foi configurada retenção durável de auditoria neste incremento.

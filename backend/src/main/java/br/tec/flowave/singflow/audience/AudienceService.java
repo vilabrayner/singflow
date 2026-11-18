@@ -48,6 +48,7 @@ public class AudienceService {
   private final StageService stage;
   private final AuditTrail audit;
   private final String appUrl;
+  @org.springframework.beans.factory.annotation.Autowired private AudienceAccounts accounts;
   private final SecureRandom random = new SecureRandom();
 
   public AudienceService(
@@ -251,6 +252,45 @@ LIMIT 1
     if (!Objects.equals(current, replace))
       throw new ResponseStatusException(
           HttpStatus.CONFLICT, "O vínculo deste celular mudou. Revise e confirme novamente.");
+    return bindMobile(session,target,previous,browser);
+  }
+
+  @Transactional
+  public void linkAccount(UUID session,String raw,String expected,String email){
+    String owner=owner(session,true);
+    var g=grant(session,raw,true);
+    if(expected==null||!expected.equals(g.participantId().toString()))throw unavailable();
+    accounts.link(email,session,g.participantId());
+    audit.record(email,session,"PARTICIPATION_ACCOUNT_LINKED",g.participantId());
+  }
+
+  @Transactional
+  public ClaimInfo accountRestoreInfo(UUID session,String email,String raw,String browser){
+    String owner=owner(session,true);
+    UUID target=accounts.participant(email,session);
+    var people=participants.list(session,owner);
+    var selected=people.stream().filter(p->p.id().equals(target)).findFirst().orElseThrow(this::unavailable);
+    UUID current=browserGrant(session,raw,browser).map(BrowserGrant::participantId).filter(id->!id.equals(target)).orElse(null);
+    String currentName=people.stream().filter(p->p.id().equals(current)).map(Participation.ParticipantView::name).findFirst().orElse(null);
+    return new ClaimInfo(selected.name(),sessions.requireOwned(session,owner).name(),current,currentName);
+  }
+
+  @Transactional
+  public Prepared restoreAccount(UUID session,String email,String raw,String browser,UUID replace){
+    String owner=owner(session,true);
+    UUID target=accounts.participant(email,session);
+    var person=participants.list(session,owner).stream().filter(p->p.id().equals(target)).findFirst().orElseThrow(this::unavailable);
+    boolean left=person.status().equals("LEFT");
+    if(left&&!jdbc.sql("SELECT EXISTS(SELECT 1 FROM singflow.participant_grants WHERE session_id=? AND participant_id=? AND NOT revoked AND departure='SELF')").params(session,target).query(Boolean.class).single())throw new ResponseStatusException(HttpStatus.CONFLICT,"O retorno precisa ser liberado pelo anfitrião.");
+    var previous=browserGrant(session,raw,browser);
+    UUID current=previous.map(BrowserGrant::participantId).filter(id->!id.equals(target)).orElse(null);
+    if(!Objects.equals(current,replace))throw new ResponseStatusException(HttpStatus.CONFLICT,"Este aparelho já acessa outra participação. Confirme a troca antes de continuar.");
+    var restored=bindMobile(session,target,previous,browser);
+    if(left)jdbc.sql("UPDATE singflow.participant_grants SET departure='SELF' WHERE session_id=? AND token_hash=?").params(session,AudienceLimits.hash(restored.token())).update();
+    return restored;
+  }
+
+  private Prepared bindMobile(UUID session,UUID target,Optional<BrowserGrant> previous,String browser){
     jdbc.sql(
             """
             UPDATE singflow.participant_grants SET revoked=true
@@ -347,6 +387,26 @@ WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR e
     return g.id();
   }
 
+  public record RealtimeAccess(UUID grantId, UUID participantId) {}
+
+  @Transactional(readOnly = true)
+  public RealtimeAccess realtimeAccess(UUID session, String raw, String expectedParticipant) {
+    var g = grant(session, raw, true);
+    if (expectedParticipant == null || !expectedParticipant.equals(g.participantId().toString()))
+      throw unavailable();
+    return new RealtimeAccess(g.id(), g.participantId());
+  }
+
+  @Transactional(readOnly = true)
+  public boolean realtimeAllowed(UUID session, UUID grantId) {
+    return jdbc.sql("""
+        SELECT EXISTS(SELECT 1 FROM singflow.participant_grants g
+        JOIN singflow.sessions s ON s.id=g.session_id
+        WHERE g.id=? AND g.session_id=? AND g.participant_id IS NOT NULL
+          AND NOT g.revoked AND (g.expires_at IS NULL OR g.expires_at>now()) AND s.status='OPEN')
+        """).params(grantId, session).query(Boolean.class).single();
+  }
+
   private record BrowserAccess(Instant expiresAt, boolean revoked) {}
 
   @Transactional
@@ -428,6 +488,19 @@ WHERE session_id=? AND token_hash=? AND NOT revoked AND (expires_at IS NULL OR e
         .param(g.id())
         .update();
     return me(session, raw);
+  }
+
+  @Transactional
+  public OwnView joinForAccount(UUID session,String raw,String code,String name,String table,String title,String artist,String selectionToken,String email){
+    owner(session,true);
+    if(accounts.active(email)){
+      var existing=accounts.linkedParticipant(email,session);
+      var current=grant(session,raw,false).participantId();
+      if(existing.isPresent()&&!existing.get().equals(current))throw new ResponseStatusException(HttpStatus.CONFLICT,"Sua conta já participa desta sessão. Retome pelo menu Minha conta e avisos.");
+    }
+    var view=join(session,raw,code,name,table,title,artist,selectionToken);
+    if(accounts.active(email))accounts.link(email,session,view.participant().id());
+    return view;
   }
 
   @Transactional

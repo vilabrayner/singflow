@@ -9,8 +9,10 @@ import org.springframework.transaction.annotation.*;
 public class AuditTrail {
   private final JdbcClient jdbc;
 
-  public AuditTrail(JdbcClient jdbc) {
+  private final org.springframework.context.ApplicationEventPublisher events;
+  public AuditTrail(JdbcClient jdbc, org.springframework.context.ApplicationEventPublisher events) {
     this.jdbc = jdbc;
+    this.events = events;
   }
 
   @Transactional(propagation = Propagation.MANDATORY)
@@ -24,5 +26,6 @@ public class AuditTrail {
         .param("action", action)
         .param("target", target)
         .update();
+    events.publishEvent(new SessionChanged(session));
   }
 }

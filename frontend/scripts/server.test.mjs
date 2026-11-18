@@ -372,3 +372,61 @@ test('Hostinger-style entry import calls listen and serves the SPA', async (t) =
   assert.equal(response.status, 200);
   assert.match(await response.text(), /SingFlow test/);
 });
+
+test('proxies only the realtime upgrade paths, preserves Origin/cookies and carries frames both ways', async (t) => {
+  const upstream = createServer();
+  const peers = new Set();
+  t.after(() => {
+    for (const socket of peers) socket.destroy();
+  });
+  upstream.on('upgrade', (req, socket, head) => {
+    peers.add(socket);
+    assert.equal(req.url, '/api/realtime/ws');
+    assert.equal(req.headers.origin, 'https://app.example.test');
+    assert.equal(req.headers.cookie, 'JSESSIONID=test-only');
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n',
+    );
+    socket.on('data', (data) => socket.write(data));
+    if (head.length) socket.write(head);
+  });
+  const { url } = await frontend(t, { upstream });
+  await new Promise((resolve, reject) => {
+    const req = request(url + '/api/realtime/ws', {
+      headers: {
+        Connection: 'Upgrade',
+        Upgrade: 'websocket',
+        Origin: 'https://app.example.test',
+        Cookie: 'JSESSIONID=test-only',
+      },
+    });
+    req.on('error', reject);
+    req.on('upgrade', (_res, socket) => {
+      peers.add(socket);
+      socket.on('error', reject);
+      socket.once('data', (data) => {
+        assert.equal(data.toString(), 'test-frame');
+        socket.destroy();
+        resolve();
+      });
+      socket.write('test-frame');
+    });
+    req.end();
+  });
+  for (const path of [
+    '/api/not-realtime',
+    '/api/realtime/ws?ticket=forbidden',
+    '/api/participation/not-a-session/realtime/ws',
+  ]) {
+    await new Promise((resolve, reject) => {
+      const req = request(url + path, { headers: { Connection: 'Upgrade', Upgrade: 'websocket' } });
+      req.on('error', reject);
+      req.on('response', (res) => {
+        assert.equal(res.statusCode, 400);
+        res.resume();
+        resolve();
+      });
+      req.end();
+    });
+  }
+});

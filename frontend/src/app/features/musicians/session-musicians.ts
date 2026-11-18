@@ -1,5 +1,14 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, effect, inject, input, OnInit, output, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  untracked,
+  output,
+  signal,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { SelectModule } from 'primeng/select';
 import { MenuItem } from 'primeng/api';
@@ -195,12 +204,18 @@ interface Member extends Musician {
       }
     </ng-template>`,
 })
-export class SessionMusicians implements OnInit {
+export class SessionMusicians {
   readonly session = input.required<string>();
   readonly embedded = input(false);
+  readonly revision = input(0);
   readonly working = output<boolean>();
   constructor() {
-    effect(() => this.working.emit(this.busy()));
+    effect(() => this.working.emit(this.busy() || !!this.revoking()));
+    effect(() => {
+      this.session();
+      this.revision();
+      untracked(() => void this.load(true));
+    });
   }
   readonly dismissed = output<void>();
   private readonly api = inject(ApiClient);
@@ -223,21 +238,18 @@ export class SessionMusicians implements OnInit {
   private get path() {
     return `/sessions/${this.session()}/musicians`;
   }
-  ngOnInit() {
-    void this.load();
-  }
-  async load() {
+  async load(background = false) {
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
     try {
       const [members, directory] = await Promise.all([
-        this.api.get<Member[]>(this.path),
-        this.api.get<Musician[]>(this.path + '/available'),
+        this.api.get<Member[]>(this.path, { background }),
+        this.api.get<Musician[]>(this.path + '/available', { background }),
       ]);
       this.members.set(members);
       this.directory.set(directory);
-      this.form.reset();
+      if (!background) this.form.reset();
     } catch (error) {
       this.error.set(apiError(error));
     } finally {

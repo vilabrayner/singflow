@@ -27,8 +27,12 @@ import { AccountView, accountActive, accountStatus } from './account-view';
             @if (a.status === 'PENDING') {
               @if (!a.emailVerified) {
                 <p>
-                  Abra o e-mail de confirmação. Depois de confirmar, seu cadastro será analisado
-                  pelo administrador.
+                  Abra o e-mail de confirmação.
+                  {{
+                    a.role === 'PARTICIPANT'
+                      ? 'Seu acesso será liberado após confirmar.'
+                      : 'Depois de confirmar, seu cadastro será analisado pelo administrador.'
+                  }}
                 </p>
               } @else {
                 <p>
@@ -82,7 +86,9 @@ export class AccountStatusPage implements OnInit {
       const a = await this.api.get<AccountView>('/auth/me');
       this.account.set(a);
       if (accountActive(a))
-        await this.router.navigateByUrl(a.role === 'HOST' ? '/anfitriao' : '/musico');
+        await this.router.navigateByUrl(
+          a.role === 'HOST' ? '/anfitriao' : a.role === 'MUSICIAN' ? '/musico' : '/minha-conta',
+        );
     } catch (error) {
       this.account.set(null);
       if (!(error instanceof HttpErrorResponse && error.status === 401))

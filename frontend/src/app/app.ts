@@ -28,7 +28,9 @@ export class App {
   );
   readonly musicianPanel = computed(() => this.routePath() === '/musico');
   readonly accountPanel = computed(() =>
-    /^\/(admin|conta|confirmar-email|cadastro\/(anfitriao|musico))$/.test(this.routePath()),
+    /^\/(admin|conta|minha-conta|confirmar-email|cadastro\/(anfitriao|musico|participante))$/.test(
+      this.routePath(),
+    ),
   );
   readonly compactPanel = computed(
     () =>

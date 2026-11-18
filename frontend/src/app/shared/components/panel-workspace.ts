@@ -11,19 +11,22 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { PullRefresh } from '../pull-refresh';
 import { ScrollAreaModule } from 'primeng/scrollarea';
 import { BottomNavigation, BottomNavigationItem } from './bottom-navigation';
 
 /** Fixed panel geometry shared by read-only and administrative workspaces. */
 @Component({
   selector: 'app-panel-workspace',
-  imports: [ScrollAreaModule, BottomNavigation],
+  imports: [ScrollAreaModule, BottomNavigation, PullRefresh],
   styleUrl: '../styles/panel-workspace.css',
   template: `
     <div class="sf-workspace" [style.--workspace-dock-height]="dockHeight() + 'px'">
       <p-scrollarea variant="scroll" class="sf-workspace-scrollarea">
         <p-scrollarea-viewport
           #viewport
+          [appPullRefresh]="refresh()"
+          [pullRefreshDisabled]="disabled()"
           role="region"
           [attr.aria-label]="activeLabel()"
           class="sf-workspace-viewport"
@@ -54,6 +57,7 @@ export class PanelWorkspace {
   readonly disabled = input(false);
   readonly resetKey = input('');
   readonly fill = input(false);
+  readonly refresh = input<(() => Promise<unknown>) | null>(null);
   readonly valueChange = output<string>();
   readonly dockHeight = signal(64);
   readonly activeLabel = computed(

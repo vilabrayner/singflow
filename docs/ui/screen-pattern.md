@@ -267,3 +267,18 @@ Manter a mesma versão no package-lock e no `backend/pom.xml`; o teste
 `frontend/scripts/version.test.mjs`, incluído em `npm run test:config`, confere a
 coerência desses metadados. A criação de tag/release, as tags de imagens e a
 publicação serão tratadas na etapa de release, sem serem disparadas pelo build.
+
+
+## Atualização de dados e gesto — 18/11/2026
+
+Anfitrião, participante e músico recebem invalidações por WebSocket. Não acrescentar polling frequente nem loading global para atualização automática. Formulários, modais e drag devem preservar a interação; uma nova leitura é consolidada e aplicada quando seguro.
+
+`PullRefresh` é a diretiva compartilhada do viewport principal: toque começa no topo da rolagem, puxar exibe “Puxe para atualizar” e “Solte para atualizar”; soltar além do limiar atualiza somente os dados. Header e dock ficam parados. Não capturar gesto iniciado em inputs, botões, itens CDK arrastáveis ou scrollareas internas (catálogo/modais). O gesto não substitui navegação por teclado, e a opção manual do menu permanece como alternativa acessível. Evitar implementar um segundo reconhecedor de gesto por tela. Notificações com app fechado exigem etapa própria de Web Push.
+
+
+### Efeito elástico do primeiro card
+
+O gesto deve começar no primeiro `SurfaceCard` visível dentro do viewport principal, com a rolagem no topo. O bloco de conteúdo acompanha o dedo (sem mover header/dock), com resistência progressiva e limite de 108px. O indicador aparece no espaço revelado acima do primeiro card. O reconhecimento começa no primeiro deslocamento vertical útil, sem depender da velocidade do gesto. Ao soltar abaixo de 64px de deslocamento visual, retorna sem consulta; acima, mantém um espaço de 76px durante a atualização e retorna em 220ms. Remover os estilos temporários após o retorno; respeitar `prefers-reduced-motion`. Inputs, botões, linhas CDK e áreas internas continuam excluídos.
+
+
+O responsável confirmou o efeito elástico no iOS e no Android em 18/11/2026. A conclusão de apresentação com letra aberta teve revisão específica do transporte, registrada em `docs/websocket-review.md`.

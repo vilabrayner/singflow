@@ -178,7 +178,7 @@ export function createFrontendServer({
     request.pipe(upstream);
   }
 
-  return createServer((request, response) => {
+  const server = createServer((request, response) => {
     response.setHeader('X-Content-Type-Options', 'nosniff');
     let path;
     try {
@@ -255,6 +255,78 @@ export function createFrontendServer({
     response.on('close', () => stream.destroy());
     stream.pipe(response);
   });
+  server.on('upgrade', (request, socket, head) => {
+    if (
+      request.method !== 'GET' ||
+      !/^\/api\/(?:realtime\/ws|participation\/[0-9a-f-]{36}\/realtime\/ws)$/i.test(
+        request.url ?? '',
+      ) ||
+      String(request.headers.upgrade).toLowerCase() !== 'websocket'
+    ) {
+      socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+      return;
+    }
+    const headers = filteredHeaders(request.headers);
+    headers.host = backend.host;
+    headers.connection = 'Upgrade';
+    headers.upgrade = 'websocket';
+    delete headers.forwarded;
+    headers['x-forwarded-host'] = request.headers.host;
+    headers['x-forwarded-for'] = request.socket.remoteAddress;
+    headers['x-forwarded-proto'] =
+      request.socket.encrypted ||
+      String(request.headers['x-forwarded-proto']).split(',')[0].trim() === 'https'
+        ? 'https'
+        : 'http';
+    const send = backend.protocol === 'https:' ? httpsRequest : httpRequest;
+    const upstream = send({
+      protocol: backend.protocol,
+      hostname: backend.hostname.replace(/^\[|\]$/g, ''),
+      port: backend.port || undefined,
+      method: 'GET',
+      path: request.url,
+      headers,
+    });
+    const fail = () => socket.destroy();
+    upstream.setTimeout(proxyTimeoutMs, () => upstream.destroy());
+    upstream.on('error', fail);
+    upstream.on('response', (incoming) => {
+      // Never turn a rejected handshake into an SPA or a successful upgrade.
+      socket.end(`HTTP/1.1 ${incoming.statusCode ?? 502} Rejected\r\nConnection: close\r\n\r\n`);
+      incoming.resume();
+    });
+    socket.on('error', () => upstream.destroy());
+    socket.on('close', () => upstream.destroy());
+    upstream.on('upgrade', (incoming, remote, remoteHead) => {
+      upstream.setTimeout(0);
+      const outgoing = filteredHeaders(incoming.headers);
+      const lines = Object.entries(outgoing).flatMap(([name, value]) =>
+        (Array.isArray(value) ? value : [value])
+          .filter((value) => value !== undefined)
+          .map((value) => `${name}: ${value}`),
+      );
+      socket.write(
+        [
+          'HTTP/1.1 101 Switching Protocols',
+          'Connection: Upgrade',
+          'Upgrade: websocket',
+          ...lines,
+          '',
+          '',
+        ].join('\r\n'),
+      );
+      if (remoteHead.length) socket.write(remoteHead);
+      if (head.length) remote.write(head);
+      remote.on('error', fail);
+      remote.on('close', fail);
+      socket.on('close', () => remote.destroy());
+      socket.setTimeout(75000, () => socket.destroy());
+      remote.setTimeout(75000, () => remote.destroy());
+      socket.pipe(remote).pipe(socket);
+    });
+    upstream.end();
+  });
+  return server;
 }
 
 export function startFrontend(environment = loadBuildEnvironment(applicationDirectory)) {

@@ -36,6 +36,7 @@ export class ApiClient {
     path: string,
     body: unknown = {},
     headers: Record<string, string> = {},
+    options: { background?: boolean } = {},
   ): Promise<T> {
     return this.loading.track(async () => {
       // One foreground operation includes CSRF and the mutation, without a gap between masks.
@@ -47,7 +48,7 @@ export class ApiClient {
           .post<T>(this.url(path), body, { headers: { ...headers, [csrf.headerName]: csrf.token } })
           .pipe(timeout(15000)),
       );
-    });
+    }, options.background);
   }
 }
 

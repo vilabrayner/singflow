@@ -172,64 +172,22 @@ export class StagePanel {
   private generation = 0;
   private confirmationKey: string = createOperationId();
   constructor() {
+    effect(() =>
+      this.working.emit(
+        this.busy() ||
+          this.dragging() ||
+          !!this.choosingNext() ||
+          !!this.pendingOutcome() ||
+          !!this.availabilityChoice(),
+      ),
+    );
     effect(() => {
       const session = this.sessionId();
       this.revision();
       untracked(() => void this.load(session));
     });
-    effect((onCleanup) => {
-      const session = this.sessionId();
-      if (!this.open()) return;
-      let cancelled = false;
-      let checking = false;
-      const timer = setInterval(async () => {
-        const previous = this.state();
-        if (
-          !previous ||
-          checking ||
-          this.document.hidden ||
-          this.locked() ||
-          this.pendingOutcome() ||
-          this.choosingNext() ||
-          this.availabilityChoice() ||
-          this.dragging()
-        )
-          return;
-        checking = true;
-        const generation = this.generation;
-        try {
-          const snapshot = await this.api.snapshot(session, true);
-          if (
-            cancelled ||
-            generation !== this.generation ||
-            this.locked() ||
-            this.pendingOutcome() ||
-            this.choosingNext() ||
-            this.availabilityChoice() ||
-            this.dragging()
-          )
-            return;
-          this.state.set(snapshot);
-          const queueChanged =
-            previous.suggestions.length !== snapshot.suggestions.length ||
-            previous.suggestions.some(
-              (suggestion, index) =>
-                suggestion.participantId !== snapshot.suggestions[index].participantId ||
-                suggestion.requestId !== snapshot.suggestions[index].requestId,
-            );
-          if (snapshot.active?.id !== previous.active?.id || queueChanged) this.changed.emit();
-        } catch {
-          // The manual refresh remains available if the background check fails.
-        } finally {
-          checking = false;
-        }
-      }, 4000);
-      onCleanup(() => {
-        cancelled = true;
-        clearInterval(timer);
-      });
-    });
   }
+
   private async load(session: string) {
     const generation = ++this.generation;
     this.loading.set(true);
@@ -286,7 +244,6 @@ export class StagePanel {
   private async run(work: () => Promise<StageView>) {
     if (this.locked()) return;
     this.busy.set(true);
-    this.working.emit(true);
     this.error.set('');
     const session = this.sessionId(),
       generation = ++this.generation;
@@ -306,7 +263,6 @@ export class StagePanel {
       }
     } finally {
       this.busy.set(false);
-      this.working.emit(false);
     }
   }
   async confirm() {

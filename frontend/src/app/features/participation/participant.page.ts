@@ -1,3 +1,5 @@
+import { PullRefresh } from '../../shared/pull-refresh';
+import { Realtime } from '../../core/realtime/realtime';
 import { ScrollArea, ScrollAreaModule } from 'primeng/scrollarea';
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { BottomNavigation, BottomNavigationItem } from '../../shared/components/bottom-navigation';
@@ -16,6 +18,7 @@ import {
   afterNextRender,
   Component,
   computed,
+  effect,
   inject,
   Injector,
   signal,
@@ -26,7 +29,7 @@ import {
 } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DOCUMENT } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -39,6 +42,8 @@ import { ParticipantRequestsCard } from './participant-requests-card';
 import { ParticipantHistoryCard } from './participant-history-card';
 @Component({
   imports: [
+    RouterLink,
+    PullRefresh,
     ScrollAreaModule,
     CdkScrollable,
     BottomNavigation,
@@ -248,13 +253,42 @@ export class ParticipantPage implements OnInit, OnDestroy {
     artist: ['', Validators.maxLength(160)],
   });
   private returnOperation: { body: string; operationId: string } | null = null;
-  private timer?: ReturnType<typeof setInterval>;
+  readonly draggingSongs = signal(false);
+  private deferredDragRefresh = false;
+  dragSongsChanged(value: boolean) {
+    this.draggingSongs.set(value);
+    if (!value && this.deferredDragRefresh) {
+      this.deferredDragRefresh = false;
+      void this.refresh(true);
+    }
+  }
+  readonly pullRefresh = () => this.refresh(true);
+  private readonly realtime = inject(Realtime);
+  private readonly realtimeParticipant = computed(() => this.own()?.participant.id);
+  constructor() {
+    effect((onCleanup) => {
+      const participant = this.realtimeParticipant();
+      if (!participant || this.departed()) return;
+      onCleanup(
+        this.realtime.watch({
+          path: `${this.base}/realtime/tickets`,
+          headers: { 'X-SingFlow-Participant': participant },
+          update: () => this.refresh(true),
+          blocked: () =>
+            this.busy() ||
+            this.loading ||
+            this.confirmingExit() ||
+            this.confirmingForget() ||
+            this.draggingSongs() ||
+            !!this.configuringSong() ||
+            !!this.cancellingSong(),
+        }),
+      );
+    });
+  }
   private loading = false;
   private destroyed = false;
   private songOperation: { body: string; operationId: string } | null = null;
-  private readonly visible = () => {
-    if (!document.hidden) void this.refresh(true);
-  };
   async ngOnInit() {
     if (!/^[0-9a-f-]{36}$/i.test(this.session) || !this.code) {
       this.error.set('Peça ao anfitrião o link ou QR Code da sessão.');
@@ -280,23 +314,15 @@ export class ParticipantPage implements OnInit, OnDestroy {
     } finally {
       this.ready.set(true);
     }
-    this.timer = setInterval(() => {
-      if (!document.hidden) void this.refresh(true);
-    }, 10000);
-    document.addEventListener('visibilitychange', this.visible);
   }
   retryAccess() {
     if (!this.ready()) return;
-    clearInterval(this.timer);
-    document.removeEventListener('visibilitychange', this.visible);
     this.error.set('');
     this.ready.set(false);
     void this.ngOnInit();
   }
   ngOnDestroy() {
     this.destroyed = true;
-    clearInterval(this.timer);
-    document.removeEventListener('visibilitychange', this.visible);
   }
   private message(error: unknown) {
     if (error instanceof HttpErrorResponse) {
@@ -365,7 +391,13 @@ export class ParticipantPage implements OnInit, OnDestroy {
   private async load(background = false) {
     const generation = this.viewGeneration;
     const view = await this.api.get<OwnView>(`${this.base}/me`, { background });
-    if (generation === this.viewGeneration) this.accept(view);
+    if (generation === this.viewGeneration) {
+      if (background && this.draggingSongs()) {
+        this.deferredDragRefresh = true;
+        return;
+      }
+      this.accept(view);
+    }
   }
   async refresh(background = false) {
     if (!this.own() || this.busy() || this.loading || this.departed()) return;
@@ -447,7 +479,7 @@ export class ParticipantPage implements OnInit, OnDestroy {
     this.error.set('');
   }
   private update(path: string, body: unknown = {}) {
-    const participant = this.own()?.participant.id;
+    const participant = this.realtimeParticipant();
     return this.api.post<OwnView>(
       `${this.base}${path}`,
       body,

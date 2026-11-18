@@ -36,7 +36,10 @@ public class AccountLifecycle {
   private final VerificationMail mail;
   private final SecureRandom random = new SecureRandom();
 
-  public AccountLifecycle(JdbcClient jdbc, PasswordEncoder passwords, VerificationMail mail) {
+  private final org.springframework.context.ApplicationEventPublisher events;
+  public AccountLifecycle(JdbcClient jdbc, PasswordEncoder passwords, VerificationMail mail,
+      org.springframework.context.ApplicationEventPublisher events) {
+    this.events = events;
     this.jdbc = jdbc;
     this.passwords = passwords;
     this.mail = mail;
@@ -98,7 +101,7 @@ public class AccountLifecycle {
 
   @Transactional
   public void register(String name, String email, String password, String role) {
-    if (!Set.of("HOST", "MUSICIAN").contains(role)
+    if (!Set.of("HOST", "MUSICIAN", "PARTICIPANT").contains(role)
         || name.trim().isEmpty()
         || name.length() > 120
         || password.length() < 12
@@ -180,7 +183,7 @@ public class AccountLifecycle {
       throw invalidToken();
     jdbc.sql(
             "UPDATE singflow.host_accounts SET"
-                + " email_verified=true,account_version=account_version+1 WHERE email=?")
+                + " email_verified=true,status=CASE WHEN role='PARTICIPANT' THEN 'APPROVED' ELSE status END,account_version=account_version+1 WHERE email=?")
         .param(account.email())
         .update();
     audit(account.email(), account.email(), "EMAIL_VERIFIED", "");
@@ -197,7 +200,7 @@ public class AccountLifecycle {
         || page > 100000
         || search.length() > 120
         || !Set.of("", "PENDING", "APPROVED", "REJECTED", "SUSPENDED").contains(status)
-        || !Set.of("", "HOST", "MUSICIAN").contains(role))
+        || !Set.of("", "HOST", "MUSICIAN", "PARTICIPANT").contains(role))
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Filtros inválidos.");
     String where =
         " WHERE (?='' OR status=?) AND (?='' OR role=?) AND (position(lower(?) in lower(email))>0"
@@ -270,6 +273,7 @@ public class AccountLifecycle {
         .params(status, account.email())
         .update();
     audit(account.email(), actor, status, reason);
+    events.publishEvent(new AccountChanged(account.email()));
     return get(account.email());
   }
 }

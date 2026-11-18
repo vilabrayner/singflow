@@ -60,23 +60,27 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                   ? 'fa-solid fa-envelope'
                   : role === 'HOST'
                     ? 'fa-solid fa-bullhorn'
-                    : 'fa-solid fa-guitar'
+                    : role === 'PARTICIPANT'
+                      ? 'fa-solid fa-user'
+                      : 'fa-solid fa-guitar'
               "
             ></i>
           </span>
           <h1 id="registration-title">
-            {{
-              sent()
-                ? 'Confira seu e-mail'
-                : 'Criar conta de ' + (role === 'HOST' ? 'anfitrião' : 'músico')
-            }}
+            {{ sent() ? 'Confira seu e-mail' : 'Criar conta de ' + roleName }}
           </h1>
           @if (sent()) {
             <p role="status">
               Enviamos um link de confirmação para <strong>{{ form.controls.email.value }}</strong
               >. Ele vale por 24 horas. Confira também a pasta de spam.
             </p>
-            <p>Depois de confirmar o e-mail, seu cadastro precisa da aprovação do administrador.</p>
+            <p>
+              {{
+                role === 'PARTICIPANT'
+                  ? 'Depois de confirmar, sua conta já estará liberada.'
+                  : 'Depois de confirmar o e-mail, seu cadastro precisa da aprovação do administrador.'
+              }}
+            </p>
             @if (error()) {
               <p-message
                 severity="error"
@@ -89,11 +93,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
               <p-message severity="info" class="registration-form-error">{{ message() }}</p-message>
             }
             <div class="sf-dialog-actions">
-              <a
-                class="sf-button sf-primary sf-full"
-                [routerLink]="role === 'HOST' ? '/anfitriao' : '/musico'"
-                >Ir para o login</a
-              >
+              <a class="sf-button sf-primary sf-full" [routerLink]="loginPath">Ir para o login</a>
               <button
                 type="button"
                 class="sf-button sf-outline sf-full"
@@ -104,7 +104,17 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
               </button>
             </div>
           } @else {
-            <p>Confirme seu e-mail e aguarde a aprovação para usar o painel.</p>
+            <p>
+              {{
+                role === 'PARTICIPANT'
+                  ? 'Guarde seu acesso e escolha como receber os avisos. O cadastro é opcional.'
+                  : 'Confirme seu e-mail e aguarde a aprovação para usar o painel.'
+              }}
+            </p>
+            <p class="registration-field-help">
+              Consulte os <a routerLink="/termos-de-uso">Termos de Uso</a> e a
+              <a routerLink="/politica-privacidade">Política de Privacidade</a>.
+            </p>
             <form class="host-form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
               <label for="registration-name">Nome</label>
               <input
@@ -268,11 +278,7 @@ type RegistrationField = 'name' | 'email' | 'password' | 'confirmation';
                 >
               }
             </form>
-            <a
-              class="sf-button sf-text sf-full"
-              [routerLink]="role === 'HOST' ? '/anfitriao' : '/musico'"
-              >Já tenho conta</a
-            >
+            <a class="sf-button sf-text sf-full" [routerLink]="loginPath">Já tenho conta</a>
           }
         </app-surface-card>
       </div>
@@ -282,7 +288,12 @@ export class RegistrationPage {
   private readonly api = inject(ApiClient);
   private readonly document = inject(DOCUMENT);
   private readonly fb = inject(FormBuilder).nonNullable;
-  readonly role = inject(ActivatedRoute).snapshot.data['role'] as 'HOST' | 'MUSICIAN';
+  readonly role = inject(ActivatedRoute).snapshot.data['role'] as
+    'HOST' | 'MUSICIAN' | 'PARTICIPANT';
+  readonly roleName =
+    this.role === 'HOST' ? 'anfitrião' : this.role === 'MUSICIAN' ? 'músico' : 'participante';
+  readonly loginPath =
+    this.role === 'HOST' ? '/anfitriao' : this.role === 'MUSICIAN' ? '/musico' : '/minha-conta';
   readonly showPassword = signal(false);
   readonly showConfirmation = signal(false);
   readonly busy = signal(false);

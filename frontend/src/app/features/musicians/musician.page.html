@@ -127,6 +127,8 @@
         [items]="navigationItems"
         [value]="activeTab()"
         label="Navegação do músico"
+        [refresh]="pullRefresh"
+        [disabled]="locked() || !!editingKey() || !!choosingChord()"
         [resetKey]="view.session.id"
         (valueChange)="changeTab($event)"
       >

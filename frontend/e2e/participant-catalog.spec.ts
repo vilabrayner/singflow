@@ -1,3 +1,4 @@
+import { installRealtime } from './helpers/realtime';
 import {
   prepareManual,
   refreshParticipant,
@@ -433,7 +434,7 @@ test('song chooser has three tabs and keeps search and manual entry inside catal
   await expect(modal.getByRole('tab', { name: 'Catálogo', exact: true })).toBeFocused();
 });
 
-async function workspaceFixture(page: import('@playwright/test').Page) {
+async function workspaceFixture(page: import('@playwright/test').Page, realtimeEnabled = false) {
   const requests = Array.from({ length: 18 }, (_, index) => ({
     ...first,
     id: 'choice-' + index,
@@ -523,9 +524,11 @@ async function workspaceFixture(page: import('@playwright/test').Page) {
     if (path.endsWith('/me')) return route.fulfill({ json: state });
     return route.fulfill({ status: 404 });
   });
+  const realtime = realtimeEnabled ? await installRealtime(page, 'self') : null;
   await page.goto(`/participante/${session}/entry-code`);
   await expect(page.getByRole('heading', { name: 'Meus pedidos', exact: true })).toBeVisible();
-  return { state, additions, catalogReads: () => catalogReads };
+  if (realtime) await realtime.ready();
+  return { state, additions, realtime, catalogReads: () => catalogReads };
 }
 
 test('participant workspace preserves tab scroll and catalogue state with fixed header and dock', async ({
@@ -593,11 +596,11 @@ test('participant workspace preserves tab scroll and catalogue state with fixed 
 test('participant call interrupts other tabs and returns to waiting after host completion without acceptance @release', async ({
   page,
 }) => {
-  const api = await workspaceFixture(page);
+  const api = await workspaceFixture(page, true);
   const nav = page.getByRole('navigation', { name: 'Navegação do participante', exact: true });
   await nav.getByRole('tab', { name: 'Catálogo', exact: true }).click();
   api.state.active = { id: 'call-1', title: 'Giz', artist: 'Legião Urbana', acceptedAt: null };
-  await refreshParticipant(page);
+  api.realtime!.changed();
   await expect(nav.getByRole('tab', { name: 'Pedidos', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -611,9 +614,10 @@ test('participant call interrupts other tabs and returns to waiting after host c
     .getByRole('button', { name: 'Você foi chamado — ver convocação', exact: true })
     .click();
   api.state.active = null;
-  await refreshParticipant(page);
+  api.realtime!.changed();
   await expect(page.getByRole('heading', { name: 'Você está na fila', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirmar ida', exact: true })).toHaveCount(0);
+  expect(api.realtime!.connections()).toBe(1);
   await page.getByRole('button', { name: 'Opções da participação', exact: true }).click();
   await page.getByRole('button', { name: 'Sair da fila', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Sair da fila?', exact: true });

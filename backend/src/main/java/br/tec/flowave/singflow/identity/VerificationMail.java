@@ -45,7 +45,7 @@ public class VerificationMail {
             + token
             + "\n\n"
             + "O link vale por 24 horas e pode ser usado uma vez. Depois da confirmação, seu"
-            + " cadastro aguarda aprovação do administrador. Se você não solicitou este cadastro,"
+            + " cadastro pode ser acompanhado no aplicativo. Se você não solicitou este cadastro,"
             + " ignore a mensagem.");
     try {
       sender.getObject().send(message);

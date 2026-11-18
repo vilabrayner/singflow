@@ -1,3 +1,4 @@
+import { Realtime } from '../../core/realtime/realtime';
 import { StreamingLink } from '../../shared/streaming';
 import { ChordActions } from '../../shared/components/chord-actions';
 import { ChordLinkDialog, ChordLink, ChordSong } from '../../shared/components/chord-link-dialog';
@@ -11,6 +12,7 @@ import {
   afterNextRender,
   Component,
   computed,
+  effect,
   inject,
   Injector,
   OnDestroy,
@@ -160,7 +162,21 @@ export class MusicianPage implements OnInit, OnDestroy {
   }
   readonly updatedAt = signal<Date | null>(null);
   readonly locked = computed(() => this.busy() || this.loading());
-  private timer?: ReturnType<typeof setInterval>;
+  readonly pullRefresh = () => this.load(undefined, true);
+  private readonly realtime = inject(Realtime);
+  constructor() {
+    effect((onCleanup) => {
+      if (!this.email() || !this.ready()) return;
+      onCleanup(
+        this.realtime.watch({
+          path: '/realtime/tickets',
+          body: { perspective: 'musician' },
+          update: () => this.load(undefined, true),
+          blocked: () => this.locked() || !!this.editingKey() || !!this.choosingChord(),
+        }),
+      );
+    });
+  }
   private generation = 0;
   private destroyed = false;
 
@@ -177,15 +193,11 @@ export class MusicianPage implements OnInit, OnDestroy {
       this.ready.set(true);
     }
     if (this.destroyed) return;
-    this.timer = setInterval(() => {
-      if (!this.document.hidden && this.email()) void this.load(undefined, true);
-    }, 4000);
   }
   ngOnDestroy() {
     this.destroyed = true;
     this.generation++;
     this.archiveGeneration++;
-    clearInterval(this.timer);
   }
   toggleRegistration() {
     void this.router.navigateByUrl('/cadastro/musico');

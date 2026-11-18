@@ -90,7 +90,7 @@ class CatalogEnrichmentIntegrationTests {
   try{
    org.flywaydb.core.Flyway.configure().dataSource(url,postgres.getUsername(),postgres.getPassword()).target("20").load().migrate();
    UUID id=UUID.randomUUID();try(var c=java.sql.DriverManager.getConnection(url,postgres.getUsername(),postgres.getPassword());var q=c.prepareStatement("INSERT INTO singflow.catalog_songs(id,title,artist,status,source,spotify_url) VALUES(?,'Legacy','Artist','APPROVED','ADMIN',?)")){q.setObject(1,id);q.setString(2,SPOTIFY);q.executeUpdate();}
-   var flyway=org.flywaydb.core.Flyway.configure().dataSource(url,postgres.getUsername(),postgres.getPassword()).load();flyway.migrate();assertThat(flyway.info().applied()).hasSize(21);
+   var flyway=org.flywaydb.core.Flyway.configure().dataSource(url,postgres.getUsername(),postgres.getPassword()).load();flyway.migrate();assertThat(flyway.info().applied()).hasSize(22);
    try(var c=java.sql.DriverManager.getConnection(url,postgres.getUsername(),postgres.getPassword());var q=c.createStatement()){
     try(var rs=q.executeQuery("SELECT count(*) FROM singflow.catalog_enrichment_jobs")){rs.next();assertThat(rs.getLong(1)).isZero();}
     try(var rs=q.executeQuery("SELECT spotify_url FROM singflow.catalog_songs")){rs.next();assertThat(rs.getString(1)).isEqualTo(SPOTIFY);}

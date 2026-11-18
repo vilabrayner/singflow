@@ -154,3 +154,13 @@ A administração em `/admin` oferece **Catálogo** para revisar, aprovar, corri
 Em **Admin → Catálogo → Sincronizar provisórias**, inicie um lote e acompanhe aprovações automáticas, revisão e falhas. Estado salvo pela V15; utiliza a mesma `LASTFM_API_KEY` do backend. Título e artista precisam corresponder exatamente, sem ambiguidade, para aprovação automática. Fechar a tela preserva o trabalho. [Roteiro e regras de sincronização](docs/acceptance/012-catalog-synchronization.md).
 
 O [modelo consolidado de ambiente](.env.example) agrupa comuns, backend e frontend. Hoje não há variável de negócio compartilhada pelos dois processos; importar somente o bloco do serviço correspondente. O [modelo do frontend](frontend/.env.example) evita copiar credenciais do banco para a Hostinger. Nenhum arquivo `.env` real é alterado pelos modelos.
+
+
+### Publicação e versões
+
+- [Próxima versão: 0.1.0-beta.2 — roteiro de publicação](docs/deployment/release-0.1.0-beta.2.md).
+- [Build remoto manual: CodeBuild → ECR](docs/deployment/build-remoto-aws.md).
+- [Implantação e acompanhamento na EC2 pelo Systems Manager](docs/deployment/acompanhar-deploy-aws.md).
+- [Alternativa: build e publicação pela máquina local](docs/deployment/primeiro-build-local.md).
+
+O fluxo atual é sob demanda: merge na main não inicia build ou implantação. O CodeBuild gera as imagens na AWS; instalar na EC2 e criar tag/prerelease GitHub são etapas separadas.
