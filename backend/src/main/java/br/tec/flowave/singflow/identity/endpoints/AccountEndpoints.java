@@ -15,7 +15,7 @@ class AccountEndpoints {
       @NotBlank @Size(max = 120) String name,
       @NotBlank @Email @Size(max = 254) String email,
       @NotBlank @Size(min = 12, max = 72) String password,
-      @Pattern(regexp = "HOST|MUSICIAN") @NotNull String role) {}
+      @Pattern(regexp = "HOST|MUSICIAN|PARTICIPANT") @NotNull String role) {}
 
   record EmailInput(@NotBlank @Email @Size(max = 254) String email) {}
 

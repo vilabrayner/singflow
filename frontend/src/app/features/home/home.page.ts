@@ -1,3 +1,4 @@
+import { publicDocumentLinks } from '../information/public-documents';
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { TagModule } from 'primeng/tag';
@@ -62,6 +63,16 @@ import { BackendStatus } from '../../shared/components/backend-status';
         }
       </div>
     </section>
+    <nav
+      class="public-home-links page-width"
+      aria-label="Privacidade, segurança e informações"
+      style="display:flex;flex-wrap:wrap;gap:12px 24px;padding-top:24px;padding-bottom:24px"
+    >
+      <a routerLink="/minha-conta">Minha conta de participante</a>
+      @for (link of documentLinks; track link.path) {
+        <a [routerLink]="link.path">{{ link.label }}</a>
+      }
+    </nav>
     <section class="foundation-strip page-width" aria-label="Estado do projeto">
       <div>
         <span class="eyebrow">Um passo de cada vez</span>
@@ -75,6 +86,7 @@ import { BackendStatus } from '../../shared/components/backend-status';
   `,
 })
 export class HomePage {
+  readonly documentLinks = publicDocumentLinks;
   readonly bars = [14, 25, 39, 53, 32, 62, 43, 28, 48, 35, 19];
   readonly roles = [
     {

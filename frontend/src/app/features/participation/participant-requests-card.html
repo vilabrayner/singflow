@@ -32,6 +32,7 @@
         [cdkDragDisabled]="busy() || !editable()"
         [cdkDragStartDelay]="{ touch: 180, mouse: 0 }"
         (cdkDragStarted)="captureOrder()"
+        (cdkDragEnded)="dragging.emit(false)"
         class="choice-panel"
         [class.choice-reorderable]="editable()"
         role="listitem"

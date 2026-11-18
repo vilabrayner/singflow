@@ -20,11 +20,11 @@ import { ApiClient, apiError } from '../../core/http/api-client';
           }
           @if (done()) {
             <p role="status">
-              Seu cadastro agora aguarda aprovação do administrador. Entre na sua conta para
-              consultar a situação.
+              Se você criou uma conta de participante, o acesso já está liberado. Anfitriões e
+              músicos aguardam aprovação do administrador.
             </p>
           } @else if (token) {
-            <p>Confirme para enviar seu cadastro para análise do administrador.</p>
+            <p>Confirme o e-mail para continuar seu cadastro.</p>
           } @else {
             <p>
               Abra o link que enviamos para seu e-mail. Para solicitar outro, entre na sua conta.
@@ -36,6 +36,7 @@ import { ApiClient, apiError } from '../../core/http/api-client';
                 Confirmar e-mail
               </button>
             }
+            <a class="sf-button sf-primary" routerLink="/minha-conta">Entrar como participante</a>
             <a class="sf-button sf-outline" routerLink="/anfitriao">Entrar como anfitrião</a>
             <a class="sf-button sf-outline" routerLink="/musico">Entrar como músico</a>
           </div></app-surface-card

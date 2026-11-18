@@ -316,6 +316,7 @@
             <app-session-musicians
               [session]="session.id"
               [embedded]="true"
+              [revision]="stageRevision()"
               (working)="childWorking('participants', $event)"
             />
           } @else {
@@ -411,6 +412,8 @@
       <p-scrollarea variant="scroll" class="sf-host-scrollarea">
         <p-scrollarea-viewport
           #tabViewport
+          [appPullRefresh]="pullRefresh"
+          [pullRefreshDisabled]="locked() || creatingSession()"
           cdkScrollable
           role="region"
           [attr.aria-label]="tabContentLabel()"

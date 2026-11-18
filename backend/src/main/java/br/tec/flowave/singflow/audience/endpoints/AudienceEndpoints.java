@@ -199,8 +199,8 @@ class AudienceEndpoints {
 
   @PostMapping("/api/participation/{session}/join")
   AudienceService.OwnView join(
-      @PathVariable UUID session, @Valid @RequestBody Join input, HttpServletRequest request) {
-    return service.join(
+      @PathVariable UUID session, @Valid @RequestBody Join input, HttpServletRequest request, Principal principal) {
+    return service.joinForAccount(
         session,
         credential(session, request, true),
         input.code(),
@@ -208,7 +208,7 @@ class AudienceEndpoints {
         input.tableLabel(),
         input.title(),
         input.artist(),
-        input.selectionToken());
+        input.selectionToken(),principal==null?null:principal.getName());
   }
 
   @GetMapping("/api/participation/{session}/me")

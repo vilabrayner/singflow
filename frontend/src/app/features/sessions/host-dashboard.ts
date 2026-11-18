@@ -1,3 +1,5 @@
+import { PullRefresh } from '../../shared/pull-refresh';
+import { Realtime } from '../../core/realtime/realtime';
 import { InputInteraction } from '../../shared/input-interaction';
 import { ScrollArea, ScrollAreaModule } from 'primeng/scrollarea';
 import { CdkScrollable } from '@angular/cdk/scrolling';
@@ -38,6 +40,7 @@ import { apiError } from '../../core/http/api-client';
   selector: 'app-host-dashboard',
   imports: [
     NgTemplateOutlet,
+    PullRefresh,
     ScrollAreaModule,
     CdkScrollable,
     BottomNavigation,
@@ -170,31 +173,19 @@ export class HostDashboard implements OnInit {
   });
   private createKey = createOperationId();
 
+  readonly pullRefresh = () => this.refresh(true);
+  private readonly realtime = inject(Realtime);
   constructor() {
     effect((onCleanup) => {
-      const session = this.selected();
-      if (session?.status !== 'OPEN' || this.participants().length) return;
-
-      let checking = false;
-      let cancelled = false;
-      const timer = setInterval(async () => {
-        if (checking || this.locked() || this.creatingSession() || this.document.hidden) return;
-        checking = true;
-        try {
-          const people = await this.api.participants(session.id, true);
-          if (!cancelled && people.length && !this.locked() && !this.creatingSession()) {
-            await this.refresh(true);
-          }
-        } catch {
-          // Retry the background check on the next interval.
-        } finally {
-          checking = false;
-        }
-      }, 4000);
-      onCleanup(() => {
-        cancelled = true;
-        clearInterval(timer);
-      });
+      if (!this.email() || !this.ready()) return;
+      onCleanup(
+        this.realtime.watch({
+          path: '/realtime/tickets',
+          body: { perspective: 'host' },
+          update: () => this.refresh(true),
+          blocked: () => this.locked() || this.creatingSession() || this.confirmingClose(),
+        }),
+      );
     });
   }
 
@@ -409,8 +400,11 @@ export class HostDashboard implements OnInit {
               this.api.requests(session.id, true),
             ])
           : null;
-        if (generation !== this.foregroundGeneration || this.locked() || id !== this.selected()?.id)
+        if (generation !== this.foregroundGeneration || id !== this.selected()?.id) return;
+        if (this.locked()) {
+          this.backgroundQueued = true;
           return;
+        }
         this.sessions.set(sessions);
         if (session && data) {
           this.selected.set(session);

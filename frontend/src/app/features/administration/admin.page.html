@@ -193,6 +193,7 @@
                   <i
                     [class.fa-bullhorn]="a.role === 'HOST'"
                     [class.fa-guitar]="a.role === 'MUSICIAN'"
+                    [class.fa-user]="a.role === 'PARTICIPANT'"
                     class="fa-solid admin-avatar"
                     aria-hidden="true"
                   ></i>
@@ -202,7 +203,13 @@
                       <span class="admin-email">{{ a.email }}</span>
                     }
                     <span class="admin-account-meta">
-                      <span>{{ a.role === 'HOST' ? 'Anfitrião' : 'Músico' }}</span>
+                      <span>{{
+                        a.role === 'HOST'
+                          ? 'Anfitrião'
+                          : a.role === 'MUSICIAN'
+                            ? 'Músico'
+                            : 'Participante'
+                      }}</span>
                       <app-status-badge
                         [tone]="
                           a.status === 'APPROVED'
@@ -299,6 +306,7 @@
         <option value="">Todos</option>
         <option value="HOST">Anfitrião</option>
         <option value="MUSICIAN">Músico</option>
+        <option value="PARTICIPANT">Participante</option>
       </select>
       <div class="sf-dialog-actions">
         <button type="submit" class="sf-button sf-primary" [disabled]="busy()">
@@ -335,7 +343,10 @@
     @if (!decision()) {
       <h2>{{ a.name || a.email }}</h2>
       <p>{{ a.email }}</p>
-      <p>{{ a.role === 'HOST' ? 'Anfitrião' : 'Músico' }} · {{ label(a) }}</p>
+      <p>
+        {{ a.role === 'HOST' ? 'Anfitrião' : a.role === 'MUSICIAN' ? 'Músico' : 'Participante' }} ·
+        {{ label(a) }}
+      </p>
       <p>
         E-mail {{ a.emailVerified ? 'confirmado' : 'não confirmado' }} · Criado em
         {{ a.createdAt | date: 'dd/MM/yyyy HH:mm' }}

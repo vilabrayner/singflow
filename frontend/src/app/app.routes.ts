@@ -1,7 +1,30 @@
 import { Routes } from '@angular/router';
+import { publicDocumentLinks } from './features/information/public-documents';
 import { resumeParticipation } from './features/participation/participation-memory';
 
 export const routes: Routes = [
+  ...publicDocumentLinks.map((link) => ({
+    path: link.path.slice(1),
+    title: link.label + ' · SingFlow',
+    data: { document: link.key },
+    loadComponent: () =>
+      import('./features/information/public-document.page').then((m) => m.PublicDocumentPage),
+  })),
+  {
+    path: 'cadastro/participante',
+    title: 'Cadastro de participante · SingFlow',
+    data: { role: 'PARTICIPANT' },
+    loadComponent: () =>
+      import('./features/identity/registration.page').then((m) => m.RegistrationPage),
+  },
+  {
+    path: 'minha-conta',
+    title: 'Minha conta · SingFlow',
+    loadComponent: () =>
+      import('./features/participation/participant-account.page').then(
+        (m) => m.ParticipantAccountPage,
+      ),
+  },
   {
     path: 'cadastro/anfitriao',
     title: 'Cadastro de anfitrião · SingFlow',

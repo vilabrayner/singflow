@@ -113,7 +113,13 @@ export class AdminPage implements OnInit {
           SUSPENDED: 'Suspensos',
         } as Record<string, string>
       )[status] ?? 'Todos';
-    return statusLabel + (role ? ' · ' + (role === 'HOST' ? 'Anfitriões' : 'Músicos') : '');
+    return (
+      statusLabel +
+      (role
+        ? ' · ' +
+          (role === 'HOST' ? 'Anfitriões' : role === 'MUSICIAN' ? 'Músicos' : 'Participantes')
+        : '')
+    );
   }
   openFilters() {
     if (this.busy()) return;

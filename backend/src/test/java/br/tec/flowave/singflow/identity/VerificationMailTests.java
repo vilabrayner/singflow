@@ -12,7 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 class VerificationMailTests {
   @Test
-  void confirmationUsesFrontendFragmentAndNeverMentionsAnApprovedAccount() {
+  void confirmationUsesFrontendFragmentWithoutPromisingActivationOrRequiringStaffApproval() {
     var sender = mock(JavaMailSender.class);
     var factory = new StaticListableBeanFactory();
     factory.addBean("sender", sender);
@@ -26,7 +26,8 @@ class VerificationMailTests {
     verify(sender).send(message.capture());
     assertThat(message.getValue().getText())
         .contains(
-            "https://app.example.test/confirmar-email#token=dummy-token", "24 horas", "aprovação");
+            "https://app.example.test/confirmar-email#token=dummy-token", "24 horas", "cadastro pode ser acompanhado no aplicativo")
+        .doesNotContain("conta aprovada", "aguarde a aprovação");
     assertThat(message.getValue().getTo()).containsExactly("guest@example.test");
   }
 

@@ -52,13 +52,17 @@ class SecurityConfiguration {
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                 .permitAll();
           }
+          access.requestMatchers("/api/realtime/ws").permitAll();
+          access.requestMatchers("/api/realtime/tickets").hasAnyRole("HOST", "MUSICIAN", "ADMIN");
           access.requestMatchers("/api/admin/**").hasRole("ADMIN");
+          access.requestMatchers("/api/auth/me", "/api/participant-account/**").hasAnyRole("HOST", "MUSICIAN", "PARTICIPANT");
           access
-              .requestMatchers("/api/auth/me", "/api/musicians/**")
+              .requestMatchers("/api/musicians/**")
               .hasAnyRole("HOST", "MUSICIAN");
           access.requestMatchers("/api/sessions", "/api/sessions/**").hasAnyRole("HOST", "ADMIN");
           access.anyRequest().denyAll();
         });
+    http.csrf(csrf -> csrf.ignoringRequestMatchers("/api/public/whatsapp/webhook"));
     http.addFilterBefore(
         new AccountSessionFilter(accounts),
         org.springframework.security.web.access.intercept.AuthorizationFilter.class);

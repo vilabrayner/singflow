@@ -29,6 +29,7 @@ export class ParticipantRequestsCard {
   readonly cancelled = output<SongRequest>();
   readonly configured = output<SongRequest>();
   readonly reordered = output<{ expectedOrder: string[]; order: string[] }>();
+  readonly dragging = output<boolean>();
   readonly status = participantStatus;
   actions(song: SongRequest): MenuItem[] {
     return [
@@ -59,12 +60,13 @@ export class ParticipantRequestsCard {
     this.reordered.emit({ expectedOrder, order });
   }
   captureOrder() {
+    this.dragging.emit(true);
     this.dragOrder = this.pending().map((s) => s.id);
   }
   drop(event: CdkDragDrop<SongRequest[]>) {
     if (this.busy() || !this.editable() || event.previousIndex === event.currentIndex) return;
     const expectedOrder = this.dragOrder;
-    // Polling can change the list during a gesture. Never apply an obsolete visual index.
+    // A concurrent update can change the list during a gesture. Never apply an obsolete visual index.
     if (JSON.stringify(expectedOrder) !== JSON.stringify(this.pending().map((s) => s.id))) return;
     const order = [...expectedOrder];
     moveItemInArray(order, event.previousIndex, event.currentIndex);

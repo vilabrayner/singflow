@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>br.tec.flowave</groupId>
 	<artifactId>singflow</artifactId>
-	<version>0.1.0-beta.1</version>
+	<version>0.1.0-beta.2</version>
 	<name>SingFlow</name>
 	<description>Gestão de karaokê ao vivo</description>
 	<url/>
@@ -41,6 +41,15 @@
         </dependencies>
     </dependencyManagement>
 	<dependencies>
+<dependency><groupId>nl.martijndwars</groupId><artifactId>web-push</artifactId><version>5.1.2</version><exclusions>
+  <exclusion><groupId>org.asynchttpclient</groupId><artifactId>async-http-client</artifactId></exclusion>
+  <exclusion><groupId>com.beust</groupId><artifactId>jcommander</artifactId></exclusion>
+  <exclusion><groupId>org.bitbucket.b_c</groupId><artifactId>jose4j</artifactId></exclusion>
+</exclusions></dependency>
+<dependency><groupId>org.bouncycastle</groupId><artifactId>bcprov-jdk18on</artifactId><version>1.87</version></dependency>
+<dependency><groupId>org.bitbucket.b_c</groupId><artifactId>jose4j</artifactId><version>0.9.6</version></dependency>
+
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-websocket</artifactId></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-mail</artifactId></dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

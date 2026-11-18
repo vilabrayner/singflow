@@ -1,3 +1,4 @@
+import { installRealtime } from './helpers/realtime';
 import { test, expect, Page } from '@playwright/test';
 import { refreshParticipant } from './participant-ui-helpers';
 const session = '11111111-1111-4111-8111-111111111111';
@@ -41,10 +42,12 @@ async function fixture(page: Page, accepted = false, reply: any = result, status
     if (path.endsWith('/prepare')) return r.fulfill({ status: 204 });
     return r.fulfill({ json: { items: [], total: 0 } });
   });
+  const realtime = await installRealtime(page, 'self');
   await page.goto(`/participante/${session}/entry-code`);
-  return { state, reads: () => reads };
+  await realtime.ready();
+  return { state, realtime, reads: () => reads };
 }
-test('lyrics appear only after acceptance, remain plain text and disappear after host completion', async ({
+test('lyrics appear only after acceptance, remain plain text and disappear after host completion @release', async ({
   page,
 }, info) => {
   const api = await fixture(page);
@@ -64,8 +67,8 @@ test('lyrics appear only after acceptance, remain plain text and disappear after
   expect(api.reads()).toBe(1);
   await page.screenshot({ path: info.outputPath('participant-lyrics.png') });
   api.state.active = null;
-  await refreshParticipant(page);
-  await expect(section).toHaveCount(0);
+  api.realtime.changed();
+  await expect(section).toHaveCount(0, { timeout: 3000 });
   await expect(page.getByRole('heading', { name: 'Você está na fila', exact: true })).toBeVisible();
 });
 test('lyrics provider failure supports explicit retry without changing participation', async ({
@@ -94,7 +97,6 @@ for (const [status, message] of [
 test('late lyrics response is ignored when the host has already completed the presentation', async ({
   page,
 }) => {
-  await page.clock.install();
   let requested = false;
   let release!: () => void;
   const gate = new Promise<void>((r) => (release = r));
@@ -110,7 +112,7 @@ test('late lyrics response is ignored when the host has already completed the pr
     page.getByRole('progressbar', { name: 'Carregando dados', exact: true }),
   ).toBeVisible();
   api.state.active = null;
-  await page.clock.fastForward(10500);
+  api.realtime.changed();
   await expect(page.getByRole('region', { name: 'Letra da música', exact: true })).toHaveCount(0);
   await expect(page.locator('p-progress-spinner')).toHaveCount(0);
   release();

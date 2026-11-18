@@ -29,6 +29,9 @@
         >
           <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Atualizar
         </button>
+        <a class="sf-button sf-text sf-full" routerLink="/minha-conta"
+          ><i class="fa-solid fa-user" aria-hidden="true"></i>Minha conta e avisos</a
+        >
         <hr class="sf-account-logout-separator" />
         @if (view.session.status === 'OPEN' && view.participant.status !== 'LEFT') {
           <button
@@ -144,6 +147,10 @@
     <p-scrollarea variant="scroll" class="sf-participant-scrollarea">
       <p-scrollarea-viewport
         #participantViewport
+        [appPullRefresh]="pullRefresh"
+        [pullRefreshDisabled]="
+          busy() || draggingSongs() || !!configuringSong() || !!cancellingSong()
+        "
         cdkScrollable
         role="region"
         [attr.aria-label]="tabLabel()"
@@ -205,6 +212,7 @@
               (edited)="openSongEdit($event)"
               (configured)="openConfiguration($event)"
               (reordered)="reorderSongs($event)"
+              (dragging)="dragSongsChanged($event)"
               (cancelled)="cancellingSong.set($event)"
             />
           </div>

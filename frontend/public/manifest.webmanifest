@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "SingFlow",
+  "short_name": "SingFlow",
+  "lang": "pt-BR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F4F6FA",
+  "theme_color": "#0B1E3F",
+  "icons": [
+    {
+      "src": "/brand/singflow-icon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

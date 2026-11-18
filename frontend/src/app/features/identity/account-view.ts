@@ -1,7 +1,7 @@
 export interface AccountView {
   email: string;
   name?: string;
-  role: 'HOST' | 'MUSICIAN';
+  role: 'HOST' | 'MUSICIAN' | 'PARTICIPANT';
   emailVerified?: boolean;
   status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
   administrator?: boolean;

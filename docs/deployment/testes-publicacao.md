@@ -75,3 +75,11 @@ A listagem confirmou 30 execuções críticas (24 mobile e seis desktop) e 272 n
 ## Medição na AWS após a revisão
 
 Build `d8e21f5b-2260-412c-b93f-a2fb2aae1a3d`, commit `e3350c3`: 30 testes críticos de interface passaram em **1,7 minuto**, contra 8,8 minutos da suíte completa anterior. Backend manteve 211 testes aprovados. Build total de aproximadamente 7 min 12 s, incluindo preparação e imagens, terminou em publicação bem-sucedida das duas imagens ECR. Recibo e digests em [Build remoto](build-remoto-aws.md#publicação-confirmada--17112026). A falha de foco continua pendente na regressão completa; não foi corrigida nesta publicação.
+
+
+## Adaptação WebSocket — 18/11/2026
+
+A branch `feature/websocket` acrescenta duas execuções críticas mobile (consolidação/reconexão/contingência e gesto de atualização). O gate passa a 32 execuções, preservando as seis desktop já selecionadas. O fluxo crítico do músico recebe eventos de concessão, aceite e revogação; o do participante recebe convocação e conclusão sem aceite via WebSocket, sem criar duplicatas de testes visuais. A regressão completa continua disponível e preservada. Medidas desta branch constam em `docs/websocket-review.md`; não houve build remoto nesta etapa.
+
+
+A revisão da conclusão com letra aberta acrescentou esse cenário à seleção mobile, levando o gate a 33 execuções. A letra pronta e a resposta ainda pendente são exercitadas por eventos WebSocket; a regressão completa permanece disponível.

@@ -2,6 +2,12 @@
 
 Cada etapa exige autorização antes de sua implementação. Documentação representa o plano, não a conclusão dos incrementos.
 
+## Incremento local — 18/11/2026
+
+WebSocket implementado na branch `feature/websocket` para anfitrião, participante e músico. Ações permanecem REST; avisos são emitidos após commit e recuperam os dados autorizados. Polling frequente desses três painéis foi removido, com fallback de 30 s quando necessário e tela visível. O admin e a sincronização do catálogo mantêm o comportamento anterior. Transporte, limites, configuração e roteiro: [Tempo real](websocket-review.md).
+
+Puxar para atualizar foi acrescentado à área de rolagem principal, preservando teclado, formulários e arraste. Validação nativa no celular e ensaio entre aparelhos pendentes. Não houve commit, push nem deploy deste incremento. Privar o repositório continua condicionado à preparação do acesso autenticado do CodeBuild.
+
 ## Próximas prioridades — atualização de 17/11/2026
 
 O responsável priorizou tempo real para reduzir consultas periódicas. Este registro define a ordem de discussão; não autoriza implementação, novos recursos ou envio de notificações. O segundo build remoto terminou com uma falha de UI; a seleção crítica de publicação foi revisada posteriormente conforme decisão do responsável.
@@ -11,7 +17,7 @@ O responsável priorizou tempo real para reduzir consultas periódicas. Este reg
 3. **Demais áreas de tempo real:** sincronização do catálogo e consulta administrativa das sessões, após consolidar fila/palco. A busca em APIs externas não deve ser disparada por notificações sem necessidade.
 4. **Suíte rápida de publicação (validada localmente e na AWS):** 30 execuções críticas de interface (24 mobile e seis desktop), com regressão completa de 272 preservada em comando e workflow manual separados. Backend, migrations, configuração e scripts mantêm verificação integral. Todos os 30 casos passaram localmente em 1,3 minuto e na AWS em 1,7 minuto. Publicação ECR `0.1.0-beta.1` concluída pelo build `d8e21f5b-2260-412c-b93f-a2fb2aae1a3d`; tag/prerelease GitHub criada e implantação na EC2 concluída, com saúde verificada e migrations até V21. Seleção e falha não bloqueante de foco: [Testes de publicação](deployment/testes-publicacao.md). Não excluir testes do repositório apenas pelo tempo; revisar o gate ao implementar tempo real.
 
-Levantamento atual no frontend: participante a cada 10 s; músico, consulta administrativa de sessão e descoberta de participantes na sessão vazia a cada 4 s; sincronização do catálogo a cada 2 s. Intervalos têm condições de visibilidade/estado e não representam necessariamente requisições contínuas em todas as telas. Verificar também o polling do painel de palco no desenho do contrato de eventos.
+Levantamento anterior ao incremento WebSocket: participante a cada 10 s; músico, consulta administrativa de sessão e descoberta de participantes na sessão vazia a cada 4 s; sincronização do catálogo a cada 2 s. Intervalos têm condições de visibilidade/estado e não representam necessariamente requisições contínuas em todas as telas. Verificar também o polling do painel de palco no desenho do contrato de eventos.
 
 ## Prioridade de desenvolvimento — atualização de 10/11/2026
 

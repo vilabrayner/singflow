@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { installRealtime } from './helpers/realtime';
 
 const session = {
   id: 'music-session',
@@ -88,13 +89,15 @@ test('musician signs in, receives a session, reads the full queue and tracks the
         : route.fulfill({ status: 404 });
     return route.fulfill({ status: 403 });
   });
+  const realtime = await installRealtime(page);
   await page.goto('/musico');
   await page.getByLabel('E-mail', { exact: true }).fill('music@example.test');
   await page.getByLabel('Senha', { exact: true }).fill('musician-password-2026');
   await page.getByRole('button', { name: 'Entrar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Aguardando uma sessão' })).toBeVisible();
+  await realtime.ready();
   granted = true;
-  await page.getByRole('button', { name: 'Atualizar sessões', exact: true }).click();
+  realtime.changed();
   await expect(page.getByRole('heading', { name: 'Café Tão', exact: true })).toBeVisible();
   await page.getByRole('tab', { name: 'Fila', exact: true }).click();
   await expect(page.locator('app-stage-queue:visible .sf-queue-line')).toHaveCount(14);
@@ -103,6 +106,7 @@ test('musician signs in, receives a session, reads the full queue and tracks the
   await expect(page.locator('app-stage-queue:visible .sf-queue-line')).toContainText('Artista 14');
   await page.getByLabel('Buscar na fila', { exact: true }).fill('');
   accepted = true;
+  realtime.changed();
   await page.getByRole('tab', { name: 'Palco', exact: true }).click();
   await expect(page.getByText('Ida confirmada', { exact: true })).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole('heading', { name: 'Ana', exact: true })).toBeVisible();
@@ -120,6 +124,7 @@ test('musician signs in, receives a session, reads the full queue and tracks the
     'Evidências',
   );
   granted = false;
+  realtime.changed();
   await expect(page.getByRole('heading', { name: 'Aguardando uma sessão' })).toBeVisible({
     timeout: 10000,
   });
