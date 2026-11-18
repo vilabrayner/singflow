@@ -2,7 +2,53 @@
 
 Cada etapa exige autorização antes de sua implementação. Documentação representa o plano, não a conclusão dos incrementos.
 
-## Incremento local — 18/11/2026
+
+## Visão consolidada — 18/11/2026
+
+Este resumo substitui os estados antigos dos registros históricos abaixo. **Implementado não significa publicado ou validado em produção.** A beta.2 está em processo de publicação. O bloqueio inicial dos scripts presos à beta.1 foi corrigido. O build seguinte foi interrompido por HTTP 429 do Docker Hub ao obter o PostgreSQL temporário. A correção local usa os registros públicos dos publicadores nas dependências, preservando o ECR privado do app; 27 testes dos scripts e quatro testes Java focados passaram. Será necessário novo commit/merge e novo SHA antes de repetir o build. Não há confirmação de implantação da beta.2 neste registro.
+
+### WebSocket, Web Push e PWA são diferentes
+
+| Conceito | Papel no SingFlow | Estado |
+| --- | --- | --- |
+| WebSocket | Avisar a interface ativa de alterações e atualizar os dados autorizados sem polling frequente | Implementado para anfitrião, participante e músico; teste local e em aparelhos confirmado pelo responsável |
+| Web Push | Notificação do sistema para participante autorizado, inclusive em segundo plano quando suportado pelo navegador/sistema | Implementado para convocação; recebimento real validado localmente pelo responsável; falta validação em HTTPS no ambiente publicado e em celulares |
+| PWA | Experiência de app web instalável: ícone, janela própria, ciclo de atualização e comportamento planejado com conexão instável | Parcial: manifest, ícone e service worker de push presentes; instalação e experiência de atualização/conectividade ainda não encerradas como etapa |
+
+WebSocket não instala o aplicativo nem garante alertas com ele fechado. Web Push não substitui a recuperação do estado atual da fila. O service worker atual **não faz cache offline da interface ou das APIs**; ele atende push e revalida a convocação antes de mostrar um aviso. Ter manifest e push não encerra automaticamente o escopo PWA.
+
+### Implementado na base atual
+
+- Painéis de anfitrião, participante, músico e admin com componentes e identidade visual compartilhados, header, dock, áreas de rolagem e diálogos.
+- Sessões, QR geral/individual, inscrição assistida/autônoma, recuperação de acesso, pedidos, reordenação, convocação, resposta, conclusão, pausas, saída/retorno e histórico.
+- Músico com conta própria e concessão de sessão pelo anfitrião; seleção por nome. Admin com gestão de contas, consulta de sessões e catálogo.
+- Catálogo canônico, Last.fm, provisórias, sincronização/revisão, correção e unificação com transferência de vínculos; preenchimento manual preservado.
+- Semitons por pedido, tom calculado e registro pelo músico do tom cantado. Cifra Club oficial/pessoal do músico; links Spotify e YouTube; enriquecimento assíncrono; letras LRCLIB com cache durante a sessão.
+- Cadastro opcional do participante com confirmação de e-mail, sem aprovação administrativa, vínculo/recuperação da participação e preferências de avisos. Continuidade do fluxo sem conta.
+- WebSocket nos três painéis operacionais e gesto de puxar para atualizar, aprovados localmente pelo responsável em iOS/Android, incluindo conclusão com letra aberta.
+- Adaptadores Meta e Web Push, consentimento, fila persistida de avisos e descarte de convocações obsoletas. WhatsApp ainda sem aceite real de envio; OpenWA foi avaliado, não adotado.
+- Páginas públicas de privacidade, segurança, LGPD, exclusão, termos e ajuda sobre o callback. A rota técnica de webhook é separada da página informativa `/callback`.
+
+Detalhes: [contas e avisos](participant-accounts-notifications.md), [páginas Meta](meta-public-pages.md), [WebSocket](websocket-review.md) e [publicação beta.2](deployment/release-0.1.0-beta.2.md).
+
+### Sequência proposta para os próximos incrementos
+
+1. **Concluir a publicação e o aceite da beta.2.** Enviar correção dos testes e link da home, construir o SHA exato da main, publicar imagens, criar tag/prerelease e implantar em momento sem uso. Conferir V22, versão/saúde, proxy WebSocket no domínio público, cadastro, recuperação e fluxo completo de palco. Operações de build/deploy continuam sujeitas à autorização; não foram executadas por esta revisão.
+2. **Validar os canais reais de aviso.** Configurar VAPID e testar push em HTTPS/Android/iPhone; no iOS, Tela de Início. Configurar/verificar webhook Meta, número e template, confirmar opt-in/opt-out e testar convocação com destinatário próprio autorizado. Hoje o envio implementado é de convocação; avisos push de próximo da fila, encerramento e outros destinatários exigem recorte posterior.
+3. **Fechar o incremento PWA.** Revisar manifest e ícones adequados à instalação, orientar instalação em Android/iPhone, validar retomada da conta/participação no app instalado, detectar/disponibilizar nova versão sem perder formulários e definir estados de indisponibilidade/reconexão. Qualquer cache deve ter escopo explícito, limpeza segura e não confirmar pedidos/convocações offline. Não prometer operação completa do karaokê sem internet.
+4. **Painel público de TV `/tv`.** Existe esboço, não implementação: antes de abrir, marcas Som Na Caixa/local e “Logo mais... Karaokê Som Na Caixa!”; aberta, próximo participante, música/artista, QR da sessão e Instagram `@karaoke.somnacaixa` com QR. Receber as marcas, definir escolha/acesso da sessão sem expor dados pessoais e validar tela horizontal com atualização em tempo real.
+5. **Personalização do participante cadastrado.** Ativar favoritas e mais cantadas pessoais nas abas já desenhadas, histórico musical entre sessões e preferências de tom por música, com base no tom solicitado/cantado. O cadastro entregue não significa que essas funcionalidades já existem.
+6. **Inteligência do catálogo e métricas.** Top 10 músicas, contagem de pedidos/apresentações com critério explícito, sugestões e recomendações; ampliar visão administrativa conforme necessidade. Rankings e benefícios não alteram prioridade por assiduidade.
+7. **Tempo real nas áreas administrativas.** Acompanhamento de sincronização e consulta administrativa de sessões, preservando economia de APIs externas e permissões. O polling dessas áreas não foi removido pelo incremento dos painéis operacionais.
+8. **Operação e publicação.** Consolidar configuração privada de ambientes e rotação de chaves, backup externo/ensaio de restauração e procedimento de reversão; automatização do build/deploy continua futura. Antes de privar o repositório, preparar acesso autenticado da fonte no CodeBuild. A geração remota atual sob demanda, ECR e implantação manual são etapas separadas.
+
+Associação, frequência, badges, check-in antecipado e programas de benefícios continuam ideias futuras, a detalhar. **Prioridade de fila por assiduidade foi retirada por decisão do responsável**. Player embutido, sincronização de letras e novas plataformas não são requisitos para fechar este MVP.
+
+## Histórico dos incrementos e decisões
+
+As seções seguintes preservam o estado informado na data de cada incremento; pendências, hospedagem adiada, intervalos de polling e totais de testes antigos não devem ser tratados como o estado atual. Consultar a visão consolidada acima e os roteiros específicos para a publicação corrente.
+
+## Registro inicial do incremento WebSocket — 18/11/2026
 
 WebSocket implementado na branch `feature/websocket` para anfitrião, participante e músico. Ações permanecem REST; avisos são emitidos após commit e recuperam os dados autorizados. Polling frequente desses três painéis foi removido, com fallback de 30 s quando necessário e tela visível. O admin e a sincronização do catálogo mantêm o comportamento anterior. Transporte, limites, configuração e roteiro: [Tempo real](websocket-review.md).
 
@@ -154,9 +200,9 @@ Aceite:
 
 Definido em 12/11/2026: catálogo único para todo o SingFlow, organizado pelo admin, com provisórios sem bloquear o palco. O primeiro incremento está registrado no Aceite 011; notificações WebSocket continuam pendentes.
 
-## Etapa 5 — PWA e preparação de publicação
+## Etapa 5 — PWA e preparação de publicação (parcial)
 
-Escopo proposto: instalação, cache seguro da interface, atualização do aplicativo, conexão instável e preparação de implantação. A acessibilidade começa na etapa 3B e continua como requisito transversal. A execução da hospedagem permanece adiada para outro chat conforme a decisão atual do responsável.
+Atualização de 18/11/2026: hospedagem e processo manual de publicação já existem; não estão mais adiados. Manifest, ícone e service worker para Web Push foram acrescentados. Ainda faltam validação de instalação, experiência de atualização, tratamento de conexão instável e definição de eventual cache seguro. O worker de push atual não armazena interface/API para uso offline. A acessibilidade continua transversal. Ver a visão consolidada no início deste documento para as prioridades atuais.
 
 Aceite:
 
@@ -166,7 +212,7 @@ Aceite:
 - Fluxos principais funcionam em tela pequena e por teclado.
 - Implantação, migrações, backup e recuperação possuem instruções verificadas.
 
-A escolha do provedor e qualquer publicação serão revisadas separadamente. Commits e push não estão incluídos automaticamente nestas etapas.
+Novas mudanças de hospedagem e publicações são revisadas separadamente. O processo atual usa build remoto sob demanda e implantação manual; commits e push não disparam automaticamente essas etapas.
 
 ## Busca de músicas Last.fm — 11/11/2026
 
