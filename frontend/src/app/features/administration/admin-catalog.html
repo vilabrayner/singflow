@@ -1,214 +1,217 @@
-<app-surface-card labelledBy="admin-catalog-title" class="sf-admin-catalog-card sf-catalog-card">
-  <h1 id="admin-catalog-title" class="sr-only">Catálogo de músicas</h1>
-  <p-tabs
-    [value]="showingSync() ? 'sync' : 'catalog'"
-    (valueChange)="selectTab($event)"
-    class="sf-song-tabs sf-song-tabs-contained sf-admin-catalog-tabs"
-  >
-    <p-tablist>
-      <p-tab value="catalog" aria-label="Catálogo de músicas" title="Catálogo" [disabled]="busy()"
-        ><i class="fa-solid fa-book" aria-hidden="true"></i
-      ></p-tab>
-      <p-tab value="sync" aria-label="Sincronizar" title="Sincronizar" [disabled]="busy()"
-        ><i class="fa-solid fa-rotate" aria-hidden="true"></i
-      ></p-tab>
-    </p-tablist>
-    <p-tabpanels>
-      <p-tabpanel value="catalog" class="sf-admin-catalog-panel">
-        <div class="admin-catalog-search">
-          @if (error() && !selected() && !creating() && !deleting()) {
-            <p role="alert" class="sf-dialog-error">{{ error() }}</p>
-          }
-          <form class="admin-search host-form" [formGroup]="filter" (ngSubmit)="load()">
-            <label class="sr-only" for="admin-catalog-search">Buscar música ou artista</label>
-            <div class="admin-search-controls">
-              <div class="admin-catalog-search-field">
-                <input
-                  id="admin-catalog-search"
-                  #catalogSearch
-                  pInputText
-                  formControlName="q"
-                  (input)="search($any($event.target).value)"
-                  maxlength="160"
-                  placeholder="Digite a música para buscar"
-                  [readOnly]="busy()"
-                />
-                @if (filter.controls.q.value) {
-                  <button
-                    type="button"
-                    class="sf-icon-button"
-                    aria-label="Limpar busca"
-                    [disabled]="busy()"
-                    (click)="clearSearch()"
-                  >
-                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-                  </button>
-                }
+@if (!editorOnly()) {
+  <app-surface-card labelledBy="admin-catalog-title" class="sf-admin-catalog-card sf-catalog-card">
+    <h1 id="admin-catalog-title" class="sr-only">Catálogo de músicas</h1>
+    <p-tabs
+      [value]="showingSync() ? 'sync' : 'catalog'"
+      (valueChange)="selectTab($event)"
+      class="sf-song-tabs sf-song-tabs-contained sf-admin-catalog-tabs"
+    >
+      <p-tablist>
+        <p-tab value="catalog" aria-label="Catálogo de músicas" title="Catálogo" [disabled]="busy()"
+          ><i class="fa-solid fa-book" aria-hidden="true"></i
+        ></p-tab>
+        <p-tab value="sync" aria-label="Sincronizar" title="Sincronizar" [disabled]="busy()"
+          ><i class="fa-solid fa-rotate" aria-hidden="true"></i
+        ></p-tab>
+      </p-tablist>
+      <p-tabpanels>
+        <p-tabpanel value="catalog" class="sf-admin-catalog-panel">
+          <div class="admin-catalog-search">
+            @if (error() && !selected() && !creating() && !deleting()) {
+              <p role="alert" class="sf-dialog-error">{{ error() }}</p>
+            }
+            <form class="admin-search host-form" [formGroup]="filter" (ngSubmit)="load()">
+              <label class="sr-only" for="admin-catalog-search">Buscar música ou artista</label>
+              <div class="admin-search-controls">
+                <div class="admin-catalog-search-field">
+                  <input
+                    id="admin-catalog-search"
+                    #catalogSearch
+                    pInputText
+                    formControlName="q"
+                    (input)="search($any($event.target).value)"
+                    maxlength="160"
+                    placeholder="Digite a música para buscar"
+                    [readOnly]="busy()"
+                  />
+                  @if (filter.controls.q.value) {
+                    <button
+                      type="button"
+                      class="sf-icon-button"
+                      aria-label="Limpar busca"
+                      [disabled]="busy()"
+                      (click)="clearSearch()"
+                    >
+                      <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                  }
+                </div>
+              </div>
+            </form>
+            @if (searchMessage() && rows().length) {
+              <p role="status">{{ searchMessage() }}</p>
+            }
+            <div class="admin-catalog-toolbar">
+              <div class="admin-list-summary">
+                <p role="status" aria-live="polite">
+                  {{ total() + (total() === 1 ? ' música' : ' músicas') }}
+                </p>
+                <button
+                  type="button"
+                  class="admin-filter-link"
+                  [disabled]="loading() || busy()"
+                  (click)="openFilters()"
+                >
+                  <i class="fa-solid fa-filter" aria-hidden="true"></i>{{ filterLabel() }}
+                </button>
+              </div>
+              <div class="admin-catalog-actions">
+                <button
+                  type="button"
+                  class="sf-icon-button"
+                  aria-label="Atualizar catálogo"
+                  title="Atualizar catálogo"
+                  [disabled]="loading() || busy()"
+                  (click)="load()"
+                >
+                  <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  class="sf-button sf-primary"
+                  aria-label="Cadastrar música"
+                  title="Cadastrar música"
+                  [disabled]="loading() || busy()"
+                  (click)="create()"
+                >
+                  <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                </button>
               </div>
             </div>
-          </form>
-          @if (searchMessage() && rows().length) {
-            <p role="status">{{ searchMessage() }}</p>
-          }
-          <div class="admin-catalog-toolbar">
-            <div class="admin-list-summary">
-              <p role="status" aria-live="polite">
-                {{ total() + (total() === 1 ? ' música' : ' músicas') }}
-              </p>
-              <button
-                type="button"
-                class="admin-filter-link"
-                [disabled]="loading() || busy()"
-                (click)="openFilters()"
-              >
-                <i class="fa-solid fa-filter" aria-hidden="true"></i>{{ filterLabel() }}
-              </button>
-            </div>
-            <div class="admin-catalog-actions">
-              <button
-                type="button"
-                class="sf-icon-button"
-                aria-label="Atualizar catálogo"
-                title="Atualizar catálogo"
-                [disabled]="loading() || busy()"
-                (click)="load()"
-              >
-                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-              </button>
-              <button
-                type="button"
-                class="sf-button sf-primary"
-                aria-label="Cadastrar música"
-                title="Cadastrar música"
-                [disabled]="loading() || busy()"
-                (click)="create()"
-              >
-                <i class="fa-solid fa-plus" aria-hidden="true"></i>
-              </button>
-            </div>
           </div>
-        </div>
-        <p-scrollarea variant="scroll" class="admin-catalog-results picker-scrollarea">
-          <p-scrollarea-viewport
-            #catalogViewport
-            role="region"
-            aria-label="Listagem do catálogo administrativo"
-          >
-            <p-scrollarea-content class="admin-catalog-list-content">
-              <ul
-                class="admin-song-results"
-                aria-label="Músicas do catálogo"
-                [attr.aria-busy]="loading()"
-              >
-                @for (song of rows(); track song.id || songKey(song)) {
-                  <li class="admin-song-item">
-                    <div class="admin-song-copy">
-                      <strong>{{ song.title }}</strong
-                      ><span>{{ song.artist || 'Artista não informado' }}</span>
-                      @if (song.source === 'LASTFM') {
-                        <small>Internet</small>
-                      }
-                    </div>
-                    <div class="admin-song-item-actions">
-                      @if (song.id) {
-                        <button
-                          type="button"
-                          class="sf-icon-button"
-                          [id]="'catalog-song-' + song.id"
-                          [attr.aria-label]="
-                            'Informações de ' +
-                            song.title +
-                            ' — ' +
-                            (song.artist || 'Artista não informado')
-                          "
-                          title="Informações da música"
-                          [disabled]="busy()"
-                          (click)="open(song)"
-                        >
-                          <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                        </button>
-                        <button
-                          type="button"
-                          class="sf-icon-button"
-                          [id]="'delete-song-' + song.id"
-                          [attr.aria-label]="
-                            'Excluir ' +
-                            song.title +
-                            ' — ' +
-                            (song.artist || 'Artista não informado')
-                          "
-                          title="Excluir música"
-                          [disabled]="busy()"
-                          (click)="askDelete(song)"
-                        >
-                          <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
-                        </button>
-                      } @else {
-                        <button
-                          type="button"
-                          class="sf-button sf-primary"
-                          [attr.aria-label]="'Adicionar ' + song.title + ' — ' + song.artist"
-                          [disabled]="busy() || !song.selectionToken"
-                          (click)="importSong(song)"
-                        >
-                          <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                        </button>
-                      }
-                    </div>
-                  </li>
-                } @empty {
-                  <li class="admin-empty-state">
-                    <p>
-                      {{ loading() ? '' : searchMessage() || 'Nenhuma música nesta busca.' }}
-                    </p>
-                  </li>
+          <p-scrollarea variant="scroll" class="admin-catalog-results picker-scrollarea">
+            <p-scrollarea-viewport
+              #catalogViewport
+              role="region"
+              aria-label="Listagem do catálogo administrativo"
+            >
+              <p-scrollarea-content class="admin-catalog-list-content">
+                <ul
+                  class="admin-song-results"
+                  aria-label="Músicas do catálogo"
+                  [attr.aria-busy]="loading()"
+                >
+                  @for (song of rows(); track song.id || songKey(song)) {
+                    <li class="admin-song-item">
+                      <div class="admin-song-copy">
+                        <strong>{{ song.title }}</strong
+                        ><span>{{ song.artist || 'Artista não informado' }}</span>
+                        @if (song.source === 'LASTFM') {
+                          <small>Internet</small>
+                        }
+                      </div>
+                      <div class="admin-song-item-actions">
+                        @if (song.id) {
+                          <button
+                            type="button"
+                            class="sf-icon-button"
+                            [id]="'catalog-song-' + song.id"
+                            [attr.aria-label]="
+                              'Informações de ' +
+                              song.title +
+                              ' — ' +
+                              (song.artist || 'Artista não informado')
+                            "
+                            title="Informações da música"
+                            [disabled]="busy()"
+                            (pointerdown)="rememberScroll()"
+                            (click)="open(song)"
+                          >
+                            <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                          </button>
+                          <button
+                            type="button"
+                            class="sf-icon-button"
+                            [id]="'delete-song-' + song.id"
+                            [attr.aria-label]="
+                              'Excluir ' +
+                              song.title +
+                              ' — ' +
+                              (song.artist || 'Artista não informado')
+                            "
+                            title="Excluir música"
+                            [disabled]="busy()"
+                            (click)="askDelete(song)"
+                          >
+                            <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            class="sf-button sf-primary"
+                            [attr.aria-label]="'Adicionar ' + song.title + ' — ' + song.artist"
+                            [disabled]="busy() || !song.selectionToken"
+                            (click)="importSong(song)"
+                          >
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                          </button>
+                        }
+                      </div>
+                    </li>
+                  } @empty {
+                    <li class="admin-empty-state">
+                      <p>
+                        {{ loading() ? '' : searchMessage() || 'Nenhuma música nesta busca.' }}
+                      </p>
+                    </li>
+                  }
+                </ul>
+                @if (hasMore()) {
+                  <button
+                    type="button"
+                    class="sf-button sf-outline sf-full admin-load-more"
+                    [disabled]="busy() || loading()"
+                    (click)="loadMore()"
+                  >
+                    Carregar mais
+                  </button>
                 }
-              </ul>
-              @if (hasMore()) {
-                <button
-                  type="button"
-                  class="sf-button sf-outline sf-full admin-load-more"
-                  [disabled]="busy() || loading()"
-                  (click)="loadMore()"
-                >
-                  Carregar mais
-                </button>
-              }
-              @if (!hasMore() && !filter.controls.q.value.trim() && !loading() && rows().length) {
-                <button
-                  type="button"
-                  class="sf-button sf-text sf-full admin-catalog-end"
-                  [disabled]="busy()"
-                  (click)="focusSearch()"
-                >
-                  Para mais músicas use a busca
-                  <i class="fa-solid fa-arrow-turn-up" aria-hidden="true"></i>
-                </button>
-              }
-            </p-scrollarea-content>
-          </p-scrollarea-viewport>
-          <p-scrollarea-scrollbar orientation="vertical"
-            ><p-scrollarea-handle
-          /></p-scrollarea-scrollbar>
-        </p-scrollarea>
-      </p-tabpanel>
-      <p-tabpanel value="sync" class="sf-admin-catalog-panel">
-        <p-scrollarea variant="scroll" class="admin-catalog-results picker-scrollarea">
-          <p-scrollarea-viewport role="region" aria-label="Área de sincronização">
-            <p-scrollarea-content class="admin-catalog-sync-content">
-              @if (showingSync()) {
-                <app-catalog-sync [embedded]="true" (closed)="closeSync()" />
-              }
-            </p-scrollarea-content>
-          </p-scrollarea-viewport>
-          <p-scrollarea-scrollbar orientation="vertical"
-            ><p-scrollarea-handle
-          /></p-scrollarea-scrollbar>
-        </p-scrollarea>
-      </p-tabpanel>
-    </p-tabpanels>
-  </p-tabs>
-</app-surface-card>
+                @if (!hasMore() && !filter.controls.q.value.trim() && !loading() && rows().length) {
+                  <button
+                    type="button"
+                    class="sf-button sf-text sf-full admin-catalog-end"
+                    [disabled]="busy()"
+                    (click)="focusSearch()"
+                  >
+                    Para mais músicas use a busca
+                    <i class="fa-solid fa-arrow-turn-up" aria-hidden="true"></i>
+                  </button>
+                }
+              </p-scrollarea-content>
+            </p-scrollarea-viewport>
+            <p-scrollarea-scrollbar orientation="vertical"
+              ><p-scrollarea-handle
+            /></p-scrollarea-scrollbar>
+          </p-scrollarea>
+        </p-tabpanel>
+        <p-tabpanel value="sync" class="sf-admin-catalog-panel">
+          <p-scrollarea variant="scroll" class="admin-catalog-results picker-scrollarea">
+            <p-scrollarea-viewport role="region" aria-label="Área de sincronização">
+              <p-scrollarea-content class="admin-catalog-sync-content">
+                @if (showingSync()) {
+                  <app-catalog-sync [embedded]="true" (closed)="closeSync()" />
+                }
+              </p-scrollarea-content>
+            </p-scrollarea-viewport>
+            <p-scrollarea-scrollbar orientation="vertical"
+              ><p-scrollarea-handle
+            /></p-scrollarea-scrollbar>
+          </p-scrollarea>
+        </p-tabpanel>
+      </p-tabpanels>
+    </p-tabs>
+  </app-surface-card>
+}
 @if (selected() || creating()) {
   <app-confirmation-dialog
     [title]="
@@ -224,6 +227,7 @@
                 ? 'Rejeitar música?'
                 : 'Detalhes da música'
     "
+    [returnFocus]="editorReturnFocus()"
     [fullscreen]="!!selected() && !action() && editable()"
     [busy]="busy()"
     [error]="error()"
@@ -608,6 +612,14 @@
       >
         Voltar
       </button>
+    </div>
+  </app-confirmation-dialog>
+}
+
+@if (editorOnly() && error() && !selected()) {
+  <app-confirmation-dialog title="Música indisponível" [error]="error()" (dismissed)="close()">
+    <div dialog-footer class="sf-dialog-actions">
+      <button type="button" class="sf-button sf-outline" (click)="close()">Fechar</button>
     </div>
   </app-confirmation-dialog>
 }

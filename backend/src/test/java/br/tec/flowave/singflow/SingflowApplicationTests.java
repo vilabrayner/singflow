@@ -45,7 +45,7 @@ class SingflowApplicationTests {
 
   @Test
   void migratesRealPostgres() {
-    assertThat(flyway.info().applied()).hasSize(24);
+    assertThat(flyway.info().applied()).hasSize(25);
     assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
   }
 
@@ -2638,4 +2638,41 @@ class SingflowApplicationTests {
                 .content("{}"))
         .andExpect(status().isForbidden());
   }
+  @Test
+  void additionalProfilesRequireAdminAndTakeEffectWithoutAnotherLogin() throws Exception {
+    String owner=host(), admin=administrator();
+    var before=lifecycle.get(owner);
+    mvc.perform(post("/api/admin/accounts/profiles").with(user(owner).roles("ADMIN")).with(csrf()).contentType("application/json")
+      .content("{\"email\":\""+owner+"\",\"roles\":[\"HOST\",\"MUSICIAN\"],\"version\":"+before.version()+"}"))
+      .andExpect(status().isForbidden());
+    mvc.perform(post("/api/admin/accounts/profiles").with(user(admin).roles("HOST")).with(csrf()).contentType("application/json")
+      .content("{\"email\":\""+owner+"\",\"roles\":[\"HOST\",\"MUSICIAN\"],\"version\":"+before.version()+"}"))
+      .andExpect(status().isOk()).andExpect(jsonPath("$.roles").isArray());
+    assertThat(lifecycle.get(owner).roles()).containsExactly("HOST","MUSICIAN");
+    mvc.perform(get("/api/auth/me").with(user(owner).roles("HOST"))).andExpect(status().isOk()).andExpect(jsonPath("$.roles[1]").value("MUSICIAN"));
+    mvc.perform(get("/api/admin/catalog/songs").with(user(owner).roles("HOST","MUSICIAN","ADMIN"))).andExpect(status().isForbidden());
+    var current=lifecycle.get(owner);
+    assertThatThrownBy(()->lifecycle.profiles(admin,owner,List.of("HOST"),before.version())).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    lifecycle.profiles(admin,owner,List.of("HOST"),current.version());
+    assertThat(lifecycle.get(owner).roles()).containsExactly("HOST");
+    assertThatThrownBy(()->lifecycle.profiles(admin,owner,List.of("HOST","ADMIN"),lifecycle.get(owner).version())).isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    assertThat(lifecycle.get(owner).administrator()).isFalse();
+  }
+
+  @Test
+  void hostWithMusicianProfileCanBeGrantedAnotherSessionWithoutLosingOwnSessions() throws Exception {
+    String owner=host(), another=host(), admin=administrator();
+    UUID own=UUID.randomUUID(), external=UUID.randomUUID();createOpen(own,owner);createOpen(external,another);
+    lifecycle.profiles(admin,owner,List.of("HOST","MUSICIAN"),lifecycle.get(owner).version());
+    UUID musician=jdbc.sql("SELECT account_id FROM singflow.host_accounts WHERE email=?").param(owner).query(UUID.class).single();
+    mvc.perform(post("/api/sessions/"+external+"/musicians").with(user(another).roles("HOST")).with(csrf()).contentType("application/json")
+      .content("{\"operationId\":\""+UUID.randomUUID()+"\",\"musicianId\":\""+musician+"\"}")).andExpect(status().isOk());
+    String list=mvc.perform(get("/api/musicians/sessions").with(user(owner).roles("HOST"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+    assertThat(list).contains(own.toString(),external.toString());
+    mvc.perform(get("/api/musicians/sessions/"+external).with(user(owner).roles("HOST"))).andExpect(status().isOk());
+    lifecycle.profiles(admin,owner,List.of("HOST"),lifecycle.get(owner).version());
+    mvc.perform(get("/api/musicians/sessions/"+external).with(user(owner).roles("HOST","MUSICIAN"))).andExpect(status().isNotFound());
+    mvc.perform(get("/api/musicians/sessions/"+own).with(user(owner).roles("HOST"))).andExpect(status().isOk());
+  }
+
 }

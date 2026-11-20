@@ -312,3 +312,20 @@ quando existe participante visível. Reservar 400 px da referência Full HD para
 a arte e iniciar os textos em 448 px (48 px de folga). Tudo escala com a composição
 16:9. A ilustração é decorativa: o status textual continua informando próximo,
 convocado ou no palco. Em espera, encerramento ou desconexão, esconder a arte.
+
+
+## Perfis e editor contextual — 19/11/2026
+
+`PanelSwitcher` concentra a troca de painéis nos menus do header sem logout.
+Perfis adicionais são editados nos detalhes do cadastro aprovado, com controles
+de checkbox e botão Salvar perfis. Não oferecer promoção administrativa nesse form.
+
+`AdminCatalog` suporta modo `editorOnly`, compartilhando integralmente a modal
+de detalhes da música com o painel do músico quando a conta tem admin. Não
+copiar as quatro abas ou a lógica de salvar para outra modal. O título da música
+é a ação de entrada; a página, aba e contexto do músico continuam visíveis ao fechar.
+Atualizações WebSocket ficam retidas enquanto o editor está aberto.
+
+Na lista administrativa, salvar não refaz a primeira página: atualiza o item,
+preserva páginas carregadas/filtros e restaura a scrollarea. Foco após modal usa
+`preventScroll`. Ver [perfis e catálogo](../account-profiles-and-catalog-editing.md).

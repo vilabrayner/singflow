@@ -12,6 +12,7 @@
       [(opened)]="headerMenu"
     >
       <div class="sf-account-panel sf-panel-menu" role="menu" aria-label="Opções do músico">
+        <app-panel-switcher (chosen)="headerMenu.set(false)" />
         <section class="sf-account-current-session" aria-label="Sessão do músico">
           <h2>{{ selected()?.name || 'Músico' }}</h2>
           <p>{{ email() }}</p>
@@ -150,7 +151,18 @@
                 }}</app-status-badge>
                 <h3>{{ call.participantName }}</h3>
                 <p class="sf-call-song">
-                  {{ call.title || 'Música a definir com o anfitrião' }}
+                  @if (canEditCatalog() && call.catalogSongId) {
+                    <button
+                      type="button"
+                      class="sf-button sf-text"
+                      [attr.aria-label]="'Editar música ' + call.title"
+                      (click)="editSong(call.catalogSongId)"
+                    >
+                      {{ call.title || 'Música' }}
+                    </button>
+                  } @else {
+                    {{ call.title || 'Música a definir com o anfitrião' }}
+                  }
                   @if (call.artist) {
                     — {{ call.artist }}
                   }
@@ -193,6 +205,8 @@
               <app-stage-queue
                 [suggestions]="[next]"
                 [chordsEnabled]="true"
+                [catalogEditable]="canEditCatalog()"
+                (songEdited)="editSong($event)"
                 [chordsEditable]="canRecordKey()"
                 [chords]="view.chords ?? {}"
                 [streaming]="view.streaming ?? {}"
@@ -212,6 +226,8 @@
               [resetKey]="view.session.id"
               [searchable]="true"
               [chordsEnabled]="true"
+              [catalogEditable]="canEditCatalog()"
+              (songEdited)="editSong($event)"
               [chordsEditable]="canRecordKey()"
               [chords]="view.chords ?? {}"
               [streaming]="view.streaming ?? {}"
@@ -223,6 +239,8 @@
           <app-surface-card labelledBy="musician-history-title">
             <h2 id="musician-history-title">Histórico do palco</h2>
             <app-stage-history
+              [catalogEditable]="canEditCatalog()"
+              (songEdited)="editSong($event)"
               [statusBelow]="true"
               [calls]="view.stage.history"
               [editable]="canRecordKey()"
@@ -308,6 +326,8 @@
           <h3>Histórico do palco</h3>
           <div role="region" aria-label="Registros da sessão anterior">
             <app-stage-history
+              [catalogEditable]="canEditCatalog()"
+              (songEdited)="editSong($event)"
               [statusBelow]="true"
               [calls]="view.stage.history"
               [editable]="canRecordKey()"
@@ -432,5 +452,14 @@
     [session]="selection.session"
     (saved)="chordSaved($event)"
     (dismissed)="choosingChord.set(null)"
+  />
+}
+
+@if (editingSong(); as song) {
+  <app-admin-catalog
+    [editorOnly]="true"
+    [songId]="song"
+    (closed)="editingSong.set(null)"
+    (saved)="catalogSaved()"
   />
 }

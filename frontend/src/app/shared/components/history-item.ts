@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { StatusBadge } from './status-badge';
 @Component({
   selector: 'app-history-item',
@@ -18,7 +18,18 @@ import { StatusBadge } from './status-badge';
       <div class="choice-copy">
         <strong>{{ title() }}</strong>
         @if (subtitle()) {
-          <p>{{ subtitle() }}</p>
+          @if (subtitleClickable()) {
+            <button
+              type="button"
+              class="sf-button sf-text"
+              [attr.aria-label]="'Editar música ' + subtitle()"
+              (click)="subtitleChosen.emit()"
+            >
+              {{ subtitle() }}
+            </button>
+          } @else {
+            <p>{{ subtitle() }}</p>
+          }
         }
         @if (detail()) {
           <p>{{ detail() }}</p>
@@ -43,6 +54,8 @@ export class HistoryItem {
   readonly order = input<number | null>(null);
   readonly railIcon = input<string | null>(null);
   readonly title = input.required<string>();
+  readonly subtitleClickable = input(false);
+  readonly subtitleChosen = output<void>();
   readonly subtitle = input<string | null>(null);
   readonly status = input.required<string>();
   readonly completed = input(false);

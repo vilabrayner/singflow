@@ -1,3 +1,6 @@
+import { AdminCatalog } from '../administration/admin-catalog';
+import { accountHasRole } from '../identity/account-view';
+import { PanelSwitcher } from '../../shared/components/panel-switcher';
 import { Realtime } from '../../core/realtime/realtime';
 import { StreamingLink } from '../../shared/streaming';
 import { ChordActions } from '../../shared/components/chord-actions';
@@ -45,8 +48,10 @@ interface Performance {
   styles:
     ':host { display:block; } .sf-musician-archive-section { margin-top:20px; padding-top:20px; border-top:1px solid var(--sf-border); }',
   imports: [
+    AdminCatalog,
     ChordActions,
     ChordLinkDialog,
+    PanelSwitcher,
     PanelHeader,
     PanelWorkspace,
     MenuPopover,
@@ -120,6 +125,14 @@ export class MusicianPage implements OnInit, OnDestroy {
       );
   }
   readonly canRecordKey = signal(false);
+  readonly canEditCatalog = signal(false);
+  readonly editingSong = signal<string | null>(null);
+  editSong(id: string | null | undefined) {
+    if (id && this.canEditCatalog()) this.editingSong.set(id);
+  }
+  catalogSaved() {
+    void this.load(undefined, true);
+  }
   readonly editingKey = signal<{ session: string; call: StageCall } | null>(null);
   readonly keyError = signal('');
   readonly keyForm = this.fb.control('', [
@@ -172,7 +185,8 @@ export class MusicianPage implements OnInit, OnDestroy {
           path: '/realtime/tickets',
           body: { perspective: 'musician' },
           update: () => this.load(undefined, true),
-          blocked: () => this.locked() || !!this.editingKey() || !!this.choosingChord(),
+          blocked: () =>
+            this.locked() || !!this.editingKey() || !!this.choosingChord() || !!this.editingSong(),
         }),
       );
     });
@@ -184,7 +198,8 @@ export class MusicianPage implements OnInit, OnDestroy {
     try {
       const account = await this.auth.account();
       this.email.set(account.email);
-      this.canRecordKey.set(account.role === 'MUSICIAN');
+      this.canRecordKey.set(accountHasRole(account, 'MUSICIAN'));
+      this.canEditCatalog.set(!!account.administrator);
       await this.load();
     } catch (error) {
       if (!(error instanceof HttpErrorResponse && error.status === 401))
@@ -211,7 +226,8 @@ export class MusicianPage implements OnInit, OnDestroy {
       await this.auth.login(email, password);
       const account = await this.auth.account();
       this.email.set(account.email);
-      this.canRecordKey.set(account.role === 'MUSICIAN');
+      this.canRecordKey.set(accountHasRole(account, 'MUSICIAN'));
+      this.canEditCatalog.set(!!account.administrator);
       this.form.controls.password.reset();
       this.showPassword.set(false);
       await this.load();

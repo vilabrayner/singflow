@@ -26,7 +26,7 @@ public class AccountAccess {
     boolean exists =
         jdbc.sql(
                 "SELECT EXISTS(SELECT 1 FROM singflow.host_accounts WHERE email=? AND"
-                    + " role='MUSICIAN' AND email_verified AND status='APPROVED')")
+                    + " singflow.has_account_role(email,'MUSICIAN') AND email_verified AND status='APPROVED')")
             .param(email)
             .query(Boolean.class)
             .single();
@@ -37,6 +37,9 @@ public class AccountAccess {
               + " acesso.");
   }
 
+  public boolean hasRole(String email,String role) {var a=lifecycle.get(email);return a.active()&&a.hasRole(role);}
+  public boolean administrator(String email) {var a=lifecycle.get(email);return a.active()&&a.administrator();}
+
   public record Musician(UUID id, String name) {}
 
   @Transactional(readOnly = true)
@@ -44,7 +47,7 @@ public class AccountAccess {
     return jdbc.sql(
             "SELECT account_id,CASE WHEN trim(display_name)='' THEN 'Músico ' ||"
                 + " left(account_id::text,8) ELSE display_name END AS name FROM"
-                + " singflow.host_accounts WHERE role='MUSICIAN' AND email_verified AND"
+                + " singflow.host_accounts WHERE singflow.has_account_role(email,'MUSICIAN') AND email_verified AND"
                 + " status='APPROVED' ORDER BY lower(display_name),account_id")
         .query((rs, n) -> new Musician(rs.getObject(1, UUID.class), rs.getString(2)))
         .list();
@@ -53,8 +56,8 @@ public class AccountAccess {
   @Transactional
   public String musicianEmail(UUID id, boolean requireApproved) {
     return jdbc.sql(
-            "SELECT email FROM singflow.host_accounts WHERE account_id=? AND role='MUSICIAN'"
-                + (requireApproved ? " AND email_verified AND status='APPROVED'" : "")
+            "SELECT email FROM singflow.host_accounts WHERE account_id=?"
+                + (requireApproved ? " AND singflow.has_account_role(email,'MUSICIAN') AND email_verified AND status='APPROVED'" : "")
                 + " FOR UPDATE")
         .param(id)
         .query(String.class)

@@ -3,6 +3,8 @@ import { ChordLink, ChordLinkDialog } from '../../shared/components/chord-link-d
 import { StreamingLink } from '../../shared/streaming';
 import { CatalogSync } from './catalog-sync';
 import {
+  output,
+  untracked,
   afterNextRender,
   Injector,
   viewChild,
@@ -62,6 +64,7 @@ interface Event {
 
 @Component({
   selector: 'app-admin-catalog',
+  host: { '[class.sf-editor-only]': 'editorOnly()' },
   imports: [
     NgTemplateOutlet,
     ChordLinkDialog,
@@ -125,6 +128,10 @@ export class AdminCatalog implements OnInit, OnDestroy {
   focusSearch() {
     // Synchronous with the tap so mobile browsers can open the keyboard.
     if (!this.busy()) this.catalogSearch()?.nativeElement.focus({ preventScroll: true });
+  }
+  private editorScrollTop: number | undefined;
+  rememberScroll() {
+    this.editorScrollTop = this.viewport()?.nativeElement.scrollTop;
   }
   private readonly viewport = viewChild('catalogViewport', { read: ElementRef<HTMLElement> });
   private focus() {
@@ -230,7 +237,15 @@ export class AdminCatalog implements OnInit, OnDestroy {
   }
   readonly filter = this.fb.group({ q: [''], status: [''] });
   readonly active = input(true);
+  readonly editorOnly = input(false);
+  readonly songId = input<string | null>(null);
+  readonly closed = output<void>();
+  readonly saved = output<Song>();
   constructor() {
+    effect(() => {
+      const id = this.songId();
+      if (this.editorOnly() && id) untracked(() => void this.open({ id } as Song));
+    });
     effect(() => {
       if (!this.active()) this.showingSync.set(false);
     });
@@ -286,6 +301,7 @@ export class AdminCatalog implements OnInit, OnDestroy {
   readonly error = signal('');
   readonly selected = signal<Song | null>(null);
   readonly creating = signal(false);
+  readonly editorReturnFocus = signal<string | undefined>(undefined);
   readonly action = signal<'' | 'APPROVED' | 'REJECTED' | 'MERGE' | 'HISTORY'>('');
   readonly history = signal<Event[]>([]);
   readonly targets = signal<Song[]>([]);
@@ -348,7 +364,7 @@ export class AdminCatalog implements OnInit, OnDestroy {
   private destroyed = false;
   private detailsAbort?: AbortController;
   ngOnInit() {
-    void this.load();
+    if (!this.editorOnly()) void this.load();
   }
   ngOnDestroy() {
     clearTimeout(this.searchTimer);
@@ -379,6 +395,7 @@ export class AdminCatalog implements OnInit, OnDestroy {
     return (
       (
         {
+          RESOURCE_AUTO_LINKED: 'Referência vinculada automaticamente',
           CREATED: 'Cadastro criado',
           IMPORTED: 'Histórico importado',
           EDITED: 'Dados corrigidos',
@@ -484,6 +501,8 @@ export class AdminCatalog implements OnInit, OnDestroy {
   }
   async open(song: Song) {
     if (!song.id || this.busy()) return;
+    if (this.editorScrollTop === undefined) this.rememberScroll();
+    this.editorReturnFocus.set(this.editorOnly() ? undefined : `catalog-song-${song.id}`);
     this.error.set('');
     this.busy.set(true);
     this.detailsAbort?.abort();
@@ -521,6 +540,12 @@ export class AdminCatalog implements OnInit, OnDestroy {
   }
   close() {
     if (this.busy()) return;
+    const top = this.editorScrollTop;
+    this.editorScrollTop = undefined;
+    if (!this.editorOnly() && top !== undefined)
+      afterNextRender(() => this.viewport()?.nativeElement.scrollTo({ top, behavior: 'instant' }), {
+        injector: this.injector,
+      });
     this.finding.set(false);
     this.findGeneration++;
     this.selected.set(null);
@@ -531,6 +556,7 @@ export class AdminCatalog implements OnInit, OnDestroy {
     this.target.set(null);
     this.history.set([]);
     this.error.set('');
+    if (this.editorOnly()) this.closed.emit();
   }
   ask(action: 'APPROVED' | 'REJECTED' | 'MERGE') {
     this.finding.set(false);
@@ -602,12 +628,32 @@ export class AdminCatalog implements OnInit, OnDestroy {
     this.loading.set(false);
     this.error.set('');
     try {
-      await request();
+      const saved = await request();
       if (this.destroyed) return;
+      const existing = this.selected();
+      if (existing) {
+        this.rows.update((rows) => {
+          const unique = new Map<string, Song>();
+          for (const row of rows) {
+            const current = row.id === existing.id || row.id === saved.id ? saved : row;
+            if (
+              current.id === saved.id &&
+              this.filter.controls.status.value &&
+              current.status !== this.filter.controls.status.value
+            )
+              continue;
+            unique.set(current.id ?? this.songKey(current), current);
+          }
+          return [...unique.values()];
+        });
+      } else {
+        this.rows.update((rows) => [saved, ...rows]);
+        this.total.update((value) => value + 1);
+      }
       this.notify.success(message);
+      this.saved.emit(saved);
       this.busy.set(false);
       this.close();
-      await this.load();
     } catch (error) {
       if (!this.destroyed) this.failed(error);
     } finally {

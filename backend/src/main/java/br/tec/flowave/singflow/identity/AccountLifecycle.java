@@ -21,7 +21,11 @@ public class AccountLifecycle {
       String status,
       boolean administrator,
       Instant createdAt,
-      long version) {
+      long version, List<String> roles) {
+    public Account(String email,String name,String role,boolean emailVerified,String status,boolean administrator,Instant createdAt,long version) {
+      this(email,name,role,emailVerified,status,administrator,createdAt,version,List.of(role));
+    }
+    public boolean hasRole(String requested) { return roles.contains(requested); }
     public boolean active() {
       return emailVerified && status.equals("APPROVED");
     }
@@ -68,11 +72,11 @@ public class AccountLifecycle {
         rs.getString("status"),
         rs.getBoolean("administrator"),
         rs.getTimestamp("created_at").toInstant(),
-        rs.getLong("account_version"));
+        rs.getLong("account_version"), Arrays.asList((String[]) rs.getArray("roles").getArray()));
   }
 
   public Optional<Account> find(String email) {
-    return jdbc.sql("SELECT * FROM singflow.host_accounts WHERE email=?")
+    return jdbc.sql("SELECT *,singflow.account_roles(email) AS roles FROM singflow.host_accounts WHERE email=?")
         .param(normalize(email))
         .query(this::map)
         .optional();
@@ -85,7 +89,7 @@ public class AccountLifecycle {
   }
 
   private Account lock(String email) {
-    return jdbc.sql("SELECT * FROM singflow.host_accounts WHERE email=? FOR UPDATE")
+    return jdbc.sql("SELECT *,singflow.account_roles(email) AS roles FROM singflow.host_accounts WHERE email=? FOR UPDATE")
         .param(normalize(email))
         .query(this::map)
         .optional()
@@ -145,7 +149,7 @@ public class AccountLifecycle {
     mail.requireConfigured();
     String email = normalize(input);
     var account =
-        jdbc.sql("SELECT * FROM singflow.host_accounts WHERE email=? FOR UPDATE")
+        jdbc.sql("SELECT *,singflow.account_roles(email) AS roles FROM singflow.host_accounts WHERE email=? FOR UPDATE")
             .param(email)
             .query(this::map)
             .optional();
@@ -203,11 +207,11 @@ public class AccountLifecycle {
         || !Set.of("", "HOST", "MUSICIAN", "PARTICIPANT").contains(role))
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Filtros inválidos.");
     String where =
-        " WHERE (?='' OR status=?) AND (?='' OR role=?) AND (position(lower(?) in lower(email))>0"
+        " WHERE (?='' OR status=?) AND (?='' OR singflow.has_account_role(email,?)) AND (position(lower(?) in lower(email))>0"
             + " OR position(lower(?) in lower(display_name))>0)";
     var rows =
         jdbc.sql(
-                "SELECT * FROM singflow.host_accounts"
+                "SELECT *,singflow.account_roles(email) AS roles FROM singflow.host_accounts"
                     + where
                     + " ORDER BY created_at DESC,email LIMIT 25 OFFSET ?")
             .params(status, status, role, role, search, search, page * 25)
@@ -235,6 +239,24 @@ public class AccountLifecycle {
                     rs.getString(3),
                     rs.getTimestamp(4).toInstant()))
         .list();
+  }
+
+  @Transactional
+  public Account profiles(String actor,String email,List<String> roles,long version) {
+    var admin=get(actor);
+    if(!admin.active() || !admin.administrator()) throw new ResponseStatusException(HttpStatus.FORBIDDEN,"Acesso administrativo necessário.");
+    var account=lock(email);
+    if(account.version()!=version) throw new ResponseStatusException(HttpStatus.CONFLICT,"Este cadastro mudou. Atualize antes de editar os perfis.");
+    var selected=new TreeSet<>(roles);
+    if(!account.active() || !selected.contains(account.role()) || !Set.of("HOST","MUSICIAN","PARTICIPANT").containsAll(selected))
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Mantenha o perfil de cadastro e selecione perfis válidos para uma conta ativa.");
+    if(new TreeSet<>(account.roles()).equals(selected))return account;
+    jdbc.sql("DELETE FROM singflow.account_profiles WHERE email=?").param(account.email()).update();
+    for(String role:selected) if(!role.equals(account.role())) jdbc.sql("INSERT INTO singflow.account_profiles(email,role) VALUES(?,?)").params(account.email(),role).update();
+    jdbc.sql("UPDATE singflow.host_accounts SET account_version=account_version+1 WHERE email=?").param(account.email()).update();
+    audit(account.email(),actor,"PROFILES_CHANGED",String.join(", ",selected));
+    events.publishEvent(new AccountChanged(account.email()));
+    return get(account.email());
   }
 
   @Transactional

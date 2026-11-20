@@ -72,6 +72,12 @@ class AccountEndpoints {
     return accounts.history(email);
   }
 
+  record Profiles(@NotBlank String email,@NotNull @Size(min=1,max=3) List<@NotBlank String> roles,@Min(0) long version) {}
+  @PostMapping("/api/admin/accounts/profiles")
+  AccountLifecycle.Account profiles(@Valid @RequestBody Profiles input,Authentication principal) {
+    return accounts.profiles(principal.getName(),input.email(),input.roles(),input.version());
+  }
+
   @PostMapping("/api/admin/accounts/decision")
   AccountLifecycle.Account decide(@Valid @RequestBody Decision input, Authentication principal) {
     return accounts.decide(

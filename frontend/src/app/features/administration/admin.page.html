@@ -10,6 +10,7 @@
       [(opened)]="headerMenu"
     >
       <div class="sf-account-panel sf-panel-menu" role="menu" aria-label="Opções da administração">
+        <app-panel-switcher (chosen)="headerMenu.set(false)" />
         <button
           type="button"
           role="menuitem"
@@ -356,6 +357,36 @@
       </p>
       @if (a.administrator) {
         <p>Conta administrativa protegida.</p>
+      }
+      @if (a.emailVerified && a.status === 'APPROVED') {
+        <fieldset class="host-form" [disabled]="busy()">
+          <legend>Perfis da conta</legend>
+          @for (profile of profileChoices; track profile.value) {
+            <label class="sf-checkbox-label">
+              <input
+                type="checkbox"
+                [checked]="profileDraft().includes(profile.value)"
+                [disabled]="busy() || profile.value === a.role"
+                (change)="toggleProfile(profile.value, $any($event.target).checked)"
+              />
+              {{ profile.label }}
+            </label>
+          }
+          @if (a.administrator) {
+            <span>Administrador</span>
+          }
+          <button
+            type="button"
+            class="sf-button sf-primary"
+            [disabled]="busy()"
+            (click)="saveProfiles()"
+          >
+            Salvar perfis
+          </button>
+        </fieldset>
+      }
+      @if (dialogError()) {
+        <p role="alert" class="sf-dialog-error">{{ dialogError() }}</p>
       }
       <h3>Histórico do cadastro</h3>
       <div class="stage-history" role="region" aria-label="Histórico do cadastro" tabindex="0">

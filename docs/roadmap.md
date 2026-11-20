@@ -3,6 +3,17 @@
 Cada etapa exige autorização antes de sua implementação. Documentação representa o plano, não a conclusão dos incrementos.
 
 
+## Perfis e catálogo contextual — 19/11/2026
+
+A beta.3 foi publicada e usada em sessão oficial, conforme relato do responsável.
+Novo escopo autorizado: primeira referência automática de cifra/Spotify/YouTube,
+perfis acumuláveis gerenciados pelo admin, edição do catálogo no contexto do músico
+com privilégio administrativo e retorno à lista preservando rolagem/paginação.
+Implementação validada localmente: verify do backend aprovado pelo responsável,
+16 testes focados de interface e 41 da regressão crítica aprovados.
+[Guia](account-profiles-and-catalog-editing.md).
+Não foi publicada uma nova versão neste incremento.
+
 ## Visão consolidada — 18/11/2026
 
 Preparação da **0.1.0-beta.3**: TV e PWA implementados localmente e metadados

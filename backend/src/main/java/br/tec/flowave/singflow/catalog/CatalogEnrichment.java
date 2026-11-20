@@ -20,10 +20,11 @@ public class CatalogEnrichment {
   private final CatalogService catalog;
   private final boolean enabled;
   private final Map<String,StreamingReferenceStore> stores=new HashMap<>();
+  private final Map<String,StreamingSearch> searches=new HashMap<>();
   private final Set<String> providers=new LinkedHashSet<>(List.of("lyrics","cifra"));
   public CatalogEnrichment(JdbcClient jdbc,CatalogService catalog,List<StreamingSearch> streaming,List<StreamingReferenceStore> stores,
       @Value("${SINGFLOW_ENRICHMENT_ENABLED:true}") boolean enabled){
-    this.jdbc=jdbc;this.catalog=catalog;this.enabled=enabled;stores.forEach(store->this.stores.put(store.type(),store));streaming.forEach(p->providers.add(p.provider().type()));
+    this.jdbc=jdbc;this.catalog=catalog;this.enabled=enabled;stores.forEach(store->this.stores.put(store.type(),store));streaming.forEach(p->{providers.add(p.provider().type());searches.put(p.provider().type(),p);});
   }
   @EventListener
   @Transactional(propagation=Propagation.MANDATORY)
@@ -94,8 +95,40 @@ public class CatalogEnrichment {
       jdbc.sql("INSERT INTO singflow.catalog_enrichment_candidates(song_id,provider,position,external_id,title,artist,album,duration_ms,url,recommended) VALUES(?,?,?,?,?,?,?,?,?,?)")
         .params(claim.songId(),claim.provider(),position++,limit(c.id(),160),limit(c.title(),512),limit(c.artist(),1024),limit(c.album(),512),Math.max(0,c.durationMs()),c.url(),c.recommended()).update();
     }
-    state(claim.songId(),claim.provider(),claim.provider().equals("lyrics")?"COMPLETED":position==0?"NOT_FOUND":"READY","");
+    if(position>0 && !claim.provider().equals("lyrics")) {
+      // Provider order is preserved; never issue another external lookup here.
+      var first=unique.values().iterator().next();
+      String url=claim.provider().equals("cifra")?CifraSearch.safeUrl(first.url()):searches.get(claim.provider()).normalizeUrl(first.url());
+      if(url!=null) {
+        String before=catalog.snapshot(claim.songId());
+        if(claim.provider().equals("cifra")) jdbc.sql("UPDATE singflow.catalog_songs SET chords_url=?,version=version+1,updated_at=clock_timestamp() WHERE id=?").params(url,claim.songId()).update();
+        else stores.get(claim.provider()).update(claim.songId(),url);
+        catalog.audit(claim.songId(),"system:enrichment","RESOURCE_AUTO_LINKED","Primeiro resultado de "+claim.provider()+" vinculado automaticamente.",before);
+      }
+    }
+    state(claim.songId(),claim.provider(),claim.provider().equals("lyrics")||linked(claim.songId(),claim.provider())?"COMPLETED":position==0?"NOT_FOUND":"READY","");
   }
+  /** Promote already fetched suggestions without spending another provider request. */
+  @Transactional
+  public boolean applyPrepared() {
+    if(!enabled)return false;
+    catalog.lock();
+    var next=jdbc.sql("SELECT j.song_id,j.provider FROM singflow.catalog_enrichment_jobs j JOIN singflow.catalog_songs s ON s.id=j.song_id WHERE j.state='READY' AND s.deleted_at IS NULL AND j.title=s.title AND j.artist=s.artist ORDER BY j.updated_at,j.song_id,j.provider LIMIT 1 FOR UPDATE OF j SKIP LOCKED")
+      .query((rs,n)->Map.entry(rs.getObject(1,UUID.class),rs.getString(2))).optional();
+    if(next.isEmpty())return false;
+    UUID id=next.get().getKey();String provider=next.get().getValue();var song=catalog.get(id);
+    var candidates=jdbc.sql("SELECT * FROM singflow.catalog_enrichment_candidates WHERE song_id=? AND provider=? ORDER BY position")
+      .params(id,provider).query((rs,n)->new Candidate(provider,rs.getString("external_id"),rs.getString("title"),rs.getString("artist"),rs.getString("album"),rs.getInt("duration_ms"),rs.getString("url"),rs.getBoolean("recommended"))).list();
+    UUID token=UUID.randomUUID();
+    jdbc.sql("UPDATE singflow.catalog_enrichment_jobs SET state='PROCESSING',claim_token=?,lease_until=clock_timestamp()+interval '2 minutes' WHERE song_id=? AND provider=?").params(token,id,provider).update();
+    try {
+      complete(new Claim(id,provider,song.title(),song.artist(),0,token),candidates);
+      // READY with no usable URL should not run forever.
+      if(!linked(id,provider))state(id,provider,"NOT_FOUND","");
+    } catch(ResponseStatusException error) {state(id,provider,"FAILED","A sugestão salva precisa de revisão manual.");}
+    return true;
+  }
+
   private String limit(String value,int length){return value==null?"":value.substring(0,Math.min(length,value.length()));}
   @Transactional
   public void failed(Claim claim,ResponseStatusException error){

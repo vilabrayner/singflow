@@ -1,3 +1,4 @@
+import { PanelSwitcher } from '../../shared/components/panel-switcher';
 import { PullRefresh } from '../../shared/pull-refresh';
 import { Realtime } from '../../core/realtime/realtime';
 import { InputInteraction } from '../../shared/input-interaction';
@@ -55,6 +56,7 @@ import { apiError } from '../../core/http/api-client';
     HostParticipants,
     EntryShare,
     TelevisionSettings,
+    PanelSwitcher,
     PanelHeader,
     SurfaceCard,
     StatusBadge,

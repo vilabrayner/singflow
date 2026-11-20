@@ -1,6 +1,6 @@
 {
   "name": "singflow-web",
-  "version": "0.1.0-beta.3",
+  "version": "0.1.0-beta.4",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --host 0.0.0.0",

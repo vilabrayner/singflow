@@ -22,6 +22,8 @@ import { StageCall, callStatus } from './stage-api';
           (call.title || 'Música não definida') + (call.artist ? ' — ' + call.artist : '')
         "
         [order]="calls().length - index"
+        [subtitleClickable]="catalogEditable() && !!call.catalogSongId"
+        (subtitleChosen)="songEdited.emit(call.catalogSongId!)"
         [detail]="
           call.performedKey
             ? 'Tom cantado: ' + call.performedKey
@@ -52,6 +54,8 @@ import { StageCall, callStatus } from './stage-api';
   </div>`,
 })
 export class StageHistory {
+  readonly catalogEditable = input(false);
+  readonly songEdited = output<string>();
   readonly calls = input.required<StageCall[]>();
   readonly labels = callStatus;
   readonly editable = input(false);
