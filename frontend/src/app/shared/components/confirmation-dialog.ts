@@ -28,7 +28,7 @@ import { DialogModule } from 'primeng/dialog';
       (onShow)="focusTitle()"
     >
       <ng-template #headless>
-        <div cdkTrapFocus [cdkTrapFocusAutoCapture]="true" class="sf-dialog-frame">
+        <div cdkTrapFocus [cdkTrapFocusAutoCapture]="false" class="sf-dialog-frame">
           <div class="p-dialog-header">
             <ng-content select="[dialog-leading]" />
             <h2 #titleElement cdkFocusInitial [id]="modal.ariaLabelledBy()" tabindex="-1">
@@ -78,6 +78,6 @@ export class ConfirmationDialog implements OnDestroy {
     const target =
       (this.returnFocus() ? this.document.getElementById(this.returnFocus()!) : null) ??
       this.opener;
-    if (target?.isConnected) target.focus();
+    if (target?.isConnected) target.focus({ preventScroll: true });
   }
 }

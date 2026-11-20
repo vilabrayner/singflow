@@ -21,7 +21,7 @@ public class CifraResources {
     }catch(java.sql.SQLException e){throw e;}
     return new Link(rs.getObject("id",UUID.class),official,rs.getLong("version"),personal,rs.getLong("personal_version"),personal==null?official:personal,personal==null?"CATALOG":"PERSONAL",List.copyOf(alternatives));
   }
-  private static final String SELECT="SELECT s.id,s.chords_url,s.version,p.url,coalesce(p.version,0) AS personal_version,ARRAY(SELECT jsonb_array_elements_text(coalesce(p.alternatives,'[]'::jsonb))) AS alternatives FROM singflow.catalog_songs s LEFT JOIN singflow.host_accounts a ON a.email=:actor AND a.role='MUSICIAN' LEFT JOIN singflow.musician_chord_preferences p ON p.account_id=a.account_id AND p.song_id=s.id ";
+  private static final String SELECT="SELECT s.id,s.chords_url,s.version,p.url,coalesce(p.version,0) AS personal_version,ARRAY(SELECT jsonb_array_elements_text(coalesce(p.alternatives,'[]'::jsonb))) AS alternatives FROM singflow.catalog_songs s LEFT JOIN singflow.host_accounts a ON a.email=:actor AND singflow.has_account_role(a.email,'MUSICIAN') LEFT JOIN singflow.musician_chord_preferences p ON p.account_id=a.account_id AND p.song_id=s.id ";
   @Transactional(readOnly=true)
   public Link get(UUID song,String actor) {
     return jdbc.sql(SELECT+"WHERE s.id=:song AND s.deleted_at IS NULL AND s.status<>'MERGED'").param("actor",actor).param("song",song).query(this::map).optional().orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Música indisponível. Atualize a lista."));
@@ -50,7 +50,7 @@ public class CifraResources {
   @Transactional
   public Link personal(String actor,UUID song,long version,String input) {
     catalog.lock();String url=CifraSearch.safeUrl(input);var current=get(song,actor);
-    UUID account=jdbc.sql("SELECT account_id FROM singflow.host_accounts WHERE email=? AND role='MUSICIAN' AND email_verified AND status='APPROVED'").param(actor).query(UUID.class).optional().orElseThrow(()->new ResponseStatusException(HttpStatus.FORBIDDEN));
+    UUID account=jdbc.sql("SELECT account_id FROM singflow.host_accounts WHERE email=? AND singflow.has_account_role(email,'MUSICIAN') AND email_verified AND status='APPROVED'").param(actor).query(UUID.class).optional().orElseThrow(()->new ResponseStatusException(HttpStatus.FORBIDDEN));
     if(current.personalVersion()!=version) {
       if(current.personalVersion()==version+1&&Objects.equals(url,current.personalUrl())&&current.alternatives().isEmpty())return current;
       throw conflict();

@@ -41,7 +41,7 @@ final class AccountSessionFilter extends OncePerRequestFilter {
       }
       var a = account.get();
       var roles = new ArrayList<SimpleGrantedAuthority>();
-      roles.add(new SimpleGrantedAuthority("ROLE_" + a.role()));
+      a.roles().forEach(role -> roles.add(new SimpleGrantedAuthority("ROLE_" + role)));
       if (a.administrator() && a.active()) roles.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
       var fresh =
           UsernamePasswordAuthenticationToken.authenticated(auth.getPrincipal(), null, roles);

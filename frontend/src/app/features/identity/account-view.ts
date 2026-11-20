@@ -1,4 +1,5 @@
 export interface AccountView {
+  roles?: ('HOST' | 'MUSICIAN' | 'PARTICIPANT')[];
   email: string;
   name?: string;
   role: 'HOST' | 'MUSICIAN' | 'PARTICIPANT';
@@ -16,4 +17,8 @@ export function accountStatus(account: AccountView) {
   if (account.status === 'SUSPENDED') return 'Acesso suspenso';
   if (!account.emailVerified) return 'Confirme seu e-mail';
   return account.status === 'APPROVED' ? 'Acesso liberado' : 'Aguardando aprovação';
+}
+
+export function accountHasRole(account: AccountView, role: AccountView['role']) {
+  return (account.roles ?? [account.role]).includes(role);
 }

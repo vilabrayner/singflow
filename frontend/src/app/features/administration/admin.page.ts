@@ -1,3 +1,4 @@
+import { PanelSwitcher } from '../../shared/components/panel-switcher';
 import { MenuPopover } from '../../shared/components/menu-popover';
 import { PanelWorkspace } from '../../shared/components/panel-workspace';
 import { AdminBranding } from './admin-branding';
@@ -33,6 +34,7 @@ interface Event {
   selector: 'app-admin-page',
   styleUrls: ['../../shared/styles/admin-collections.css', './admin.page.css'],
   imports: [
+    PanelSwitcher,
     PanelHeader,
     MenuPopover,
     PanelWorkspace,
@@ -93,6 +95,45 @@ export class AdminPage implements OnInit {
   readonly total = signal(0);
   readonly page = signal(0);
   readonly selected = signal<Account | null>(null);
+  readonly profileDraft = signal<string[]>([]);
+  readonly profileChoices = [
+    { value: 'HOST', label: 'Anfitrião' },
+    { value: 'MUSICIAN', label: 'Músico' },
+    { value: 'PARTICIPANT', label: 'Participante' },
+  ];
+  toggleProfile(role: string, checked: boolean) {
+    if (this.busy() || role === this.selected()?.role) return;
+    this.profileDraft.update((roles) =>
+      checked ? [...new Set([...roles, role])] : roles.filter((value) => value !== role),
+    );
+  }
+  async saveProfiles() {
+    const account = this.selected();
+    if (!account || this.busy()) return;
+    this.busy.set(true);
+    this.dialogError.set('');
+    try {
+      const saved = await this.api.post<Account>('/admin/accounts/profiles', {
+        email: account.email,
+        roles: this.profileDraft(),
+        version: account.version,
+      });
+      this.selected.set(saved);
+      this.profileDraft.set(saved.roles ?? [saved.role]);
+      this.accounts.update((rows) => rows.map((row) => (row.email === saved.email ? saved : row)));
+      if (this.auth.current()?.email === saved.email) this.auth.current.set(saved);
+      this.notifications.success('Perfis atualizados.');
+      this.events.set(
+        await this.api.get<Event[]>(
+          `/admin/accounts/history?email=${encodeURIComponent(saved.email)}`,
+        ),
+      );
+    } catch (error) {
+      this.dialogError.set(apiError(error));
+    } finally {
+      this.busy.set(false);
+    }
+  }
   readonly events = signal<Event[]>([]);
   readonly decision = signal('');
   readonly reason = signal('');
@@ -153,6 +194,7 @@ export class AdminPage implements OnInit {
   private async access() {
     try {
       const a = await this.api.get<AccountView>('/auth/me');
+      this.auth.current.set(a);
       this.authorized.set(!!a.administrator && accountActive(a));
       this.forbidden.set(!this.authorized());
       if (this.authorized()) await this.load(0);
@@ -230,6 +272,7 @@ export class AdminPage implements OnInit {
   }
   async open(a: Account) {
     this.selected.set(a);
+    this.profileDraft.set(a.roles ?? [a.role]);
     this.decision.set('');
     this.dialogError.set('');
     this.events.set([]);
@@ -313,6 +356,7 @@ export class AdminPage implements OnInit {
     return (
       (
         {
+          PROFILES_CHANGED: 'Perfis atualizados',
           REGISTERED: 'Cadastro recebido',
           VERIFICATION_SENT: 'Confirmação enviada',
           EMAIL_VERIFIED: 'E-mail confirmado',

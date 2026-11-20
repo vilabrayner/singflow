@@ -28,6 +28,7 @@ class CatalogEnrichmentWorker {
     catch(RejectedExecutionException e){running.set(false);}
   }
   void processOne(){
+    if(queue.applyPrepared())return;
     var next=queue.claim();if(next.isEmpty())return;var claim=next.get();
     try{
       List<CatalogEnrichment.Candidate> candidates;

@@ -34,3 +34,14 @@ Preferências pessoais de cifra do músico e a exibição de letras após aceite
 
 
 A política de cache de letras foi atualizada: o enriquecimento chama `LyricsSessionCache.findForSong`, que identifica sessões abertas consumidoras da música. Sem sessão aberta, não busca texto. Letra encontrada permanece em memória até o encerramento da última sessão consumidora, conforme ADR 008; os candidatos de links persistidos não são apagados com o cache.
+
+
+## Revisão aprovada — 19/11/2026
+
+A exigência de confirmação para todo vínculo foi substituída por vínculo automático
+do primeiro resultado de cifra/Spotify/YouTube, sem sobrescrever referências já
+existentes. A posição vem do provedor. Sugestões antigas READY são aproveitadas
+sem nova consulta; gravação passa pelos validadores dos adaptadores e auditoria.
+Correção oficial pode ser feita por admin no painel do músico, usando o mesmo
+editor. Letra, limites, tentativas, claims e descarte de resultados antigos são
+preservados. [Escopo e operação](../account-profiles-and-catalog-editing.md).

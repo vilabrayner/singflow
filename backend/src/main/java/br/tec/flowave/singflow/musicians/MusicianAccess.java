@@ -47,7 +47,7 @@ public class MusicianAccess {
     return jdbc.sql(
             "SELECT a.account_id,CASE WHEN trim(a.display_name)='' THEN 'Músico ' ||"
                 + " left(a.account_id::text,8) ELSE a.display_name END AS name,a.email_verified AND"
-                + " a.status='APPROVED' AS enabled FROM singflow.musician_session_grants g JOIN"
+                + " a.status='APPROVED' AND singflow.has_account_role(a.email,'MUSICIAN') AS enabled FROM singflow.musician_session_grants g JOIN"
                 + " singflow.host_accounts a ON a.email=g.email WHERE g.session_id=? AND g.active"
                 + " ORDER BY lower(a.display_name),a.account_id")
         .param(session)
@@ -133,25 +133,18 @@ public class MusicianAccess {
 
   @Transactional(readOnly = true)
   public List<SessionAccess.SessionView> list(String actor, boolean host) {
-    if (host)
-      return sessions.list(actor).stream().filter(s -> !s.status().equals("DRAFT")).toList();
-    return jdbc
-        .sql(
-            "SELECT session_id FROM singflow.musician_session_grants WHERE email=? AND active ORDER"
-                + " BY created_at DESC")
-        .param(actor)
-        .query(UUID.class)
-        .list()
-        .stream()
-        .map(id -> sessions.audienceContext(id).session())
-        .filter(s -> !s.status().equals("DRAFT"))
-        .toList();
+    var result=new LinkedHashMap<UUID,SessionAccess.SessionView>();
+    if(host || accounts.administrator(actor))sessions.list(actor).stream().filter(s->!s.status().equals("DRAFT")).forEach(s->result.put(s.id(),s));
+    if(accounts.hasRole(actor,"MUSICIAN"))jdbc.sql("SELECT session_id FROM singflow.musician_session_grants WHERE email=? AND active ORDER BY created_at DESC")
+      .param(actor).query(UUID.class).list().stream().map(id->sessions.audienceContext(id).session())
+      .filter(s->!s.status().equals("DRAFT")).forEach(s->result.putIfAbsent(s.id(),s));
+    return List.copyOf(result.values());
   }
 
   @Transactional
   public PerformanceView performance(UUID session, String actor, boolean host) {
     var context = sessions.lockAudienceContext(session, false);
-    if (!(host && context.owner().equals(actor)) && !assigned(session, actor))
+    if (!accounts.administrator(actor) && !(host && context.owner().equals(actor)) && !(accounts.hasRole(actor,"MUSICIAN") && assigned(session, actor)))
       throw new ResponseStatusException(
           HttpStatus.NOT_FOUND, "Sessão indisponível para este músico.");
     return new PerformanceView(context.session(), stage.snapshot(session, context.owner()),chords.session(session,actor),streaming.session(session));
@@ -160,7 +153,7 @@ public class MusicianAccess {
   public PerformanceView recordKey(UUID session,String actor,UUID call,long version,String key) {
     accounts.requireMusician(actor);
     var context=sessions.lockAudienceContext(session,false);
-    if(!assigned(session,actor)) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Sessão indisponível para este músico.");
+    if(!assigned(session,actor) && !context.owner().equals(actor) && !accounts.administrator(actor)) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Sessão indisponível para este músico.");
     stage.recordPerformedKey(session,context.owner(),actor,call,version,key);
     return new PerformanceView(context.session(),stage.snapshot(session,context.owner()),chords.session(session,actor),streaming.session(session));
   }
@@ -168,8 +161,8 @@ public class MusicianAccess {
   @Transactional
   public CifraResources.Link chordContext(UUID session,String actor,UUID song) {
     accounts.requireMusician(actor);
-    sessions.lockAudienceContext(session,false);
-    if(!assigned(session,actor) || !jdbc.sql("SELECT EXISTS(SELECT 1 FROM singflow.song_requests WHERE session_id=:session AND catalog_song_id=:song) OR EXISTS(SELECT 1 FROM singflow.stage_calls WHERE session_id=:session AND catalog_song_id=:song)").param("session",session).param("song",song).query(Boolean.class).single())
+    var context=sessions.lockAudienceContext(session,false);
+    if((!assigned(session,actor) && !context.owner().equals(actor) && !accounts.administrator(actor)) || !jdbc.sql("SELECT EXISTS(SELECT 1 FROM singflow.song_requests WHERE session_id=:session AND catalog_song_id=:song) OR EXISTS(SELECT 1 FROM singflow.stage_calls WHERE session_id=:session AND catalog_song_id=:song)").param("session",session).param("song",song).query(Boolean.class).single())
       throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Música indisponível para este músico nesta sessão.");
     return chords.get(song,actor);
   }

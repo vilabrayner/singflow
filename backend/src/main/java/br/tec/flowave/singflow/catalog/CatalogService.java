@@ -125,6 +125,7 @@ public class CatalogService {
                 + " VALUES(?,?,?,?,?,?,cast(? AS jsonb),cast(? AS jsonb))")
         .params(UUID.randomUUID(), id, id, actor, action, reason, before, snapshot(id))
         .update();
+    events.publishEvent(new CatalogSongChanged(id));
   }
 
   private Song insert(

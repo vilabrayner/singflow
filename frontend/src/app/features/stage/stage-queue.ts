@@ -58,7 +58,18 @@ import { Suggestion } from './stage-api';
           <div class="choice-copy">
             <strong>{{ row.person.name }}</strong>
             <p>
-              {{ row.person.title || 'Música a escolher' }}
+              @if (catalogEditable() && row.person.catalogSongId) {
+                <button
+                  type="button"
+                  class="sf-button sf-text"
+                  [attr.aria-label]="'Editar música ' + row.person.title"
+                  (click)="songEdited.emit(row.person.catalogSongId!)"
+                >
+                  {{ row.person.title || 'Música a escolher' }}
+                </button>
+              } @else {
+                {{ row.person.title || 'Música a escolher' }}
+              }
               @if (row.person.artist) {
                 <br />{{ row.person.artist }}
               }
@@ -98,6 +109,8 @@ export class StageQueue {
   readonly chords = input<Record<string, ChordLink>>({});
   readonly streaming = input<Record<string, StreamingLink[]>>({});
   readonly chordChosen = output<ChordSong>();
+  readonly catalogEditable = input(false);
+  readonly songEdited = output<string>();
   readonly suggestions = input.required<Suggestion[]>();
   readonly searchable = input(false);
   readonly search = signal('');

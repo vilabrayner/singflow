@@ -22,6 +22,7 @@
       (openedChange)="$event ? toggleAccount() : dismissAccount()"
     >
       <div id="host-account-options" class="sf-account-panel">
+        <app-panel-switcher (chosen)="accountOptions.set(false)" />
         <p class="sf-account-email">{{ email() }}</p>
         @if (selected(); as session) {
           <section class="sf-account-current-session" aria-label="Sessão atual">

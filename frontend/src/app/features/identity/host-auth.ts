@@ -1,10 +1,11 @@
-import { inject, Injectable } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { AccountView, accountActive } from './account-view';
+import { AccountView, accountActive, accountHasRole } from './account-view';
 import { ApiClient } from '../../core/http/api-client';
 @Injectable({ providedIn: 'root' })
 export class HostAuth {
+  readonly current = signal<AccountView | null>(null);
   private readonly api = inject(ApiClient);
   private readonly router = inject(Router);
   async account() {
@@ -13,11 +14,12 @@ export class HostAuth {
       await this.router.navigateByUrl('/conta');
       throw new HttpErrorResponse({ status: 401 });
     }
+    this.current.set(account);
     return account;
   }
   async me() {
     const account = await this.account();
-    if (account.role && account.role !== 'HOST' && !account.administrator)
+    if (account.role && !accountHasRole(account, 'HOST') && !account.administrator)
       throw new HttpErrorResponse({ status: 401 });
     return account;
   }
@@ -26,6 +28,7 @@ export class HostAuth {
     return this.api.post<void>('/auth/login', body);
   }
   logout() {
+    this.current.set(null);
     return this.api.post<void>('/auth/logout');
   }
 }

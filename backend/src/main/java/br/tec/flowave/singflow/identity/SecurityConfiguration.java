@@ -22,7 +22,7 @@ class SecurityConfiguration {
   UserDetailsService userDetailsService(JdbcClient jdbc) {
     return email ->
         jdbc.sql(
-                "SELECT email, password_hash, role, administrator FROM singflow.host_accounts WHERE"
+                "SELECT email, password_hash, role, administrator, singflow.account_roles(email) AS roles FROM singflow.host_accounts WHERE"
                     + " email = :email")
             .param("email", email.trim().toLowerCase(java.util.Locale.ROOT))
             .query(
@@ -30,9 +30,10 @@ class SecurityConfiguration {
                     User.withUsername(rs.getString("email"))
                         .password(rs.getString("password_hash"))
                         .roles(
-                            rs.getBoolean("administrator")
-                                ? new String[] {rs.getString("role"), "ADMIN"}
-                                : new String[] {rs.getString("role")})
+                            java.util.stream.Stream.concat(
+                                java.util.Arrays.stream((String[]) rs.getArray("roles").getArray()),
+                                rs.getBoolean("administrator") ? java.util.stream.Stream.of("ADMIN") : java.util.stream.Stream.empty())
+                                .toArray(String[]::new))
                         .build())
             .optional()
             .orElseThrow(() -> new UsernameNotFoundException("Credenciais inválidas"));
@@ -58,7 +59,7 @@ class SecurityConfiguration {
           access.requestMatchers("/api/auth/me", "/api/participant-account/**").hasAnyRole("HOST", "MUSICIAN", "PARTICIPANT");
           access
               .requestMatchers("/api/musicians/**")
-              .hasAnyRole("HOST", "MUSICIAN");
+              .hasAnyRole("HOST", "MUSICIAN", "ADMIN");
           access.requestMatchers("/api/sessions", "/api/sessions/**").hasAnyRole("HOST", "ADMIN");
           access.anyRequest().denyAll();
         });
